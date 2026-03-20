@@ -1,0 +1,16 @@
+{
+  "name": "skill-feedback",
+  "version": "1.0.0",
+  "description": "End-of-session skill auditor that reviews all skills used in the current Claude Code session and raises GitHub Issues with actionable improvement feedback. Includes a PostToolUse hook for automatic skill invocation tracking.",
+  "author": {
+    "name": "Manish"
+  },
+  "keywords": [
+    "skills",
+    "feedback",
+    "audit",
+    "retrospective",
+    "github-issues",
+    "continuous-improvement"
+  ]
+}
