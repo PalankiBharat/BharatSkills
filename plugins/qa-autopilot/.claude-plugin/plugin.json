@@ -1,0 +1,5 @@
+{
+  "name": "qa-autopilot",
+  "description": "Automated QA testing — analyzes git changes, generates test cases, and executes on Android devices.",
+  "version": "1.0.0"
+}

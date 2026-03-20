@@ -1,0 +1,32 @@
+{
+  "name": "punchhq-skills",
+  "owner": {
+    "name": "PunchHQ",
+    "email": "manish@punchhq.com"
+  },
+  "metadata": {
+    "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",
+    "version": "1.0.0",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "feature-analyzer",
+      "source": "./plugins/feature-analyzer",
+      "description": "Comprehensive user story and feature analysis for Android development. Analyzes feature specs, user stories, and JIRA tickets with a two-phase interrogation and analysis workflow.",
+      "version": "1.0.0",
+      "category": "analysis",
+      "tags": ["android", "feature-analysis", "user-stories", "pre-dev", "qa"],
+      "keywords": ["analyze", "feature", "story", "impact", "pre-dev"]
+    },
+    {
+      "name": "qa-autopilot",
+      "source": "./plugins/qa-autopilot",
+      "description": "Automated QA testing — analyzes git branch changes, generates comprehensive test cases, and executes them on a real Android device via phone-driver.",
+      "version": "1.0.0",
+      "category": "testing",
+      "tags": ["android", "qa", "testing", "automation", "adb"],
+      "keywords": ["qa", "test", "autopilot", "regression", "performance"]
+    }
+  ]
+}
