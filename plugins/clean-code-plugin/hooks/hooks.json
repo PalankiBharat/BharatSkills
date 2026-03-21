@@ -5,9 +5,10 @@
         "matcher": "Write|Edit",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "You are about to write or edit code. Before proceeding, you MUST follow Clean Code principles:\n\n1. **Naming**: Use intention-revealing names. Classes = nouns, functions = verbs. No abbreviations.\n2. **Functions**: Do ONE thing only. 5-20 lines. 0-2 parameters. No side effects.\n3. **No comments explaining WHAT**: Code must be self-documenting. Only comment WHY if non-obvious.\n4. **Error handling**: Use exceptions, not error codes. Never return or pass null.\n5. **Classes**: Single responsibility. High cohesion. Follow Law of Demeter.\n6. **Formatting**: Consistent style. Vertical openness between concepts. Short lines.\n7. **DRY**: No duplication. But don't over-abstract for a single use.\n8. **Boy Scout Rule**: Leave code cleaner than you found it.\n\nApply these principles to the code you are about to write. This is mandatory, not optional.",
-            "timeout": 5
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/load-clean-code.sh\"",
+            "timeout": 5,
+            "statusMessage": "Loading clean code principles..."
           }
         ]
       }
