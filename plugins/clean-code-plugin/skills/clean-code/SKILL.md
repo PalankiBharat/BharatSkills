@@ -15,19 +15,26 @@ These rules apply to ALL code you produce. No exceptions.
 4. Read `references/error-handling.md` — if code has error paths
 5. **Discover the domain language** — before writing a single line, name the problem's nouns and verbs. Every entity, action, and predicate in your code should come from this vocabulary, not from generic programming terms
 
-## Rules (Non-Negotiable)
+## Rules — Action Directives
 
-**Naming:** Intention-revealing. Classes = nouns. Functions = verbs. No abbreviations. No `data`, `info`, `a1`, `a2`. Names describe INTENT and DOMAIN concepts, not implementation mechanics (e.g., `markAsVisited` describes purpose, not `setToZero` which describes how; `isWithinOcean` speaks the domain, not `isWithinBounds` which is generic).
+**Naming — for every name, ask these questions:**
+1. "Does this name describe WHY or HOW?" If HOW (mechanism), rename to WHY (intent).
+2. "Is this word from the domain or from generic programming?" If generic, replace with domain.
+3. "Can a reader understand this without reading the implementation?" If no, rename.
 
-**Functions:** ONE thing only. 5-20 lines. 0-2 parameters. No side effects. One abstraction level per function. Apply stepdown rule — high-level entry function calls mid-level helpers which call low-level operations.
+**Functions — for every function, check:**
+1. "Does this do more than one thing?" Extract a non-restating helper if yes.
+2. "Are all lines at the same abstraction level?" If high mixed with low, extract.
+3. "Can I name each branch/direction?" If raw `row-1`, `col+1` appear inline, extract `exploreNorth()`, `exploreSouth()`, etc.
+4. 5-20 lines, 0-2 params, no side effects, no boolean flags.
 
-**Stepdown at file level:** The entry point function appears FIRST in the file, BEFORE any class or helper it delegates to. The reader encounters "what this does" before "how it works".
+**File-level stepdown:** Entry point function FIRST → class definition → helpers → primitives. Reader hits "what" before "how".
 
 **Code speaks:** No comments explaining WHAT. If you need a comment, rename or extract instead. Only comment WHY when non-obvious.
 
 **Errors:** Exceptions, not error codes. Never return null. Never pass null. Fail fast.
 
-**Classes:** Single responsibility. High cohesion. Law of Demeter — don't chain method calls on objects you got from other objects.
+**Classes:** One reason to change. High cohesion. Law of Demeter — never chain `a.getB().getC()`.
 
 **Organization:** Stepdown rule for function ordering. Group related concepts. Blank lines between concepts. 80-120 char lines.
 
