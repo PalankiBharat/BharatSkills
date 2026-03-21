@@ -7,6 +7,18 @@ description: Comprehensive guide for writing clean, maintainable code following 
 
 Write code that is readable, maintainable, and professional following Uncle Bob's Clean Code principles.
 
+## Pre-flight Checklist (MANDATORY)
+
+Before producing ANY code output, you MUST complete these steps:
+
+- [ ] Read `references/naming.md` — ALWAYS required
+- [ ] Read `references/functions.md` — if writing or reviewing functions
+- [ ] Read `references/classes.md` — if writing or reviewing classes
+- [ ] Read `references/error-handling.md` — if code involves error paths
+- [ ] Identify the problem domain language (e.g., "ocean" not "grid", "submerge" not "sink")
+
+**DO NOT skip this checklist. DO NOT produce code from generic knowledge when reference files exist with specific guidance.**
+
 ## Core Philosophy
 
 **Clean code reads like well-written prose.** Code is read far more often than it is written. Optimize for the reader, not the writer.
@@ -98,12 +110,14 @@ Duplication is the root of evil in software. Extract common logic into reusable 
 
 ## Workflow for Writing Clean Code
 
-1. **Write working code first** - Get it functional
-2. **Refactor ruthlessly** - Apply clean code principles
-3. **Name with care** - Spend time on meaningful names
-4. **Extract functions** - Break down complex logic
-5. **Remove comments** - Replace with expressive code
-6. **Test thoroughly** - Ensure refactoring didn't break anything
+0. **Read references** - Read the relevant reference files for the type of code you're about to write. This is NOT optional. Confirm you have loaded them before proceeding.
+1. **Identify domain language** - Name the problem domain vocabulary before writing any code
+2. **Write working code first** - Get it functional, using domain language from step 1
+3. **Refactor ruthlessly** - Apply clean code principles
+4. **Name with care** - Spend time on meaningful names
+5. **Extract functions** - Break down complex logic, apply stepdown rule
+6. **Remove comments** - Replace with expressive code
+7. **Test thoroughly** - Ensure refactoring didn't break anything
 
 ## Code Review Checklist
 
@@ -139,4 +153,4 @@ For detailed guidelines on specific topics, see:
 - **references/error-handling.md** - Exception management, null handling, fail-fast patterns
 - **references/testing.md** - Unit testing best practices, TDD, F.I.R.S.T. principles
 
-Load these references when working on specific aspects for comprehensive guidance.
+**You MUST read the relevant references BEFORE producing any code output.** This is not a suggestion — it is a requirement. The reference files contain specific domain examples and naming conventions that override generic knowledge.
