@@ -35,6 +35,10 @@
    2c. Primitive helpers (low-level)
 ```
 
+## Comments
+
+- **No section-header comments** (`// --- PIN Validation ---`, `// ========== Setup ==========`). Use blank lines between concept groups instead. If a file needs headers to stay navigable, the class has too many responsibilities — split it.
+
 ## Classes
 
 - **"Does this class have more than one reason to change?"** If yes, split it.

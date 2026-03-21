@@ -30,7 +30,7 @@ These rules apply to ALL code you produce. No exceptions.
 
 **File-level stepdown:** Entry point function FIRST → class definition → helpers → primitives. Reader hits "what" before "how".
 
-**Code speaks:** No comments explaining WHAT. If you need a comment, rename or extract instead. Only comment WHY when non-obvious.
+**Code speaks:** No comments explaining WHAT. If you need a comment, rename or extract instead. Only comment WHY when non-obvious. **No section-header comments** (`// --- Section ---`, `// ===== Setup =====`) — use blank lines between concept groups. If headers are needed, the class has too many responsibilities.
 
 **Errors:** Exceptions, not error codes. Never return null. Never pass null. Fail fast.
 
@@ -56,6 +56,7 @@ These rules apply to ALL code you produce. No exceptions.
 - [ ] Domain language used throughout, not generic terms
 - [ ] No null returns, no ignored exceptions
 - [ ] No dead code, no commented-out code
+- [ ] No section-header comments — blank lines separate concept groups
 
 ## Pre-loaded Rules Card
 
