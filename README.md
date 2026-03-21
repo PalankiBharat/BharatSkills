@@ -8,6 +8,7 @@ A plugin marketplace for Claude Code, distributing skills for Android developmen
 |---|---|
 | `feature-analyzer` | Two-phase user story and feature analysis for Android development |
 | `qa-autopilot` | Automated QA — analyzes git changes, generates test cases, executes on Android devices |
+| `clean-code` | Clean Code guidelines following Robert C. Martin's principles — naming, functions, classes, error handling, testing |
 
 ## Installation
 
