@@ -16,8 +16,8 @@ SKILL_CONTENT=$(cat "$SKILL_FILE")
 cat <<ENDJSON
 {
   "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "additionalContext": "CLEAN CODE PREHOOK: You are about to write/edit code. Follow these principles:\n\n${SKILL_CONTENT//\"/\\\"}\n\nLoad the relevant references/ files from ${PLUGIN_ROOT}/skills/clean-code/references/ when you need detailed guidance on a specific topic (naming, functions, classes, comments, formatting, error-handling, testing)."
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "CLEAN CODE PREHOOK: If this task involves writing, editing, or generating ANY code, you MUST follow these principles:\n\n${SKILL_CONTENT//\"/\\\"}\n\nLoad the relevant references/ files from ${PLUGIN_ROOT}/skills/clean-code/references/ when you need detailed guidance on a specific topic (naming, functions, classes, comments, formatting, error-handling, testing)."
   }
 }
 ENDJSON
