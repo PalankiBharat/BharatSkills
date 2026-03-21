@@ -50,12 +50,16 @@ These rules apply to ALL code you produce. No exceptions.
 - [ ] No null returns, no ignored exceptions
 - [ ] No dead code, no commented-out code
 
-## Deep Dive References
+## Pre-loaded Rules Card
 
+The prehook injects `references/rules-card.md` — a condensed summary of ALL clean code rules (~50 lines). This is always available in your context. USE IT.
+
+## Deep Dive References (read when you need full examples)
+
+- `references/functions.md` — function design, stepdown rule, extraction patterns (includes Number of Islands canonical example)
 - `references/naming.md` — naming conventions with domain examples
-- `references/functions.md` — function design, stepdown rule, extraction patterns
 - `references/classes.md` — SOLID, cohesion, encapsulation
+- `references/error-handling.md` — exception patterns, null handling
 - `references/comments.md` — when to comment (almost never)
 - `references/formatting.md` — vertical/horizontal layout
-- `references/error-handling.md` — exception patterns, null handling
 - `references/testing.md` — TDD, F.I.R.S.T. principles
