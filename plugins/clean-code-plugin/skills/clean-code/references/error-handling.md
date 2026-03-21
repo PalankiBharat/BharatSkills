@@ -187,6 +187,51 @@ emp = get_employee(123)
 pay = emp.calculate_pay()  # Works even if employee not found
 ```
 
+## Validation Functions — Never Return Nullable Strings
+
+A common anti-pattern: validation functions that return `null` for success and an error string for failure. This violates "never return null" and forces callers into null-checking:
+
+```kotlin
+// Bad — nullable String encodes two meanings in one type
+fun validateWithdrawalAmount(amount: BigDecimal): String? {
+    if (amount <= BigDecimal.ZERO) return "Amount must be positive"
+    if (amount > balance) return "Insufficient funds"
+    return null  // null means "valid" — invisible contract
+}
+
+// Caller must remember what null means
+val error = validateWithdrawalAmount(amount)
+if (error != null) { showError(error) }
+
+// Good — sealed type makes success/failure explicit
+sealed class ValidationResult {
+    object Valid : ValidationResult()
+    data class Invalid(val reason: String) : ValidationResult()
+}
+
+fun validateWithdrawalAmount(amount: BigDecimal): ValidationResult {
+    if (amount <= BigDecimal.ZERO) return Invalid("Amount must be positive")
+    if (amount > balance) return Invalid("Insufficient funds")
+    return Valid
+}
+
+// Caller is forced to handle both cases
+when (val result = validateWithdrawalAmount(amount)) {
+    is Valid -> processWithdrawal(amount)
+    is Invalid -> showError(result.reason)
+}
+
+// Also good — throw if validation is a precondition
+fun requireValidWithdrawalAmount(amount: BigDecimal) {
+    require(amount > BigDecimal.ZERO) { "Amount must be positive" }
+    require(amount <= balance) { "Insufficient funds: $amount exceeds $balance" }
+}
+```
+
+Choose based on context:
+- **Sealed Result**: when the caller needs to handle both paths (form validation, UI feedback)
+- **Throw**: when invalid input is a programming error or precondition violation
+
 ## Don't Pass Null
 
 Passing null into methods is even worse than returning it:

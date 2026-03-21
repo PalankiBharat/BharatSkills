@@ -49,6 +49,7 @@
 
 - Exceptions, not error codes. Extract try/catch into its own function.
 - Never return null — throw or use Optional. Never pass null — validate at boundaries.
+- **Validation functions must not return nullable strings** (`String?`). Use a sealed Result type (`Valid`/`Invalid(reason)`) or throw. Nullable-string-as-error is a disguised null return.
 - Fail fast — detect problems at entry, not deep in the call stack.
 
 ## The Litmus Test
