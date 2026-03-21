@@ -92,11 +92,11 @@ private fun markAsVisited(row: Int, col: Int) {
 }
 ```
 
-Notice:
-- `isWithinOcean` — not `checkBounds`, not `isValid`. It says exactly what it checks.
-- `isLand` — not `checkCell`, not `isOne`. It speaks the domain.
-- `markAsVisited` — not `setZero`, not `updateCell`. It tells you *why*, not *how*.
-- No `ocean` parameter anywhere — the class holds shared context, keeping signatures focused on what varies.
+The principle at work:
+- **Domain over generic** — `isWithinOcean` not `checkBounds`. The name speaks the problem's language, not programming-generic language.
+- **Concept over value** — `isLand` not `isOne`. The name describes what the value MEANS, not what it IS.
+- **Intent over mechanism** — `markAsVisited` not `setToZero`. The name describes WHY we do it (tracking traversal), not HOW (changing a char).
+- **Class as shared context** — No `ocean` parameter anywhere. The class holds shared state, keeping signatures focused on what varies.
 
 ### The Naming Litmus Test
 
@@ -118,7 +118,7 @@ if (check(i, j)) {     // "if check i j" — meaningless
 
 ## The Stepdown Rule: Tell a Story Top-Down
 
-Code reads like a narrative. Start at the highest level, then define each term:
+Code reads like a narrative. The entry point function appears FIRST in the file — before any class or helper it delegates to. The reader encounters "what this does" before "how it works". Then each subsequent level defines the terms used above:
 
 ```
 TO count islands, we scan each cell — if it is land, we count it and submerge it.

@@ -13,15 +13,15 @@ These rules apply to ALL code you produce. No exceptions.
 2. Read `references/functions.md` — if writing functions
 3. Read `references/classes.md` — if writing classes
 4. Read `references/error-handling.md` — if code has error paths
-5. Identify the problem's **domain language** — use domain nouns/verbs, not generic ones
-
-**If reference files contain examples for the exact problem being solved, you MUST follow them over your own generic knowledge.**
+5. **Discover the domain language** — before writing a single line, name the problem's nouns and verbs. Every entity, action, and predicate in your code should come from this vocabulary, not from generic programming terms
 
 ## Rules (Non-Negotiable)
 
-**Naming:** Intention-revealing. Classes = nouns. Functions = verbs. No abbreviations. No `data`, `info`, `a1`, `a2`. Use domain vocabulary.
+**Naming:** Intention-revealing. Classes = nouns. Functions = verbs. No abbreviations. No `data`, `info`, `a1`, `a2`. Names describe INTENT and DOMAIN concepts, not implementation mechanics (e.g., `markAsVisited` describes purpose, not `setToZero` which describes how; `isWithinOcean` speaks the domain, not `isWithinBounds` which is generic).
 
 **Functions:** ONE thing only. 5-20 lines. 0-2 parameters. No side effects. One abstraction level per function. Apply stepdown rule — high-level entry function calls mid-level helpers which call low-level operations.
+
+**Stepdown at file level:** The entry point function appears FIRST in the file, BEFORE any class or helper it delegates to. The reader encounters "what this does" before "how it works".
 
 **Code speaks:** No comments explaining WHAT. If you need a comment, rename or extract instead. Only comment WHY when non-obvious.
 
@@ -45,7 +45,7 @@ These rules apply to ALL code you produce. No exceptions.
 
 - [ ] Every name reveals intent without needing a comment
 - [ ] Every function does one thing, 5-20 lines, 0-2 params
-- [ ] Stepdown rule applied — read top-to-bottom like prose
+- [ ] Stepdown rule applied — entry point first, then class/helpers, read top-to-bottom like prose
 - [ ] Domain language used throughout, not generic terms
 - [ ] No null returns, no ignored exceptions
 - [ ] No dead code, no commented-out code

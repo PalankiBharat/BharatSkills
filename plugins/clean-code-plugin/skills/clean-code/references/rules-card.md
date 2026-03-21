@@ -6,14 +6,15 @@
 - Functions = verbs (`deletePage`, `saveUser`, `isValid`)
 - Booleans = predicates (`isValid`, `hasPermission`, `canEdit`)
 - One word per concept — don't mix `fetch/retrieve/get`
-- Use DOMAIN vocabulary, not generic terms (e.g., `ocean` not `grid`, `submerge` not `sink`)
+- **Domain vocabulary over generic terms** — discover the problem's nouns/verbs BEFORE coding, then use them everywhere. `isWithinOcean` not `isWithinBounds`, `submergeIsland` not `processCell`
+- **Intent over implementation** — names describe PURPOSE, not mechanism. `markAsVisited` (why) not `setToZero` (how). `isLand` (what it means) not `isOne` (what the value is)
 - Searchable names — no magic numbers, no single-letter vars outside tiny loops
 - Language conventions: Python=snake_case, JS/TS/Java/Kotlin=camelCase, Classes=PascalCase
 
 ## Functions
 - ONE thing only. If you can extract a non-restating function, it does too much
 - 5-20 lines. Max indent level 2. 0-2 parameters (use objects for more)
-- Stepdown rule: high-level calls mid-level calls low-level. Reads like prose top-to-bottom
+- Stepdown rule: entry point FIRST in file, then class/helpers, then low-level. Reads like prose top-to-bottom
 - No side effects — function does what name promises, nothing more
 - No flag args — split `render(true)` into `renderForSuite()` / `renderForSingleTest()`
 - Command-query separation: either DO something or ANSWER something, not both
