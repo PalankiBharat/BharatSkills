@@ -1,14 +1,15 @@
 # PunchHQ Claude Code Skills Marketplace
 
-A plugin marketplace for Claude Code, distributing skills for Android development workflows.
+A plugin marketplace for Claude Code, distributing skills for development workflows.
 
 ## Available Plugins
 
-| Plugin | Description |
-|---|---|
-| `feature-analyzer` | Two-phase user story and feature analysis for Android development |
-| `qa-autopilot` | Automated QA — analyzes git changes, generates test cases, executes on Android devices |
-| `clean-code` | Clean Code guidelines following Robert C. Martin's principles — naming, functions, classes, error handling, testing |
+| Plugin | Version | Description |
+|---|---|---|
+| `feature-analyzer` | 1.0.0 | Two-phase user story and feature analysis for Android development |
+| `qa-autopilot` | 1.0.0 | Automated QA — analyzes git changes, generates test cases, executes on Android devices |
+| `skill-feedback` | 1.0.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
+| `clean-code` | 1.2.4 | Clean Code principles (Uncle Bob) with auto-loading prehook — naming, functions, classes, error handling, testing |
 
 ## Installation
 
@@ -18,12 +19,13 @@ A plugin marketplace for Claude Code, distributing skills for Android developmen
 /plugin marketplace add PunchHQ/claude-code-skills
 ```
 
-### 2. Install a plugin
+### 2. Install plugins
 
 ```shell
-# Install a specific plugin
 /plugin install feature-analyzer@punchhq-skills
 /plugin install qa-autopilot@punchhq-skills
+/plugin install skill-feedback@punchhq-skills
+/plugin install clean-code@punchhq-skills
 ```
 
 ### 3. Use the skills
@@ -34,9 +36,15 @@ analyze this feature: Add dark mode support to settings
 
 # QA autopilot
 test my changes
+
+# Skill feedback (end of session)
+skill feedback
+
+# Clean code (auto-loads via hook on every prompt, or invoke manually)
+/clean-code:clean-code
 ```
 
-## For teams
+## For Teams
 
 Add this to your project's `.claude/settings.json` to auto-prompt teammates to install the marketplace:
 
@@ -53,20 +61,22 @@ Add this to your project's `.claude/settings.json` to auto-prompt teammates to i
 }
 ```
 
-To also pre-enable specific plugins:
+To pre-enable specific plugins:
 
 ```json
 {
   "enabledPlugins": {
     "feature-analyzer@punchhq-skills": true,
-    "qa-autopilot@punchhq-skills": true
+    "qa-autopilot@punchhq-skills": true,
+    "skill-feedback@punchhq-skills": true,
+    "clean-code@punchhq-skills": true
   }
 }
 ```
 
 ## Updating
 
-Users get updates automatically, or manually:
+Users get updates automatically at startup, or manually:
 
 ```shell
 /plugin marketplace update
@@ -77,37 +87,59 @@ Users get updates automatically, or manually:
 ```
 claude-code-skills/
 ├── .claude-plugin/
-│   └── marketplace.json          # Marketplace catalog
+│   └── marketplace.json              # Marketplace catalog
 ├── plugins/
 │   ├── feature-analyzer/
 │   │   ├── .claude-plugin/
-│   │   │   └── plugin.json       # Plugin manifest
+│   │   │   └── plugin.json
 │   │   └── skills/
 │   │       └── feature-analyzer/
 │   │           ├── SKILL.md
 │   │           └── references/
-│   └── qa-autopilot/
+│   ├── qa-autopilot/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── skills/
+│   │       └── qa-autopilot/
+│   │           ├── SKILL.md
+│   │           ├── references/
+│   │           └── scripts/
+│   ├── skill-feedback-plugin/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   ├── hooks/
+│   │   │   └── hooks.json            # PostToolUse hook for tracking
+│   │   ├── scripts/
+│   │   └── skills/
+│   │       └── skill-feedback/
+│   │           ├── SKILL.md
+│   │           └── references/
+│   └── clean-code-plugin/
 │       ├── .claude-plugin/
 │       │   └── plugin.json
+│       ├── hooks/
+│       │   └── hooks.json            # UserPromptSubmit prehook
+│       ├── scripts/
+│       │   └── load-clean-code.sh    # Injects SKILL.md + rules card
 │       └── skills/
-│           └── qa-autopilot/
+│           └── clean-code/
 │               ├── SKILL.md
-│               ├── references/
-│               └── scripts/
+│               └── references/
 └── README.md
 ```
 
-## Adding a new plugin
+## Adding a New Plugin
 
 1. Create a directory under `plugins/<plugin-name>/`
 2. Add `.claude-plugin/plugin.json` with name, description, version
 3. Add skills under `skills/<skill-name>/SKILL.md`
-4. Add the plugin entry to `.claude-plugin/marketplace.json`
-5. Validate: `/plugin validate .`
+4. Optionally add `hooks/hooks.json` for pre/post hooks
+5. Add the plugin entry to `.claude-plugin/marketplace.json`
+6. Validate: `/plugin validate .`
+7. Bump version in both `plugin.json` and `marketplace.json` for updates
 
 ## Validation
 
 ```shell
-# From the repo root
 claude plugin validate .
 ```
