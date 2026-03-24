@@ -9,7 +9,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `feature-analyzer` | 1.0.0 | Two-phase user story and feature analysis for Android development |
 | `qa-autopilot` | 1.0.0 | Automated QA — analyzes git changes, generates test cases, executes on Android devices |
 | `skill-feedback` | 1.0.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
-| `clean-code` | 1.2.5 | Clean Code principles (Uncle Bob) with auto-loading prehook — naming, functions, classes, error handling, testing |
+| `clean-code` | 1.2.6 | Clean Code principles (Uncle Bob) with auto-loading prehook — naming, functions, classes, error handling, testing |
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
 
 ## Installation

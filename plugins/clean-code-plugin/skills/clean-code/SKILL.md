@@ -9,11 +9,10 @@ These rules apply to ALL code you produce. No exceptions.
 
 ## Step 0: Before Writing ANY Code
 
-1. Read `./references/naming.md` — ALWAYS
-2. Read `./references/functions.md` — if writing functions
-3. Read `./references/classes.md` — if writing classes
-4. Read `./references/error-handling.md` — if code has error paths
-5. **Discover the domain language** — before writing a single line, name the problem's nouns and verbs. Every entity, action, and predicate in your code should come from this vocabulary, not from generic programming terms
+1. `naming.md` and `functions.md` are **already pre-loaded** by the prehook — apply them directly
+2. Read `classes.md` from the references directory — if writing classes
+3. Read `error-handling.md` from the references directory — if code has error paths
+4. **Discover the domain language** — before writing a single line, name the problem's nouns and verbs. Every entity, action, and predicate in your code should come from this vocabulary, not from generic programming terms
 
 ## Rules — Action Directives
 

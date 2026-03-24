@@ -1,6 +1,6 @@
 {
   "name": "clean-code",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Comprehensive guidelines for writing clean, maintainable code following Robert C. Martin's Clean Code principles. Covers naming, functions, classes, comments, formatting, error handling, and testing best practices.",
   "author": {
     "name": "Clean Code Skill",
