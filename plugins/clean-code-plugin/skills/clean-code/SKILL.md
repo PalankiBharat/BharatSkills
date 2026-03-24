@@ -10,9 +10,11 @@ These rules apply to ALL code you produce. No exceptions.
 ## Step 0: Before Writing ANY Code
 
 1. `naming.md` and `functions.md` are **already pre-loaded** by the prehook — apply them directly
-2. Read `classes.md` from the references directory — if writing classes
-3. Read `error-handling.md` from the references directory — if code has error paths
+2. If writing classes: read `classes.md` from the absolute path provided at the end of this prehook context
+3. If code has error paths: read `error-handling.md` from the same path
 4. **Discover the domain language** — before writing a single line, name the problem's nouns and verbs. Every entity, action, and predicate in your code should come from this vocabulary, not from generic programming terms
+
+**NOTE:** The prehook injects the absolute path to the references directory at the end of its context. Use that path for any file reads — relative paths will NOT work.
 
 ## Rules — Action Directives
 
