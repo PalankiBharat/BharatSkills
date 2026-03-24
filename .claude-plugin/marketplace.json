@@ -45,6 +45,15 @@
       "category": "productivity",
       "tags": ["clean-code", "code-quality", "best-practices", "software-craftsmanship", "refactoring"],
       "keywords": ["clean-code", "quality", "naming", "functions", "refactoring", "uncle-bob"]
+    },
+    {
+      "name": "skill-tester",
+      "source": "./plugins/skill-tester-plugin",
+      "description": "Automated QA loop for Claude Code skills. 3-pane tmux workflow that tests, validates, and fixes skills until production-ready.",
+      "version": "1.0.0",
+      "category": "developer-tools",
+      "tags": ["skill-testing", "validation", "quality-assurance", "tmux", "dev-loop"],
+      "keywords": ["skill-tester", "test", "validate", "qa", "skill"]
     }
   ]
 }

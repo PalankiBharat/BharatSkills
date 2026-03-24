@@ -1,0 +1,9 @@
+{
+  "name": "skill-tester",
+  "version": "1.0.0",
+  "description": "Automated QA loop for Claude Code skills. 3-pane tmux workflow that tests, validates, and fixes skills against their own quality criteria until production-ready.",
+  "author": {
+    "name": "Manish"
+  },
+  "keywords": ["skill-tester", "testing", "validation", "quality-assurance", "tmux"]
+}
