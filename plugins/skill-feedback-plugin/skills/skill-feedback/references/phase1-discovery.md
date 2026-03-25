@@ -57,34 +57,59 @@ Then ask: **"Does this look right? Any skills missing from this list that you us
 
 If the developer names additional skills (that the hook missed or that failed to trigger), add them to the review list with a `[manual]` tag.
 
-## Step 3: Per-skill experience capture
+## Step 3: Context-first experience analysis
 
-For each skill in the list, ask these four questions. Present them as a block so the developer can answer all at once:
+**BEFORE asking the developer anything**, analyze the conversation history for each skill. Look for these signals:
+
+**Negative signals (lower rating):**
+- User corrections: "no not that", "that's wrong", "don't do X"
+- Re-runs or retries of the same skill
+- User manually fixing skill output
+- Explicit frustration: "this isn't working", "it's ignoring the guidelines"
+- User having to explain what the skill should already know
+
+**Positive signals (higher rating):**
+- User accepting output without correction
+- User praising output: "perfect", "exactly", "great"
+- Moving on to next task without revisiting skill output
+- User building on skill output (indicates trust)
+
+**Auto-derive ratings:**
+- Accepted without correction → ⭐⭐⭐⭐⭐
+- Minor correction then accepted → ⭐⭐⭐⭐
+- Multiple corrections or re-runs → ⭐⭐⭐
+- User had to manually redo the work → ⭐⭐
+- Skill actively produced wrong/harmful output → ⭐
+
+### Present pre-filled assessment for confirmation
+
+For each skill, present your analysis — do NOT ask open-ended questions:
 
 ```
-━━━ feature-analyzer (2 invocations) ━━━
+━━━ clean-code (3 invocations) ━━━
 
-1. OUTPUT QUALITY: Did it produce what you expected? What was off?
-   (e.g., "missed edge cases in domain analysis", "Notion output was perfect")
+Based on our session, here's what I observed:
 
-2. WORKFLOW FRICTION: Did you have to correct, re-run, or manually fix anything?
-   (e.g., "had to re-run Phase 2 because it skipped cascading impact")
+OUTPUT QUALITY: Prehook fired but Claude ignored clean code principles
+on first pass. User had to explicitly say "it's not following guidelines"
+before references were applied. Second pass was correct.
 
-3. MISSING CAPABILITIES: Anything you wished it could do but couldn't?
-   (e.g., "should auto-detect the domain context from the codebase")
+FRICTION: User corrected output twice. Had to manually invoke
+/clean-code:clean-code after prehook was insufficient.
 
-4. RATING: 1-5 stars
-   ⭐ = Actively hindered me
-   ⭐⭐ = Didn't help much
-   ⭐⭐⭐ = Decent, but needs work
-   ⭐⭐⭐⭐ = Good, minor improvements needed
-   ⭐⭐⭐⭐⭐ = Nailed it
+MISSING: Prehook content in system-reminder was deprioritized by Claude.
+
+AUTO-RATING: ⭐⭐⭐ (decent but needed manual intervention)
+
+→ Correct anything that's off, or say "looks right" to confirm.
 ```
 
-Important behavioral rules:
-- Present ALL skills at once if there are ≤ 3 skills. If > 3, batch in groups of 3.
-- Accept terse answers. "Fine" or "4 stars, no issues" is valid. Don't push for detail when there's nothing to report.
-- If the developer says "skip" for a skill, mark it as "No feedback — skipped" and move on.
+**Behavioral rules:**
+- Present ALL skills at once if ≤ 3 skills. If > 3, batch in groups of 3.
+- If context has no signals for a skill (e.g., prehook-only, no visible interaction), say "No interaction signals found" and auto-rate ⭐⭐⭐ (neutral).
+- Accept terse confirmations: "looks right", "yep", "correct" are valid.
+- If the developer corrects your assessment, update immediately — their judgment overrides your analysis.
+- If the developer says "skip" for a skill, mark as "No feedback — skipped".
 
 ## Step 4: Capture untriggered skills
 
