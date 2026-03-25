@@ -2,17 +2,9 @@
 # skill-logger-hook.sh
 # PostToolUse hook that logs skill invocations to ~/.skill-session-log.jsonl
 #
-# Receives the PostToolUse event JSON on stdin from Claude Code.
-# Detects when a SKILL.md file under /mnt/skills/ is read and logs it.
-#
-# JSON input schema (from Claude Code):
-# {
-#   "tool_name": "Read",
-#   "tool_input": { "file_path": "/mnt/skills/user/feature-analyzer/SKILL.md" },
-#   "tool_response": { ... },
-#   "cwd": "/path/to/project",
-#   ...
-# }
+# Detects skill usage via:
+# 1. Skill tool invocations (tool_name: "Skill")
+# 2. SKILL.md reads from any location (plugin cache, /mnt/skills/, ~/.claude/skills/)
 
 set -euo pipefail
 
@@ -25,16 +17,22 @@ INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 [ -z "$TOOL_NAME" ] && exit 0
 
-# Detect SKILL.md reads
+SKILL_NAME=""
 FILE_PATH=""
 
 case "$TOOL_NAME" in
+  Skill)
+    # Direct skill invocation via /skill-name or /plugin:skill-name
+    SKILL_NAME=$(echo "$INPUT" | jq -r '.tool_input.skill // empty' 2>/dev/null)
+    # Handle namespaced skills: "plugin-name:skill-name" → "skill-name"
+    if [[ "$SKILL_NAME" == *":"* ]]; then
+      SKILL_NAME="${SKILL_NAME##*:}"
+    fi
+    ;;
   Read|View)
-    # Read tool: file_path in tool_input
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.path // empty' 2>/dev/null)
     ;;
   Bash)
-    # Bash tool: check if command reads a SKILL.md
     COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
     if echo "$COMMAND" | grep -qE '(cat|less|head|tail|bat)\s+.*SKILL\.md'; then
       FILE_PATH=$(echo "$COMMAND" | grep -oE '/[^ ]*SKILL\.md' | head -1)
@@ -45,13 +43,21 @@ case "$TOOL_NAME" in
     ;;
 esac
 
-# Only log reads of /mnt/skills/**/SKILL.md
-[ -z "$FILE_PATH" ] && exit 0
-echo "$FILE_PATH" | grep -qE '^/mnt/skills/.*/SKILL\.md$' || exit 0
+# Extract skill name from SKILL.md file path if not already set
+if [ -z "$SKILL_NAME" ] && [ -n "$FILE_PATH" ]; then
+  # Match any SKILL.md path:
+  #   /mnt/skills/{scope}/{skill}/SKILL.md
+  #   ~/.claude/plugins/cache/{marketplace}/{plugin}/{version}/skills/{skill}/SKILL.md
+  #   ~/.claude/skills/{skill}/SKILL.md
+  #   .claude/skills/{skill}/SKILL.md
+  if echo "$FILE_PATH" | grep -qE 'SKILL\.md$'; then
+    # Get the directory name containing SKILL.md — that's the skill name
+    SKILL_DIR=$(dirname "$FILE_PATH")
+    SKILL_NAME=$(basename "$SKILL_DIR")
+  fi
+fi
 
-# Extract skill name: /mnt/skills/{scope}/{skill-name}/SKILL.md → skill-name
-SKILL_NAME=$(echo "$FILE_PATH" | sed -E 's|^/mnt/skills/[^/]+/([^/]+)/SKILL\.md$|\1|')
-[ -z "$SKILL_NAME" ] || [ "$SKILL_NAME" = "$FILE_PATH" ] && exit 0
+[ -z "$SKILL_NAME" ] && exit 0
 
 # Get project name from cwd in the hook event, fallback to PWD
 PROJECT_NAME=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | xargs basename 2>/dev/null || basename "${PWD:-unknown}")
@@ -61,9 +67,9 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 jq -n \
   --arg skill "$SKILL_NAME" \
   --arg timestamp "$TIMESTAMP" \
-  --arg file_path "$FILE_PATH" \
+  --arg tool "$TOOL_NAME" \
   --arg project "$PROJECT_NAME" \
-  '{skill: $skill, timestamp: $timestamp, file_path: $file_path, project: $project}' \
+  '{skill: $skill, timestamp: $timestamp, tool: $tool, project: $project}' \
   >> "$LOG_FILE"
 
 exit 0

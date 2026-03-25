@@ -44,7 +44,12 @@ Execute these phases in order. Read the referenced file for each phase BEFORE ge
    echo '{"repo": "<owner>/<repo>"}' > ~/.skill-feedback-config.json
    ```
 3. Check if `~/.skill-session-log.jsonl` exists and has data.
-   - If empty/missing: the PostToolUse hook may not be firing. Inform the developer and fall back to manual skill listing (ask them which skills they used).
+   - If empty/missing: **fall back to conversation context analysis.** Scan the current conversation for:
+     - `<command-name>` tags (indicate skill invocations)
+     - `/plugin-name:skill-name` patterns in user messages
+     - `system-reminder` tags mentioning skill names or prehook content
+     - Any tool calls to the `Skill` tool
+   - Build the skill list from what you find in context. Do NOT ask the developer to manually list skills — extract from context first, then confirm.
 4. Run the log pruner to enforce the 7-day rolling window. The prune script is located at `../../scripts/prune-log.sh` relative to this SKILL.md (i.e., the plugin's `scripts/` directory):
    ```bash
    bash "$CLAUDE_PLUGIN_ROOT/scripts/prune-log.sh"

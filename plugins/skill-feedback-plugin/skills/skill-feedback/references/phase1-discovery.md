@@ -1,6 +1,10 @@
 # Phase 1: Discovery & Experience Capture
 
-## Step 1: Parse the session log
+## Step 1: Discover skills used
+
+Use **both** sources and merge results. Either source alone may be incomplete.
+
+### Source A: Session log
 
 Read `~/.skill-session-log.jsonl`. Each line is a JSON object:
 
@@ -8,16 +12,30 @@ Read `~/.skill-session-log.jsonl`. Each line is a JSON object:
 {
   "skill": "feature-analyzer",
   "timestamp": "2026-03-20T09:15:22Z",
-  "file_path": "/mnt/skills/user/feature-analyzer/SKILL.md",
+  "tool": "Skill",
   "project": "sniper-v2-android"
 }
 ```
 
-Group entries by `skill` name. Count invocations per skill. Note the time range (earliest to latest invocation) to understand the session span.
+Group entries by `skill` name. Count invocations per skill. Note the time range.
 
 Filter to relevant entries:
 - Default: today's entries only (current session)
 - If the developer says "review the whole week" or similar, expand the window accordingly
+
+### Source B: Conversation context (fallback and supplement)
+
+Scan the current conversation for skill usage evidence:
+- `<command-name>` tags — these indicate skill invocations (e.g., `<command-name>/clean-code:clean-code</command-name>`)
+- `/plugin:skill` patterns in user messages
+- `<system-reminder>` content mentioning prehook injections (e.g., "CLEAN CODE PREHOOK")
+- `Skill` tool calls in the conversation
+
+This catches skills the hook missed (e.g., prehook-injected skills that don't go through the Skill tool).
+
+### Merge results
+
+Combine both sources. Deduplicate by skill name. Mark the source for each (`log`, `context`, or `both`).
 
 ## Step 2: Present the discovery summary
 

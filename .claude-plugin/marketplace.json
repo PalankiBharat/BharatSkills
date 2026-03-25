@@ -32,7 +32,7 @@
       "name": "skill-feedback",
       "source": "./plugins/skill-feedback-plugin",
       "description": "End-of-session skill auditor that reviews all skills used and raises GitHub Issues with actionable improvement feedback. Includes a PostToolUse hook for automatic skill invocation tracking.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "developer-tools",
       "tags": ["skills", "feedback", "audit", "github-issues", "continuous-improvement"],
       "keywords": ["feedback", "audit", "retrospective", "skill", "improve"]

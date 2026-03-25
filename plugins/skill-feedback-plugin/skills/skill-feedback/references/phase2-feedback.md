@@ -23,6 +23,8 @@ SESSION_DATE=$(date +%Y-%m-%d)
 
 ## Check for duplicates before creating
 
+### Step 1: Check open issues
+
 ```bash
 gh issue list -R "$REPO" --label "skill:<skill-name>" --state open \
   --json number,title,labels,body --limit 20
@@ -43,7 +45,31 @@ Still experiencing this issue. Additional context:
 _Recurring issue across multiple sessions. Consider priority escalation._"
 ```
 
-If no match exists, create a new issue.
+### Step 2: If no open match, check closed issues
+
+```bash
+gh issue list -R "$REPO" --label "skill:<skill-name>" --state closed \
+  --json number,title,labels,body --limit 20
+```
+
+If a matching closed issue exists (same friction or capability gap):
+- **Reopen the issue** — a recurrence means the fix didn't hold:
+
+```bash
+gh issue reopen <NUMBER> -R "$REPO"
+gh issue edit <NUMBER> -R "$REPO" --add-label "session:$SESSION_DATE"
+gh issue comment <NUMBER> -R "$REPO" --body "## Reopened — Recurrence on $SESSION_DATE
+
+**Rating this session:** <stars> (<N>/5)
+**Invocations:** <count>
+
+This issue recurred after being closed. Context:
+- <new observation from this session>
+
+_Reopened automatically by skill-feedback. Previous fix did not resolve the underlying issue._"
+```
+
+### Step 3: If no match at all, create a new issue
 
 ## Issue creation
 
