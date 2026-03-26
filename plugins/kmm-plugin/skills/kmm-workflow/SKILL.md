@@ -18,6 +18,7 @@ For module-level KMM migrations only. Single-file migrations → use `/kmm migra
 
 - `references/batched-execution.md` — read during Phase C before launching parallel agents
 - `references/feedback-capture.md` — read when creating feedback files in Phase 0
+- `references/runtime-verification.md` — read after Completeness Verification before Manual Testing Loop
 - `../kmm/references/dependency-map.md` — read during Phase A classification
 
 ---
@@ -125,6 +126,9 @@ Inline assessment — does NOT invoke /kmm assess as a sub-skill. Uses the
 - Library swaps → reference `/kmm deps` for patterns
 - Final phase → `/kmm audit` on entire migrated module + wiring + cleanup
 - Mandatory final phase: Completeness Verification (Phase N+1)
+- Runtime Verification (Phase N+2): After completeness verification, launch app on both platforms,
+  read crash logs, fix KMM-specific runtime issues (SKIE types, Koin DI, coroutines) in a loop.
+  Max 5 fix attempts per platform before escalating.
 
 ### Phase C: Execute (Feedback Loop)
 
@@ -188,6 +192,41 @@ a store being migrated in the same phase.
 
 ---
 
+## Runtime Verification (Phase N+2)
+
+After completeness verification passes, verify the app actually launches without crashing
+on both platforms. Read `references/runtime-verification.md` for the full protocol.
+
+**Workflow — copy and track:**
+- [ ] Step 1: Determine app package/activity (Android) and bundle ID (iOS) from project config
+- [ ] Step 2: Android runtime check
+  - [ ] Build & install: `./gradlew :app:installProductionDebug`
+  - [ ] Clear logcat: `adb logcat -c`
+  - [ ] Launch app: `adb shell am start -n <package>/<activity>`
+  - [ ] Wait 5s, capture crash logs: `adb logcat -d *:E`
+  - [ ] Parse for KMM crash patterns (SKIE, Koin, coroutines, expect/actual)
+- [ ] Step 3: iOS runtime check
+  - [ ] Install on simulator: `xcrun simctl install booted <app-path>`
+  - [ ] Launch with console: `xcrun simctl launch --console-pty booted <bundle-id>`
+  - [ ] Capture first 100 lines of output for crash analysis
+- [ ] Step 4: Fix loop (if crash detected on either platform)
+  - [ ] Identify crash category from stacktrace
+  - [ ] Read crashing file + dependencies
+  - [ ] Apply targeted fix (do NOT modify tests)
+  - [ ] Incremental rebuild & re-launch
+  - [ ] Repeat until clean launch (max 5 attempts per platform)
+  - [ ] If still crashing after 5 attempts → escalate to user with all crash logs
+- [ ] Step 5: Both platforms launch clean → proceed to Manual Testing Loop
+
+**Rules:**
+- This phase uses incremental builds only (not full 3-platform rebuild)
+- Test suite is NOT re-run here (already passed in completeness verification)
+- Fixes applied here follow `/kmm bugfix` patterns
+- Each fix attempt logged in PROGRESS.md
+- If a fix requires test changes → STOP, escalate (this means the migration itself has a bug)
+
+---
+
 ## PLAN.md Header Template
 
 When generating PLAN.md via `/gameplan create`, inject this KMM-specific header:
@@ -224,7 +263,7 @@ See `references/feedback-capture.md` for the three feedback files (KMM_FEEDBACK.
 
 ## Manual Testing Loop (Feedback Loop)
 
-After completeness verification passes (Phase N+2):
+After runtime verification passes (Phase N+3):
 
 1. Tell user: "Automated migration complete. Ready for manual testing."
 2. **Loop until user says "done testing":**
@@ -255,5 +294,6 @@ Migration is complete when ALL pass:
 - [ ] All `wire-only` files rewired for both platforms
 - [ ] Completeness verification: 0 orphans, 0 stale imports
 - [ ] Full 3-platform build passes
+- [ ] App launches without crash on both Android emulator and iOS simulator
 - [ ] `/kmm audit` passes on migrated module
 - [ ] Feedback files written and reviewed
