@@ -45,6 +45,7 @@ Gameplan creates structured, phased execution plans for complex tasks with autom
   - [ ] Project-specific open decisions
   - [ ] Look up library/framework docs via Context7 or `/find-docs` (don't rely on training data for API signatures)
 - [ ] Step 2: Draft PLAN.md — see `references/plan-structure.md` for template
+  - [ ] If the plan exceeds ~60 tasks, warn the orchestrator: "This plan has N tasks — consider using compact table format (see plan-structure.md § Compact Format) to reduce PLAN.md size and context consumption."
 - [ ] Step 3: Draft PROGRESS.md — mirror plan structure with `[ ]`/`[x]`/`[~]` checkboxes
 - [ ] Present concise summary in chat → wait for user approval
 - [ ] Phase 0: Create gameplans dir + write PLAN.md + PROGRESS.md + create worktree(s) + verify build
