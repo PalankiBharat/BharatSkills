@@ -59,6 +59,45 @@ Inline assessment — does NOT invoke /kmm assess as a sub-skill. Uses the
 ### Phase B: Plan
 
 **Workflow — copy and track:**
+- [ ] Task 0.1: Write ASSESSMENT.md
+  - [ ] Create `<gameplans-dir>/ASSESSMENT.md` as a file — do NOT pass this data inline
+  - [ ] Content template:
+    ```
+    # Assessment: <module-name>
+
+    ## Files to Migrate
+    | File | Layer | Classification | Notes |
+    |------|-------|---------------|-------|
+    | ...  | ...   | ...           | ...   |
+
+    ## Dependency Map
+    (internal dependencies between files in this migration set)
+
+    ## Migration Order
+    (bottom-up order derived from dependency map)
+
+    ## External Dependencies
+    (shared infra excluded by fanout rule — flag any blockers not in KMM)
+
+    ## Risks
+    (library replacements, expect/actual complexity, consumer impact)
+    ```
+- [ ] Task 0.2: Create feedback files
+  - [ ] Create `<gameplans-dir>/KMM_FEEDBACK.md` with header:
+    ```
+    # KMM Feedback
+    <!-- KMM skill gaps: missing patterns, dep map holes, test gotchas -->
+    ```
+  - [ ] Create `<gameplans-dir>/KMM_WORKFLOW_FEEDBACK.md` with header:
+    ```
+    # KMM Workflow Feedback
+    <!-- Assessment accuracy: misclassifications, missed files, parallelism issues -->
+    ```
+  - [ ] Create `<gameplans-dir>/GAMEPLAN_FEEDBACK.md` with header:
+    ```
+    # Gameplan Feedback
+    <!-- Planning/execution: build issues, checkpoint problems, escalations -->
+    ```
 - [ ] Invoke `/gameplan create` via the Skill tool with context:
   - [ ] Task description: "Migrate [module] to KMM — [summary]"
   - [ ] Build verification: the 3 KMM platform builds:
@@ -67,12 +106,10 @@ Inline assessment — does NOT invoke /kmm assess as a sub-skill. Uses the
     ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
     xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -destination 'platform=iOS Simulator,name=iPhone 16e' build
     ```
-  - [ ] Full assessment data
+  - [ ] Assessment data: reference `<gameplans-dir>/ASSESSMENT.md` by file path — do NOT inline the full content
   - [ ] Phase mapping rules (layer-based, not task-count based)
 - [ ] Inject KMM-specific PLAN.md header (see PLAN.md Header Template section below)
 - [ ] Gameplan asks clarifying questions → produces PLAN.md + PROGRESS.md
-- [ ] ASSESSMENT.md written alongside PLAN.md in Phase 0 Task 0.1
-- [ ] Feedback files created in Phase 0
 
 **Phase mapping rules:**
 - Each assessment layer → one gameplan phase
@@ -91,11 +128,36 @@ Inline assessment — does NOT invoke /kmm assess as a sub-skill. Uses the
 
 ### Phase C: Execute (Feedback Loop)
 
-Gameplan's autonomous execution loop takes over. Each phase uses **batched parallel** execution.
+Gameplan's autonomous execution loop takes over.
 See `references/batched-execution.md` for the full execution model.
 
-**Per-batch feedback loop:**
+**Simplified Mode vs Full Batched Mode:**
+
+| Condition | Mode | What it means |
+|-----------|------|---------------|
+| All files in the phase are independent (no intra-phase dependencies) | **Simplified** | Parallel agents → one compile check at the end |
+| Files have behavioral dependencies on each other within the phase | **Full Batched** | baseline → migrate → re-test per batch |
+
+Use **Simplified Mode** when every file in a phase can be migrated without depending on another
+file in the same phase. The baseline→migrate→re-test cycle exists to catch regressions caused
+by inter-file dependencies; it adds no value when files are truly independent.
+
+Use **Full Batched Mode** when files in a phase share behavior — e.g., a repository depends on
+a store being migrated in the same phase.
+
+**Simplified Mode execution:**
+1. **PARALLEL AGENTS** — each agent migrates its file fully (Steps 1-7, no Gradle)
+   - Inject the Guardrail Cheat Sheet from `/kmm` SKILL.md into each agent's prompt as a lightweight
+     alternative to full `/kmm` skill invocation
+   - Agent reports: "migrated, ready for compile check"
+2. **COMPILE CHECK** — single `./gradlew :shared:testDebugUnitTest` across all migrated files
+   - If red → identify which migration caused it → fix → re-run
+3. Phase complete → **CHECKPOINT** (3-platform build → commit → next phase)
+
+**Full Batched Mode execution:**
 1. **PARALLEL AGENTS** — Steps 1-4 (read, assess, stage, write tests) → no Gradle
+   - Inject the Guardrail Cheat Sheet from `/kmm` SKILL.md into each agent's prompt as a lightweight
+     alternative to full `/kmm` skill invocation
 2. **BASELINE** — single `./gradlew :shared:testDebugUnitTest` → must ALL pass
    - If red → fix tests (only time allowed) → re-run
 3. **PARALLEL AGENTS** — Step 6 (migrate to commonMain) → no Gradle

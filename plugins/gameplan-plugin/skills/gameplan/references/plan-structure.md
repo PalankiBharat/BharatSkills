@@ -159,4 +159,18 @@ Write these rules explicitly into the plan so the document is self-contained for
 - **Checkpoint commits are MANDATORY** — but ONLY after build verification passes. Never commit with failing builds.
 - **A task is only marked `[x]` in PROGRESS.md after its verification step passes** — not before
 - **Pre-check gates** — phases depending on unknowns get a Task X.0 PRE-CHECK that researches and updates PLAN.md with concrete paths before continuing (no approval pause)
-- **Max 7 tasks per phase** — split into sub-phases (3A, 3B) if larger
+- **Max 7 tasks per phase** — split into sub-phases (3A, 3B) if larger. When a parent skill (e.g., kmm-workflow) specifies its own phase boundary rules, defer to those rules instead of the 7-task cap.
+
+### Compact Format
+
+Use compact table format when plan exceeds 50 tasks to reduce PLAN.md size. Replace verbose task prose with a table inside each phase section:
+
+```
+| # | Task | File(s) | Classification | Notes |
+|---|------|---------|----------------|-------|
+| 2.1 | Add UserRepository interface | src/data/UserRepository.kt | Create | — |
+| 2.2 | Implement RoomUserRepository | src/data/RoomUserRepository.kt | Create | depends on 2.1 |
+| 2.3 | Delete LegacyUserDao | src/data/LegacyUserDao.kt | Delete | grep-before-delete |
+```
+
+Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHECK`.
