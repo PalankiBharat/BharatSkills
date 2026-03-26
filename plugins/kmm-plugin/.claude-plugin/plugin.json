@@ -1,0 +1,21 @@
+{
+  "name": "kmm-plugin",
+  "version": "1.0.0",
+  "description": "Battle-tested KMM migration toolkit — TDD-driven file migration, module-level orchestration, SwiftUI screen generation, SKIE interop, auditing, and dependency mapping. Bundles /kmm and /kmm-workflow skills.",
+  "author": {
+    "name": "PunchHQ",
+    "email": "manish@punchhq.com"
+  },
+  "category": "migration",
+  "keywords": [
+    "kmm",
+    "kotlin-multiplatform",
+    "migration",
+    "tdd",
+    "swiftui",
+    "skie",
+    "ios",
+    "android",
+    "kmp"
+  ]
+}

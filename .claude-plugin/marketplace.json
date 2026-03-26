@@ -72,6 +72,24 @@
       "category": "orchestration",
       "tags": ["pipeline", "orchestration", "planning", "review", "testing", "regression", "device-testing"],
       "keywords": ["om", "bramha", "vishnu", "pipeline", "orchestrator", "plan", "review", "regression"]
+    },
+    {
+      "name": "kmm-plugin",
+      "source": "./plugins/kmm-plugin",
+      "description": "Battle-tested KMM migration toolkit — TDD-driven file migration, module-level orchestration, SwiftUI screen generation, SKIE interop, auditing, and dependency mapping. Bundles /kmm and /kmm-workflow skills.",
+      "version": "1.0.0",
+      "category": "migration",
+      "tags": ["kmm", "kotlin-multiplatform", "migration", "tdd", "swiftui", "skie", "ios", "android"],
+      "keywords": ["kmm", "migrate", "kotlin", "multiplatform", "swift", "skie", "kmp", "ios"]
+    },
+    {
+      "name": "gameplan",
+      "source": "./plugins/gameplan-plugin",
+      "description": "Structured execution planning for multi-step tasks — phased plans with automatic checkpoint commits, progress tracking, escalation rules, and autonomous execution after approval.",
+      "version": "1.0.0",
+      "category": "orchestration",
+      "tags": ["planning", "execution", "phased", "checkpoint", "task-management", "orchestration"],
+      "keywords": ["gameplan", "plan", "phase", "checkpoint", "execute", "autonomous"]
     }
   ]
 }

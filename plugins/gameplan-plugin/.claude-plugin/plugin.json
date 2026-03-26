@@ -1,0 +1,19 @@
+{
+  "name": "gameplan",
+  "version": "1.0.0",
+  "description": "Structured execution planning for multi-step tasks — phased plans with automatic checkpoint commits, progress tracking, escalation rules, and autonomous execution after approval.",
+  "author": {
+    "name": "PunchHQ",
+    "email": "manish@punchhq.com"
+  },
+  "category": "orchestration",
+  "keywords": [
+    "planning",
+    "execution",
+    "phased",
+    "checkpoint",
+    "task-management",
+    "orchestration",
+    "autonomous"
+  ]
+}

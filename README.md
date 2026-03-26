@@ -13,6 +13,8 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
 | `bug-finder` | 1.0.0 | Evidence-based bug/crash root cause diagnosis — flow mapping, hypothesis formation, log verification, root cause report |
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
+| `kmm-plugin` | 1.0.0 | Battle-tested KMM migration toolkit — TDD-driven migration, module orchestration, SwiftUI screens, SKIE interop, auditing, dep mapping |
+| `gameplan` | 1.0.0 | Structured execution planning — phased plans, checkpoint commits, progress tracking, escalation rules, autonomous execution |
 
 ## Installation
 
@@ -31,6 +33,8 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install clean-code@punchhq-skills
 /plugin install bug-finder@punchhq-skills
 /plugin install om-pipeline@punchhq-skills
+/plugin install kmm-plugin@punchhq-skills
+/plugin install gameplan@punchhq-skills
 ```
 
 ### 3. Use the skills
@@ -50,6 +54,13 @@ skill feedback
 
 # Om pipeline (full dev pipeline: plan → build → review → test on device)
 /om add dark mode toggle in settings screen
+
+# KMM migration (single file or full module)
+/kmm-plugin:kmm migrate path/to/MyViewModel.kt
+/kmm-plugin:kmm-workflow my-feature-module
+
+# Gameplan (structured execution planning)
+/gameplan:gameplan create
 ```
 
 ## For Teams
@@ -77,7 +88,9 @@ To pre-enable specific plugins:
     "feature-analyzer@punchhq-skills": true,
     "qa-autopilot@punchhq-skills": true,
     "skill-feedback@punchhq-skills": true,
-    "clean-code@punchhq-skills": true
+    "clean-code@punchhq-skills": true,
+    "kmm-plugin@punchhq-skills": true,
+    "gameplan@punchhq-skills": true
   }
 }
 ```
@@ -140,13 +153,30 @@ claude-code-skills/
 │   │       └── bug-finder/
 │   │           ├── SKILL.md
 │   │           └── references/
-│   └── om-pipeline/
+│   ├── om-pipeline/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── commands/
+│   │       ├── om.md                  # Master orchestrator
+│   │       ├── om-bramha.md           # Creation: plan, side effects, execute, review, regression
+│   │       └── om-vishnu.md           # Preservation: test cases, device testing, bug assessment
+│   ├── kmm-plugin/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── skills/
+│   │       ├── kmm/
+│   │       │   ├── SKILL.md
+│   │       │   └── references/        # 7 reference files (patterns, gotchas, dep map, etc.)
+│   │       └── kmm-workflow/
+│   │           ├── SKILL.md
+│   │           └── references/        # batched-execution, feedback-capture
+│   └── gameplan-plugin/
 │       ├── .claude-plugin/
 │       │   └── plugin.json
-│       └── commands/
-│           ├── om.md                  # Master orchestrator
-│           ├── om-bramha.md           # Creation: plan, side effects, execute, review, regression
-│           └── om-vishnu.md           # Preservation: test cases, device testing, bug assessment
+│       └── skills/
+│           └── gameplan/
+│               ├── SKILL.md
+│               └── references/        # plan-structure, escalation-rules
 └── README.md
 ```
 
