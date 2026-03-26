@@ -1,0 +1,5 @@
+{
+  "name": "om-pipeline",
+  "description": "Supreme development pipeline — plan, side-effect analysis, execute with clean code, harsh review, regression check, device testing, and bug fix loops. Three commands: /om (master), /om-bramha (creation), /om-vishnu (preservation).",
+  "version": "1.0.0"
+}

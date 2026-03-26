@@ -11,6 +11,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `skill-feedback` | 1.0.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
 | `clean-code` | 1.2.7 | Clean Code principles (Uncle Bob) with auto-loading prehook — naming, functions, classes, error handling, testing |
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
+| `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
 
 ## Installation
 
@@ -27,6 +28,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install qa-autopilot@punchhq-skills
 /plugin install skill-feedback@punchhq-skills
 /plugin install clean-code@punchhq-skills
+/plugin install om-pipeline@punchhq-skills
 ```
 
 ### 3. Use the skills
@@ -43,6 +45,9 @@ skill feedback
 
 # Clean code (auto-loads via hook on every prompt, or invoke manually)
 /clean-code:clean-code
+
+# Om pipeline (full dev pipeline: plan → build → review → test on device)
+/om add dark mode toggle in settings screen
 ```
 
 ## For Teams
@@ -115,17 +120,24 @@ claude-code-skills/
 │   │       └── skill-feedback/
 │   │           ├── SKILL.md
 │   │           └── references/
-│   └── clean-code-plugin/
+│   ├── clean-code-plugin/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   ├── hooks/
+│   │   │   └── hooks.json            # UserPromptSubmit prehook
+│   │   ├── scripts/
+│   │   │   └── load-clean-code.sh    # Injects SKILL.md + rules card
+│   │   └── skills/
+│   │       └── clean-code/
+│   │           ├── SKILL.md
+│   │           └── references/
+│   └── om-pipeline/
 │       ├── .claude-plugin/
 │       │   └── plugin.json
-│       ├── hooks/
-│       │   └── hooks.json            # UserPromptSubmit prehook
-│       ├── scripts/
-│       │   └── load-clean-code.sh    # Injects SKILL.md + rules card
-│       └── skills/
-│           └── clean-code/
-│               ├── SKILL.md
-│               └── references/
+│       └── commands/
+│           ├── om.md                  # Master orchestrator
+│           ├── om-bramha.md           # Creation: plan, side effects, execute, review, regression
+│           └── om-vishnu.md           # Preservation: test cases, device testing, bug assessment
 └── README.md
 ```
 

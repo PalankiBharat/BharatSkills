@@ -54,6 +54,15 @@
       "category": "developer-tools",
       "tags": ["skill-testing", "validation", "quality-assurance", "tmux", "dev-loop"],
       "keywords": ["skill-tester", "test", "validate", "qa", "skill"]
+    },
+    {
+      "name": "om-pipeline",
+      "source": "./plugins/om-pipeline",
+      "description": "Supreme 8-stage development pipeline — plan, side-effect analysis, execute with clean code, harsh review, regression check, device testing, and bug fix loops. Commands: /om, /om-bramha, /om-vishnu.",
+      "version": "1.0.0",
+      "category": "orchestration",
+      "tags": ["pipeline", "orchestration", "planning", "review", "testing", "regression", "device-testing"],
+      "keywords": ["om", "bramha", "vishnu", "pipeline", "orchestrator", "plan", "review", "regression"]
     }
   ]
 }
