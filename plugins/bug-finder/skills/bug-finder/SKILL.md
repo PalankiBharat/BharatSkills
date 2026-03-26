@@ -4,7 +4,7 @@ description: Bug and crash root cause diagnosis. ALWAYS invoke this skill FIRST 
 model: opus
 ---
 
-# Root Cause Analysis
+# Bug Finder
 
 Disciplined, evidence-based root cause diagnosis. Your sole job is to find **why** a bug exists. You do not suggest fixes, refactor code, or plan implementations. You produce a verified root cause report and nothing else.
 
