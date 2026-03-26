@@ -1,0 +1,5 @@
+{
+  "name": "bug-finder",
+  "description": "Bug and crash root cause diagnosis. Evidence-based, disciplined debugging workflow with flow mapping, hypothesis formation, and log verification. Invoke FIRST before any debugging or fixing.",
+  "version": "1.0.0"
+}

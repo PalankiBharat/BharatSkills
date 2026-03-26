@@ -1,5 +1,0 @@
-{
-  "name": "root-cause-analysis",
-  "description": "Bug and crash root cause diagnosis. Evidence-based, disciplined debugging workflow with flow mapping, hypothesis formation, and log verification.",
-  "version": "1.0.0"
-}

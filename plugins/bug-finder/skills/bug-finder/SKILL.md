@@ -1,6 +1,6 @@
 ---
-name: root-cause-analysis
-description: Bug and crash root cause diagnosis. ALWAYS invoke this skill FIRST — before ANY debugging, fixing, or code changes — when the user mentions a bug, crash, error, broken behavior, wrong data, missing data, UI not updating, not working, not showing, not populating, ANR, freeze, regression, performance issue, or any unexpected behavior. Even if the user says "fix this" or "solve this", invoke this skill FIRST to find the root cause before attempting any fix. Do not debug, diagnose, or fix code directly — run root-cause-analysis first.
+name: bug-finder
+description: Bug and crash root cause diagnosis. ALWAYS invoke this skill FIRST — before ANY debugging, fixing, or code changes — when the user mentions a bug, crash, error, broken behavior, wrong data, missing data, UI not updating, not working, not showing, not populating, ANR, freeze, regression, performance issue, or any unexpected behavior. Even if the user says "fix this" or "solve this", invoke this skill FIRST to find the root cause before attempting any fix. Do not debug, diagnose, or fix code directly — run bug-finder first.
 model: opus
 ---
 
