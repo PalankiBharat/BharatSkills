@@ -504,6 +504,24 @@ BRAMHA_RESULT:
 - **Build failure in executor**: Treat as implicit review REJECTION. Loop back to executor with build errors.
 - **Context too large**: Summarize previous stage outputs before injecting into next stage. Keep only actionable items.
 
+## Sound Notification
+
+When Bramha starts, play the "Aham Brahmasmi" chant if the sound file exists and sound is enabled.
+
+**Toggle**: Sound is controlled by the file `~/.claude/sounds/.bramha-sound-enabled`.
+- To enable: `touch ~/.claude/sounds/.bramha-sound-enabled`
+- To disable: `rm ~/.claude/sounds/.bramha-sound-enabled`
+
+**Sound file location**: `~/.claude/sounds/aham-brahmasmi.wav`
+
 ## NOW BEGIN
 
-Start Stage 1. Output the banner and spawn the planner agent.
+First, check if sound is enabled and play it (non-blocking):
+
+```bash
+if [ -f "$HOME/.claude/sounds/.bramha-sound-enabled" ] && [ -f "$HOME/.claude/sounds/aham-brahmasmi.wav" ]; then
+  afplay "$HOME/.claude/sounds/aham-brahmasmi.wav" &
+fi
+```
+
+Run this Bash command BEFORE doing anything else. Then start Stage 1 — output the banner and spawn the planner agent.
