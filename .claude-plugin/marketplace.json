@@ -56,6 +56,15 @@
       "keywords": ["skill-tester", "test", "validate", "qa", "skill"]
     },
     {
+      "name": "bug-finder",
+      "source": "./plugins/bug-finder",
+      "description": "Evidence-based bug and crash root cause diagnosis. Disciplined workflow: full flow mapping, hypothesis formation, targeted log verification, and root cause report. Invoke FIRST before any debugging or fixing.",
+      "version": "1.0.0",
+      "category": "debugging",
+      "tags": ["debugging", "root-cause-analysis", "crash", "bug", "diagnosis", "logging"],
+      "keywords": ["bug", "crash", "broken", "not working", "root cause", "debug", "ANR", "freeze", "regression"]
+    },
+    {
       "name": "om-pipeline",
       "source": "./plugins/om-pipeline",
       "description": "Supreme 8-stage development pipeline — plan, side-effect analysis, execute with clean code, harsh review, regression check, device testing, and bug fix loops. Commands: /om, /om-bramha, /om-vishnu.",

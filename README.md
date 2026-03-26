@@ -11,6 +11,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `skill-feedback` | 1.0.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
 | `clean-code` | 1.2.7 | Clean Code principles (Uncle Bob) with auto-loading prehook — naming, functions, classes, error handling, testing |
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
+| `bug-finder` | 1.0.0 | Evidence-based bug/crash root cause diagnosis — flow mapping, hypothesis formation, log verification, root cause report |
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
 
 ## Installation
@@ -28,6 +29,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install qa-autopilot@punchhq-skills
 /plugin install skill-feedback@punchhq-skills
 /plugin install clean-code@punchhq-skills
+/plugin install bug-finder@punchhq-skills
 /plugin install om-pipeline@punchhq-skills
 ```
 
@@ -129,6 +131,13 @@ claude-code-skills/
 │   │   │   └── load-clean-code.sh    # Injects SKILL.md + rules card
 │   │   └── skills/
 │   │       └── clean-code/
+│   │           ├── SKILL.md
+│   │           └── references/
+│   ├── bug-finder/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── skills/
+│   │       └── bug-finder/
 │   │           ├── SKILL.md
 │   │           └── references/
 │   └── om-pipeline/
