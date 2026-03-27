@@ -140,9 +140,7 @@ Do NOT use `expect`/`actual` as a shortcut for dependency swaps that have pure-`
 ## What You MUST NOT Do
 
 - **Do NOT run Gradle or any build commands.** You write and edit files only.
-- **Do NOT modify test files.** Tests are immutable after baseline. Any test file (in `commonTest`, `androidTest`, `iosTest`) is off-limits, no exceptions.
 - **Do NOT modify files outside the assigned scope.** Only touch: the `commonMain` target file, the `androidMain` staged copy (to delete it), `expect`/`actual` platform files for the migrated type, and consumer import paths.
-- **Do NOT use type casting** (`as`, `as?`, `as!`). Use polymorphism, generics, or `is` checks in all migrated and wired code.
 - **Do NOT change API signatures.** Method names, parameter names, parameter order, and return types must match the Android source exactly. Android is in production — any signature drift breaks callers.
 - **Do NOT improve or refactor.** Zero behavioral changes. Zero "while we're here" edits. If Android has a bug, migrate the bug and note it with `// BUG:`.
 

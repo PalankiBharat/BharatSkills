@@ -99,7 +99,6 @@ class MyViewModelTest {
 - **Do NOT run Gradle or any build commands.** You write files only.
 - **Do NOT write migration code.** No changes to `commonMain`. No dependency swaps. No `expect`/`actual` declarations for the migrated type.
 - **Do NOT modify the original Android file.** The source of truth is untouched.
-- **Do NOT use type casting** (`as`, `as?`, `as!`). In fakes or test helpers, use polymorphism or `is` checks.
 - **Do NOT write tests you cannot fully justify from the source.** If behavior is ambiguous, note it with a `// GAP:` comment rather than guessing.
 
 ---

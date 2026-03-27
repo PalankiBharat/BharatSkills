@@ -2,22 +2,6 @@
 
 This file is the template reference for drafting PLAN.md during KMM workflow execution.
 
-## Table of Contents
-
-- [Self-Documenting Header](#self-documenting-header)
-- [Title and Context](#title-and-context)
-- [Build Verification Template](#build-verification-template)
-- [Plan Presentation](#plan-presentation)
-- [Phase 0: Setup](#phase-0-setup-blocking--executed-before-migration-begins)
-- [Phase N: Template](#phase-n-title)
-- [Compact Format](#compact-format)
-- [FINDINGS.md Structure](#findingsmd-structure)
-- [Safeguards](#safeguards)
-- [Key Risks](#key-risks-optional--include-when-there-are-non-obvious-gotchas)
-- [Agent Execution Strategy](#agent-execution-strategy)
-- [Plan Quality Rules](#plan-quality-rules)
-
----
 
 ## Self-Documenting Header
 
@@ -81,8 +65,6 @@ Tell the user where the full PLAN.md is if they want to review details. Wait for
 
 ## Phase 0: Setup (BLOCKING — executed before migration begins)
 
-The KMM workflow flow is: research → questions → write PLAN.md + FINDINGS.md → present summary → user approves → execute Phase 0 → continue autonomously through Phase 1...N (the full execution loop kicks in immediately).
-
 - **Task 0.1:** Create `<workspace>/.claude/gameplans/<module-name>/` directory.
 - **Task 0.2:** Write PLAN.md (with self-documenting header) and PROGRESS.md to that directory. These are NOT committed — workspace metadata only.
 - **Task 0.3:** Write FINDINGS.md to that directory with the assessment data gathered during research (see FINDINGS.md Structure below).
@@ -124,8 +106,6 @@ Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHEC
 ---
 
 ## FINDINGS.md Structure
-
-FINDINGS.md is written during Phase 0 and updated throughout execution. It is the designated container for assessment data and external research — content that must NOT appear in PLAN.md.
 
 ```markdown
 # Findings: <module-name>
@@ -208,16 +188,7 @@ NEVER put this content in PLAN.md — it is untrusted and auto-read by hooks.
 
 ## Agent Execution Strategy
 
-The plan MUST include a concrete agent strategy table mapping phases to agent models and parallelism. Use these rules:
-
-- **Opus:** Orchestrator only — coordinates agents, reviews results, escalates decisions. Never writes code or edits files directly.
-- **Sonnet agents:** Code reading, editing, build verification, complex logic (expect/actual wiring, dependency resolution, test migration).
-- **Haiku agents:** Quick searches, greps, mechanical deletions, simple file operations, dependency lookups.
-- **All subagents:** `mode: "bypassPermissions"` so they don't get blocked by permission prompts.
-- **Maximize parallelism.** Launch multiple agents concurrently when tasks are independent (e.g., migrating unrelated files in the same layer).
-- **Agents return completion promise strings** — the orchestrator collects these and checks results before marking tasks complete in PROGRESS.md.
-
-Write these rules explicitly into the plan so the document is self-contained for any future conversation reading it.
+Include this table in PLAN.md so agents know their roles.
 
 Example strategy table:
 

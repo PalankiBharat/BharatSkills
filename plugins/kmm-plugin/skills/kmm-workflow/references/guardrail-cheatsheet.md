@@ -7,7 +7,6 @@
 - **Koin 4 only.** Never use Hilt or Dagger in shared code. Use Koin 4 for DI.
 - **`kotlinx-datetime` only.** Never use `java.time` or platform date APIs in `commonMain`.
 - **`StateFlow` only.** Never use `LiveData` in shared/KMM code.
-- **Tests prove behavioral parity — never modify them to pass.** If tests fail after migration, fix the migration. Never stub, `@Ignore`, or suppress tests.
 - **No `runBlocking` on the main thread.** Use structured concurrency; `runBlocking` only in tests or background entry points.
 - **`expect`/`actual` for platform-specific code.** Never use `#ifdef`, runtime platform checks, or conditional imports as a substitute.
 - **Context-first.** Before modifying any file, read the target, all its dependencies (imports, interfaces, base classes), and all its consumers. Never modify with partial context.

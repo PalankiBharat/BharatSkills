@@ -70,16 +70,6 @@ Common KMM runtime crash signatures to look for in logs:
    - Incremental rebuild only — `./gradlew :app:assembleProductionDebug` or `./gradlew :app:installProductionDebug`
    - Re-launch and re-capture logs
    - Repeat until clean launch (**max 5 iterations per platform**, then escalate to user)
-5. **If clean launch on both platforms** → proceed to Manual Testing Loop
+5. **If clean launch on both platforms** → proceed to Manual Testing Loop. If still crashing after 5 iterations, **STOP** and escalate: provide full stacktraces (not just filtered lines), all fixes attempted (what was changed, why, what happened), and your recommendation. Do not attempt a 6th fix.
 
 Each fix attempt must be logged in PROGRESS.md.
-
-## Escalation
-
-If after 5 fix attempts the app still crashes on a platform, **STOP** and present to the user:
-
-- All crash logs collected (full stacktraces, not just the filtered lines)
-- All fixes attempted (what was changed, why, what happened)
-- Recommendation for next steps
-
-Do not attempt a 6th fix. Escalate immediately.

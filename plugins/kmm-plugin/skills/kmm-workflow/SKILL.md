@@ -52,9 +52,6 @@ hooks:
 
 # KMM Migration Orchestrator
 
-Self-contained orchestrator for module-level KMM migrations. All domain knowledge lives in
-reference files — no external skill dependencies.
-
 ## State Machine
 
 ```
@@ -94,15 +91,8 @@ Hooks auto-reload plan on every message. After a disconnect:
 
 ## Completion Promise Strings
 
-Agents MUST emit exactly one of these at the end of their work:
-
-```
-TDD_COMPLETE: <file> | tests: <test-file> | count: N
-MIGRATION_COMPLETE: <file> | swaps: [list] | expect-actual: [list]
-SCREEN_COMPLETE: <screen> | components: N | registered: yes/no
-AUDIT_COMPLETE: <path> | issues: N | auto-fixed: N | escalated: N
-AUDIT_ESCALATE: <path> | severity: MEDIUM | issue: <description> | options: <list>
-```
+Agents must emit one of: `TDD_COMPLETE`, `MIGRATION_COMPLETE`, `SCREEN_COMPLETE`, `AUDIT_COMPLETE`, or `AUDIT_ESCALATE`.
+Format details are in each agent prompt template (`references/agent-prompts/`).
 
 If an agent's output does not contain a completion promise, its work is **not accepted**.
 Re-dispatch the agent with more specific instructions.
@@ -171,21 +161,7 @@ Each template includes the guardrail cheatsheet + task-specific rules + completi
 - [ ] Task 0.1: Write FINDINGS.md with assessment data (file table, dep map, migration order, risks)
 - [ ] Task 0.2: Create feedback files (KMM_FEEDBACK.md, KMM_WORKFLOW_FEEDBACK.md, PLANNING_FEEDBACK.md)
 - [ ] Task 0.3: Write PLAN.md with KMM migration phases
-  - [ ] Status block in first 15 lines (hooks read this):
-    ```
-    <!-- STATUS: Phase 0/N | Setup | **Status:** in_progress -->
-    <!-- NEXT: Task 0.1 — Write FINDINGS.md -->
-    <!-- VERIFY: ./gradlew :shared:testDebugUnitTest -->
-    <!-- CHECKPOINT: none yet -->
-    ## KMM Migration: <module-name>
-    ## Rules (always in scope)
-    - TDD: tests written FIRST, baseline must pass, then migrate, re-test WITHOUT test changes
-    - Agents return completion promises — no promise = not accepted
-    - Simplified Mode for independent files, Full Batched for dependent files
-    - 3-platform build at every checkpoint
-    - Escalate after 3 failures, never suppress errors
-    - Assessment: FINDINGS.md | Feedback: append-only to feedback files
-    ```
+  - [ ] Include STATUS block per `references/plan-structure.md` format (first 15 lines — hooks read this)
   - [ ] Phase mapping: each assessment layer → one phase
   - [ ] Phase boundaries by LAYER, no task cap
   - [ ] Compact table format if >50 tasks
@@ -204,8 +180,7 @@ Each template includes the guardrail cheatsheet + task-specific rules + completi
 
 **Autonomous execution. Read `references/batched-execution.md` for full model.**
 
-**Before EVERY phase:** Update STATUS block in PLAN.md (first 5 lines). This exploits recency
-bias — the write action itself puts objectives into the attention window.
+**Before EVERY phase:** Update STATUS block in PLAN.md (first 5 lines).
 
 **Mode selection:**
 
@@ -242,19 +217,10 @@ bias — the write action itself puts objectives into the attention window.
    - Red → fix migration, NEVER tests (max 3 attempts → escalate)
 5. **CHECKPOINT:** 3-platform build → commit → update PLAN.md status → update PROGRESS.md
 
-### Before Diagnosing Any Failure
+### Escalation
 
-Check FINDINGS.md → "Known Fixes" table first. If the symptom matches a known fix, apply it
-directly — don't spend tokens re-diagnosing. Add new fixes to the table after resolving them.
-
-### 3-Strike Escalation
-
-```
-ATTEMPT 1: Check Known Fixes table → if no match, diagnose & apply targeted fix
-ATTEMPT 2: Alternative Approach — different method, NEVER repeat same action
-ATTEMPT 3: Broader Rethink — question assumptions, consider updating plan
-AFTER 3: STOP → escalate to user with all attempts + error logs
-```
+Check FINDINGS.md → "Known Fixes" table before diagnosing failures. If no match, follow
+the 3-strike protocol in `references/escalation-rules.md`. Never repeat the same failed approach.
 
 ---
 

@@ -103,11 +103,9 @@ struct <ScreenName>: View {
 - Change behavior — no new error handling, no added nil-safety beyond what Android has
 - Skip animations or transitions present in Android
 - Add animations or transitions not present in Android
-- Use type casting (`as`, `as?`, `as!`) anywhere in the output
 - Combine state and effect observation into one `.task` block
 - Rename variables, functions, or types relative to their Android counterparts
 - Modify any file other than the new screen file and `pbxproj`, unless a compiler error in another file is directly caused by this screen
-- Do not modify test files
 
 ---
 

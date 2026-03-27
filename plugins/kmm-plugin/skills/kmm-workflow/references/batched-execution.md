@@ -51,11 +51,11 @@ Phase 3: Network + Storage
 
 ## Key Mapping Rules
 
-| Classification | Gameplan Task | /kmm Subcommand | Per-File Verification | Parallelizable? |
-|---------------|--------------|-----------------|----------------------|----------------|
-| migrate-pure | Migrate file | /kmm migrate (steps 1-7) | Tests only (fast) | Yes (if no shared deps) |
-| migrate-swap | Migrate + swap | /kmm migrate (steps 1-7) + /kmm deps | Tests only (fast) | No (sequential) |
-| migrate-expect-actual | Migrate + e/a | /kmm migrate (steps 1-7) | Tests only (fast) | No (sequential) |
-| platform-stay (screen) | iOS equivalent | /kmm swift-screen | xcodebuild only | Yes |
-| wire-only | Rewire + audit | Manual + /kmm audit | None (checkpoint) | No |
-| — (phase end) | Checkpoint | — | Full 3-platform build | — |
+| Classification | Gameplan Task | Per-File Verification | Parallelizable? |
+|---------------|--------------|----------------------|----------------|
+| migrate-pure | Migrate file | Tests only (fast) | Yes (if no shared deps) |
+| migrate-swap | Migrate + swap | Tests only (fast) | No (sequential) |
+| migrate-expect-actual | Migrate + e/a | Tests only (fast) | No (sequential) |
+| platform-stay (screen) | iOS equivalent | xcodebuild only | Yes |
+| wire-only | Rewire + audit | None (checkpoint) | No |
+| — (phase end) | Checkpoint | Full 3-platform build | — |

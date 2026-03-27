@@ -46,8 +46,6 @@ The goal of 3 strikes is to avoid both giving up too early and spinning indefini
 
 ## Never Repeat Failures
 
-Once an approach has failed, it is off the table. Track all attempted approaches in PROGRESS.md alongside the task they belong to, so any agent resuming the plan can see what has already been tried. Mutate your approach with every attempt — do not retry the same command, the same dependency version, or the same wiring pattern that already failed.
-
 Format in PROGRESS.md:
 
 ```

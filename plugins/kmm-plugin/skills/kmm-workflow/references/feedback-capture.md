@@ -3,7 +3,7 @@
 Three feedback files are created in Phase 0 alongside PLAN.md and PROGRESS.md:
 - `KMM_FEEDBACK.md` — KMM skill gaps: missing patterns, dep map holes, test gotchas
 - `KMM_WORKFLOW_FEEDBACK.md` — Assessment accuracy: misclassifications, missed files, parallelism issues
-- `GAMEPLAN_FEEDBACK.md` — Planning/execution: build issues, checkpoint problems, escalations
+- `PLANNING_FEEDBACK.md` — Planning/execution: build issues, checkpoint problems, escalations
 
 ## When Agents Write
 

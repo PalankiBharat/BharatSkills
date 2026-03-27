@@ -72,8 +72,6 @@ Do not fix. Include in the audit report for awareness.
 ## MUST NOT
 
 - Change business logic — only change the anti-pattern, nothing adjacent to it.
-- Modify test files (`*Test.kt`, `*Tests.swift`, `*Spec.kt`). Tests are read-only during audit.
-- Use type casting (`as`, `as?`, `as!`) in any fix you write. If a fix requires a cast, escalate as MEDIUM.
 - Auto-fix MEDIUM or LOW items. Escalate MEDIUM, report LOW.
 - Add new dependencies or imports beyond what the fix strictly requires.
 - Rename public API surface. Internal rename only if required by the fix.
@@ -114,13 +112,5 @@ AUDIT_BLOCKED: <path> | reason: <clear one-sentence explanation>
 ```
 
 Do not guess or assume when blocked. Stop and report.
-
-### AUDIT_ESCALATE
-
-Use for MEDIUM severity items that require a decision. The orchestrator will present options to the user.
-
-```
-AUDIT_ESCALATE: <path> | severity: MEDIUM | issue: <description> | options: <list>
-```
 
 Output exactly one of AUDIT_COMPLETE, AUDIT_BLOCKED, or AUDIT_ESCALATE. One of these lines closes your response, always.
