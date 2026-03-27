@@ -14,3 +14,5 @@
 - **Completion promise required.** Every agent must emit a completion promise string as its last output. No promise = work not accepted.
 - **Tests are immutable after baseline.** Once the orchestrator runs baseline and tests pass, test files must not be modified. If tests fail after migration, fix the migration.
 - **API signature parity.** Migrated KMM code must have identical method signatures to Android — same method names, parameter names, parameter order, return types.
+- **Always use latest docs.** Use Context7, `/find-docs`, or web search for library APIs, versions, and patterns. Never rely on training data — it may be outdated.
+- **Latest stable deps.** When adding new dependencies, check the latest stable version via live docs, not training data.

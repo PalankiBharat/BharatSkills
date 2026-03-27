@@ -27,10 +27,10 @@ hooks:
             if [ -z "$PLAN_DIR" ]; then exit 0; fi
             LAST_OUTPUT=$(tail -5 "$PLAN_DIR/PROGRESS.md" 2>/dev/null)
             # Check for completion promise strings in recent progress
-            if echo "$LAST_OUTPUT" | grep -qE "TDD_COMPLETE:|MIGRATION_COMPLETE:|AUDIT_COMPLETE:|AUDIT_ESCALATE:|SCREEN_COMPLETE:"; then
+            if echo "$LAST_OUTPUT" | grep -qE "TDD_COMPLETE:|MIGRATION_COMPLETE:|AUDIT_COMPLETE:|AUDIT_ESCALATE:|UI_COMPLETE:|UI_BLOCKED:|PLAN_ANALYSIS:"; then
               exit 0
             fi
-            echo "[kmm-workflow] WARNING: Agent stopped without a completion promise. Expected one of: TDD_COMPLETE, MIGRATION_COMPLETE, AUDIT_COMPLETE, AUDIT_ESCALATE, SCREEN_COMPLETE. Check agent output."
+            echo "[kmm-workflow] WARNING: Agent stopped without a completion promise. Expected one of: TDD_COMPLETE, MIGRATION_COMPLETE, AUDIT_COMPLETE, AUDIT_ESCALATE, UI_COMPLETE, UI_BLOCKED, PLAN_ANALYSIS. Check agent output."
             exit 0
   Stop:
     - hooks:
@@ -60,6 +60,9 @@ ASSESS → PLAN → EXECUTE → VERIFY → RUNTIME → MANUAL TEST → DONE
 
 Each state transition is enforced by hooks. The orchestrator dispatches agents and runs builds.
 **The orchestrator NEVER reads or writes migration code directly** — only agents do.
+**Always use latest docs.** For library APIs, versions, and patterns: use Context7, `/find-docs`,
+or web search. Never rely on agent training data — it may be outdated. When adding new deps,
+check latest stable versions via live docs.
 
 ## Session Recovery
 
@@ -77,7 +80,8 @@ Hooks auto-reload plan on every message. After a disconnect:
 | File classification | **Haiku** | background, parallel | Classification line (~50 tokens) |
 | Test writing | **Sonnet** | background, parallel | `TDD_COMPLETE: <file> \| tests: <test-file> \| count: N` |
 | Migration | **Sonnet** | background, parallel | `MIGRATION_COMPLETE: <file> \| swaps: [libs]` |
-| Swift screen | **Sonnet** | background | `SCREEN_COMPLETE: <screen> \| components: N` |
+| UI migration | **Sonnet** | background | `UI_COMPLETE: <screen> \| strategy: CMP\|SwiftUI\|Hybrid \| components: N` |
+| Plan analysis | **Sonnet** | foreground | `PLAN_ANALYSIS: gaps: N \| ambiguities: N \| warnings: N` |
 | Audit | **Sonnet** | foreground | `AUDIT_COMPLETE: <path> \| issues: N \| auto-fixed: N` |
 | Builds / tests | **Orchestrator** | — | Direct Bash output |
 | Completeness check | **Sonnet** | foreground | Structured report |
@@ -91,7 +95,7 @@ Hooks auto-reload plan on every message. After a disconnect:
 
 ## Completion Promise Strings
 
-Agents must emit one of: `TDD_COMPLETE`, `MIGRATION_COMPLETE`, `SCREEN_COMPLETE`, `AUDIT_COMPLETE`, or `AUDIT_ESCALATE`.
+Agents must emit one of: `TDD_COMPLETE`, `MIGRATION_COMPLETE`, `UI_COMPLETE`, `UI_BLOCKED`, `AUDIT_COMPLETE`, `AUDIT_ESCALATE`, or `PLAN_ANALYSIS`.
 Format details are in each agent prompt template (`references/agent-prompts/`).
 
 If an agent's output does not contain a completion promise, its work is **not accepted**.
@@ -103,7 +107,8 @@ When dispatching agents, construct prompts from reference files — do NOT invok
 
 **For test-writing agents:** Read `references/agent-prompts/test-writer.md`, inject into prompt.
 **For migration agents:** Read `references/agent-prompts/migrator.md`, inject into prompt.
-**For swift-screen agents:** Read `references/agent-prompts/swift-screen.md`, inject into prompt.
+**For UI migration agents:** Read `references/agent-prompts/ui-migrator.md`, inject into prompt.
+**For plan analysis:** Read `references/agent-prompts/plan-analyzer.md`, inject into prompt.
 **For audit agents:** Read `references/agent-prompts/auditor.md`, inject into prompt.
 
 Each template includes the guardrail cheatsheet + task-specific rules + completion promise format.
@@ -126,6 +131,8 @@ Each template includes the guardrail cheatsheet + task-specific rules + completi
 - `references/battle-tested-gotchas.md` — production gotchas
 - `references/kmm-patterns.md` — KMM patterns quick-reference
 - `references/guardrail-cheatsheet.md` — compact rules for all agents
+- `references/agent-prompts/ui-migrator.md` — prompt for UI migration (CMP/SwiftUI/Hybrid)
+- `references/agent-prompts/plan-analyzer.md` — prompt for pre-execution plan review
 
 ---
 
@@ -144,6 +151,11 @@ Each template includes the guardrail cheatsheet + task-specific rules + completi
   - [ ] Launch **parallel Haiku agents** (background) — one per file, returns classification:
     `migrate-pure` | `migrate-swap` | `migrate-expect-actual` | `platform-stay` | `wire-only`
   - [ ] Reference: `references/dependency-map.md` for library classification
+  - For `platform-stay` screens, also determine:
+    - [ ] Is the source Compose or XML?
+    - [ ] If Compose: is CMP reuse viable? (check CMP compatibility of all components used)
+    - [ ] Ask user: for each Compose screen, CMP reuse or native SwiftUI? (perf-critical = native)
+    - [ ] Assign UI strategy: `CMP` | `SwiftUI` | `Hybrid`
 - [ ] Step 3: Build assessment — orchestrator synthesizes agent results into:
   - [ ] Internal dependency map
   - [ ] External dependency map (flag blockers)
@@ -167,6 +179,21 @@ Each template includes the guardrail cheatsheet + task-specific rules + completi
   - [ ] Compact table format if >50 tasks
 - [ ] Task 0.4: Write PROGRESS.md mirroring phases with checkboxes
 - [ ] Present summary → wait for user approval
+
+### Phase B.5: Analyze Plan
+
+**After user approves the plan, before execution begins.**
+
+- [ ] Dispatch **Sonnet agent** (foreground) with `references/agent-prompts/plan-analyzer.md`
+  - Agent reads: PLAN.md, FINDINGS.md, and relevant source files
+  - Agent checks: file coverage, dependency completeness, test feasibility, UI strategy decisions, protocol compliance, ambiguity detection, latest docs verification
+  - Agent returns: `PLAN_ANALYSIS: gaps: N | ambiguities: N | warnings: N | verified: N/N`
+- [ ] If gaps > 0 or ambiguities > 0:
+  - Present each gap/ambiguity to user with options
+  - Update PLAN.md + FINDINGS.md with decisions
+  - Re-run plan analysis (max 2 iterations)
+- [ ] If only warnings: proceed to Phase C, note warnings in FINDINGS.md
+- [ ] If all verified: proceed to Phase C
 
 **Phase mapping rules:**
 - `migrate-pure` → parallelizable batch
