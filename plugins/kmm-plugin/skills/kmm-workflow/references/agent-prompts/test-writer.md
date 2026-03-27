@@ -111,12 +111,12 @@ The LAST line of your output MUST be exactly one of the following two formats. N
 **On success:**
 
 ```
-TDD_BASELINE: <source-file> | tests: <test-file-path> | count: <number-of-tests>
+TDD_COMPLETE: <source-file> | tests: <test-file-path> | count: <number-of-tests>
 ```
 
 Example:
 ```
-TDD_BASELINE: app/src/main/java/com/example/LoginRepository.kt | tests: shared/src/commonTest/kotlin/com/example/LoginRepositoryTest.kt | count: 12
+TDD_COMPLETE: app/src/main/java/com/example/LoginRepository.kt | tests: shared/src/commonTest/kotlin/com/example/LoginRepositoryTest.kt | count: 12
 ```
 
 **If the file cannot be tested without more context** (missing dependency source, ambiguous contract, untestable in commonTest without decisions that require user input):

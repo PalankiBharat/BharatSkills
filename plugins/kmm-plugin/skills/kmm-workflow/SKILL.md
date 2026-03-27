@@ -27,10 +27,10 @@ hooks:
             if [ -z "$PLAN_DIR" ]; then exit 0; fi
             LAST_OUTPUT=$(tail -5 "$PLAN_DIR/PROGRESS.md" 2>/dev/null)
             # Check for completion promise strings in recent progress
-            if echo "$LAST_OUTPUT" | grep -qE "TDD_BASELINE:|MIGRATION_COMPLETE:|AUDIT_COMPLETE:|SCREEN_COMPLETE:"; then
+            if echo "$LAST_OUTPUT" | grep -qE "TDD_COMPLETE:|MIGRATION_COMPLETE:|AUDIT_COMPLETE:|AUDIT_ESCALATE:|SCREEN_COMPLETE:"; then
               exit 0
             fi
-            echo "[kmm-workflow] WARNING: Agent stopped without a completion promise. Expected one of: TDD_BASELINE, MIGRATION_COMPLETE, AUDIT_COMPLETE, SCREEN_COMPLETE. Check agent output."
+            echo "[kmm-workflow] WARNING: Agent stopped without a completion promise. Expected one of: TDD_COMPLETE, MIGRATION_COMPLETE, AUDIT_COMPLETE, AUDIT_ESCALATE, SCREEN_COMPLETE. Check agent output."
             exit 0
   Stop:
     - hooks:
@@ -78,7 +78,7 @@ Hooks auto-reload plan on every message. After a disconnect:
 |------|-------|------|---------|
 | File discovery / grep | **Haiku** | background, parallel | File list (~100 tokens) |
 | File classification | **Haiku** | background, parallel | Classification line (~50 tokens) |
-| Test writing | **Sonnet** | background, parallel | `TDD_BASELINE: <file> \| tests: <test-file> \| count: N` |
+| Test writing | **Sonnet** | background, parallel | `TDD_COMPLETE: <file> \| tests: <test-file> \| count: N` |
 | Migration | **Sonnet** | background, parallel | `MIGRATION_COMPLETE: <file> \| swaps: [libs]` |
 | Swift screen | **Sonnet** | background | `SCREEN_COMPLETE: <screen> \| components: N` |
 | Audit | **Sonnet** | foreground | `AUDIT_COMPLETE: <path> \| issues: N \| auto-fixed: N` |
@@ -97,10 +97,11 @@ Hooks auto-reload plan on every message. After a disconnect:
 Agents MUST emit exactly one of these at the end of their work:
 
 ```
-TDD_BASELINE: <file> | tests: <test-file> | count: N
+TDD_COMPLETE: <file> | tests: <test-file> | count: N
 MIGRATION_COMPLETE: <file> | swaps: [list] | expect-actual: [list]
 SCREEN_COMPLETE: <screen> | components: N | registered: yes/no
 AUDIT_COMPLETE: <path> | issues: N | auto-fixed: N | escalated: N
+AUDIT_ESCALATE: <path> | severity: MEDIUM | issue: <description> | options: <list>
 ```
 
 If an agent's output does not contain a completion promise, its work is **not accepted**.
@@ -227,7 +228,7 @@ bias — the write action itself puts objectives into the attention window.
 1. **Dispatch parallel Sonnet agents** (background) — test writing only
    - Inject `references/agent-prompts/test-writer.md` into each prompt
    - Agent reads source file + deps, writes characterization tests in commonTest
-   - Agent returns: `TDD_BASELINE: <file> | tests: <test-file> | count: N`
+   - Agent returns: `TDD_COMPLETE: <file> | tests: <test-file> | count: N`
    - **Agent does NOT run Gradle. Agent does NOT write migration code.**
 2. **Orchestrator runs BASELINE:** `./gradlew :shared:testDebugUnitTest`
    - ALL tests must pass. If red → fix tests (only time tests may be modified)

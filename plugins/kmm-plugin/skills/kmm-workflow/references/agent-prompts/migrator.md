@@ -50,7 +50,8 @@ Execute these steps in order. Do not skip any.
 - Apply `expect`/`actual` declarations for any remaining platform-specific behavior
 - API signatures MUST match Android exactly: same method names, parameter names, parameter order, return types
 - Android is the source of truth — replicate behavior, do not improve it
-- If Android code has a bug, migrate the bug; report it separately with a `// BUG:` comment
+- If Android code has a logic bug, migrate the bug as-is and mark it with a `// BUG:` comment — do not block migration for logic bugs
+- If there is architectural ambiguity that could silently break consumers (e.g., unclear API contract, platform behavior with no safe KMM equivalent), output `MIGRATION_BLOCKED` rather than guessing
 
 ### Step 4: Apply dependency swaps
 
