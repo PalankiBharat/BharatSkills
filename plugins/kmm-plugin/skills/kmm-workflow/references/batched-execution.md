@@ -7,10 +7,10 @@ to maximize speed.
 
 1. **PARALLEL AGENTS** (code work, no Gradle):
    Launch N agents, one per file. Each agent does:
-   - Read file + dependencies (migration-workflow.md Step 1)
-   - Assess existing KMM version (Step 2)
-   - Stage to androidMain with minimal compile fixes (Step 3)
-   - Write characterization tests in commonTest (Step 4)
+   - Read file + dependencies
+   - Assess existing KMM version
+   - Stage to androidMain with minimal compile fixes
+   - Write characterization tests in commonTest
    - Agent reports: "staged + N tests written, ready for baseline"
 
 2. **SINGLE BASELINE** (one Gradle run):
@@ -20,8 +20,8 @@ to maximize speed.
 
 3. **PARALLEL AGENTS** (code work, no Gradle):
    Same N agents resume. Each agent does:
-   - Migrate from androidMain → commonMain (Step 6)
-   - Apply dependency swaps if needed (reference `/kmm deps`)
+   - Migrate from androidMain → commonMain
+   - Apply dependency swaps if needed (reference dependency-map.md patterns)
    - Delete staged androidMain copy
    - Agent reports: "migrated, ready for re-test"
 
@@ -33,7 +33,7 @@ to maximize speed.
 ## Phase-Level Steps (After All Batches in Phase)
 
 - Step 8 (Wire+Cleanup) → Final phase tasks
-- Step 9 (Audit) → Final phase `/kmm audit`
+- Step 9 (Audit) → Final phase auditor agent prompt
 - Step 10 (Build Verify) → Every gameplan checkpoint (full 3-platform build)
 
 ## Batching Within a Phase
@@ -51,7 +51,7 @@ Phase 3: Network + Storage
 
 ## Key Mapping Rules
 
-| Classification | Gameplan Task | Per-File Verification | Parallelizable? |
+| Classification | Migration Task | Per-File Verification | Parallelizable? |
 |---------------|--------------|----------------------|----------------|
 | migrate-pure | Migrate file | Tests only (fast) | Yes (if no shared deps) |
 | migrate-swap | Migrate + swap | Tests only (fast) | No (sequential) |

@@ -35,6 +35,30 @@ Plan location: <full path to this file> -->
 
 ---
 
+## STATUS Block
+
+The first 15 lines of PLAN.md are injected by hooks on every message and before every Write/Edit.
+Structure these lines as a compact status summary:
+
+```
+<!-- STATUS: Phase N of M | <phase-name> | <status> -->
+<!-- NEXT: Task N.X — <description> -->
+<!-- VERIFY: <build verification command> -->
+<!-- CHECKPOINT: <last checkpoint commit or "none yet"> -->
+## KMM Migration: <module-name>
+## Rules (always in scope)
+- TDD: tests first, baseline must pass, migrate, re-test WITHOUT test changes
+- Agents return completion promises — no promise = not accepted
+- Simplified Mode for independent files, Full Batched for dependent
+- 3-platform build at every checkpoint
+- Escalate after 3 failures, never suppress errors
+- Assessment: FINDINGS.md | Feedback: append-only to feedback files
+```
+
+Update the STATUS comments and Rules after every phase completes.
+
+---
+
 ## Title and Context
 
 - `# [Title]` — what the plan is for (e.g., "Migrate :networking module to KMM")

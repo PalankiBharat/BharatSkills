@@ -27,10 +27,10 @@ hooks:
             if [ -z "$PLAN_DIR" ]; then exit 0; fi
             LAST_OUTPUT=$(tail -5 "$PLAN_DIR/PROGRESS.md" 2>/dev/null)
             # Check for completion promise strings in recent progress
-            if echo "$LAST_OUTPUT" | grep -qE "TDD_COMPLETE:|MIGRATION_COMPLETE:|AUDIT_COMPLETE:|AUDIT_ESCALATE:|UI_COMPLETE:|UI_BLOCKED:|PLAN_ANALYSIS:"; then
+            if echo "$LAST_OUTPUT" | grep -qE "TDD_COMPLETE:|TDD_BLOCKED:|MIGRATION_COMPLETE:|MIGRATION_BLOCKED:|AUDIT_COMPLETE:|AUDIT_BLOCKED:|AUDIT_ESCALATE:|UI_COMPLETE:|UI_BLOCKED:|PLAN_ANALYSIS:"; then
               exit 0
             fi
-            echo "[kmm-workflow] WARNING: Agent stopped without a completion promise. Expected one of: TDD_COMPLETE, MIGRATION_COMPLETE, AUDIT_COMPLETE, AUDIT_ESCALATE, UI_COMPLETE, UI_BLOCKED, PLAN_ANALYSIS. Check agent output."
+            echo "[kmm-workflow] WARNING: Agent stopped without a completion promise. Expected one of: TDD_COMPLETE, TDD_BLOCKED, MIGRATION_COMPLETE, MIGRATION_BLOCKED, AUDIT_COMPLETE, AUDIT_BLOCKED, AUDIT_ESCALATE, UI_COMPLETE, UI_BLOCKED, PLAN_ANALYSIS. Check agent output."
             exit 0
   Stop:
     - hooks:
@@ -82,7 +82,7 @@ Hooks auto-reload plan on every message. After a disconnect:
 | Migration | **Sonnet** | background, parallel | `MIGRATION_COMPLETE: <file> \| swaps: [libs]` |
 | UI migration | **Sonnet** | background | `UI_COMPLETE: <screen> \| strategy: CMP\|SwiftUI\|Hybrid \| components: N` |
 | Plan analysis | **Sonnet** | foreground | `PLAN_ANALYSIS: gaps: N \| ambiguities: N \| warnings: N` |
-| Audit | **Sonnet** | foreground | `AUDIT_COMPLETE: <path> \| issues: N \| auto-fixed: N` |
+| Audit | **Sonnet** | foreground | `AUDIT_COMPLETE: <path> \| issues: N \| auto-fixed: N \| escalated: N` |
 | Builds / tests | **Orchestrator** | — | Direct Bash output |
 | Completeness check | **Sonnet** | foreground | Structured report |
 
@@ -207,7 +207,7 @@ Each template includes the guardrail cheatsheet + task-specific rules + completi
 
 **Autonomous execution. Read `references/batched-execution.md` for full model.**
 
-**Before EVERY phase:** Update STATUS block in PLAN.md (first 5 lines).
+**Before EVERY phase:** Update STATUS block in PLAN.md (first 15 lines).
 
 **Mode selection:**
 

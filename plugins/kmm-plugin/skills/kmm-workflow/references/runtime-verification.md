@@ -66,7 +66,7 @@ Common KMM runtime crash signatures to look for in logs:
 4. **If crash detected:**
    - Identify crash category from patterns above
    - Read the crashing file + its dependencies (context-first)
-   - Apply fix based on category (follow `/kmm bugfix` patterns)
+   - Apply fix based on category (follow migrator agent prompt for bugfix patterns)
    - Incremental rebuild only — `./gradlew :app:assembleProductionDebug` or `./gradlew :app:installProductionDebug`
    - Re-launch and re-capture logs
    - Repeat until clean launch (**max 5 iterations per platform**, then escalate to user)
