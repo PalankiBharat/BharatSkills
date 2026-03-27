@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "1.0.0",
-  "description": "Battle-tested KMM migration toolkit — TDD-driven file migration, module-level orchestration, SwiftUI screen generation, SKIE interop, auditing, and dependency mapping. Bundles /kmm and /kmm-workflow skills.",
+  "version": "2.0.0",
+  "description": "Battle-tested KMM migration toolkit with hook enforcement — TDD-driven file migration, self-contained orchestrator with agent prompt injection, SwiftUI screen generation, SKIE interop, auditing, and dependency mapping.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"
