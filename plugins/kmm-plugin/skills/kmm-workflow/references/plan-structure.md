@@ -171,6 +171,20 @@ This is the ONLY place external content (web results, raw docs) should live.
 | # | Task | Attempt | What Failed | Resolution |
 |---|------|---------|-------------|------------|
 
+## Known Fixes (Reusable)
+
+Fixes that may recur — check here BEFORE spending tokens re-diagnosing.
+
+| Symptom | Root Cause | Fix | Category |
+|---------|-----------|-----|----------|
+| Example: Gradle cache error on :shared:test | Stale configuration cache | Add --no-configuration-cache | build |
+| Example: SourceKit trust dialog blocks xcodebuild | First-time trust prompt | Run xcodebuild once manually first | ios-build |
+
+Categories: `build`, `ios-build`, `skie`, `koin`, `coroutines`, `test`, `interop`, `other`
+
+When you fix a recurring issue during execution, add it here immediately. Before diagnosing
+any build/test failure, scan this table first — the fix may already be known.
+
 ## External Content
 
 Web search results, copied documentation, raw API references.

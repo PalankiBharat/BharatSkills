@@ -1,8 +1,8 @@
 ---
 name: kmm-workflow
 description: >
-  KMM module migration orchestrator. Use for module-level KMM migrations, migration plans,
-  or any multi-file KMM work. Single-file migrations can use this or work directly.
+  KMM module migration orchestrator. ALWAYS invoke for module-level KMM migrations, migration
+  plans, or any multi-file KMM work. Do not attempt module migrations directly — use this skill first.
 argument-hint: "<module-path-or-description>"
 hooks:
   UserPromptSubmit:
@@ -241,10 +241,15 @@ bias — the write action itself puts objectives into the attention window.
    - Red → fix migration, NEVER tests (max 3 attempts → escalate)
 5. **CHECKPOINT:** 3-platform build → commit → update PLAN.md status → update PROGRESS.md
 
+### Before Diagnosing Any Failure
+
+Check FINDINGS.md → "Known Fixes" table first. If the symptom matches a known fix, apply it
+directly — don't spend tokens re-diagnosing. Add new fixes to the table after resolving them.
+
 ### 3-Strike Escalation
 
 ```
-ATTEMPT 1: Diagnose & Fix — read error, identify root cause, apply targeted fix
+ATTEMPT 1: Check Known Fixes table → if no match, diagnose & apply targeted fix
 ATTEMPT 2: Alternative Approach — different method, NEVER repeat same action
 ATTEMPT 3: Broader Rethink — question assumptions, consider updating plan
 AFTER 3: STOP → escalate to user with all attempts + error logs
