@@ -23,9 +23,9 @@ Before any code is touched:
 7. Tell user:
 
 ```
-Planning complete. Run /clear then paste this:
+Planning complete. Run /clear then:
 
-/kmm-workflow execute .claude/gameplans/<name>/
+/kmm-workflow → pick Continue
 ```
 
 Do NOT auto-clear. The user decides when to clear.

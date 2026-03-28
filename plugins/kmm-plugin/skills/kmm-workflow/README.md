@@ -11,14 +11,15 @@ The key design: two-phase context separation. Phase 1 (planning) is context-heav
 ### Starting a New Migration
 
 ```
-1. /kmm-workflow <module>               ← enters planning mode (heavy context, read-only)
-2. Answer questions one at a time       ← all decisions captured in files, not chat
-3. Review PLAN.md + migration-guide.md  ← approve or adjust before execution starts
-4. /clear                               ← reset context (planning context is no longer needed)
-5. Paste: /kmm-workflow execute .claude/gameplans/<name>/
+1. /kmm-workflow                    ← always ask: Create or Continue?
+2. Pick "Create"                    ← enter module name, base branch, describe goal
+3. Answer questions one at a time   ← all decisions captured in files
+4. Review plan files                ← approve or adjust
+5. /clear                           ← reset context
+6. /kmm-workflow → pick Continue    ← fresh context loads plan files
 ```
 
-Planning produces four files in `.claude/gameplans/<module-name>/`:
+Planning produces four files in `~/dev/gameplans/<name>/`:
 - `PLAN.md` — phases, status block, rules
 - `PROGRESS.md` — empty checkboxes for every task (filled during execution)
 - `migration-guide.md` — per-file migration spec (agents consume this, never re-read source)
@@ -39,7 +40,7 @@ If context feels stale: read PLAN.md + PROGRESS.md manually to re-orient, then c
 ### Resuming in a New Session
 
 ```
-/kmm-workflow execute .claude/gameplans/<name>/
+/kmm-workflow → pick Continue → pick gameplan from list
 ```
 
 Hooks auto-load plan state on the first message. The orchestrator reads PROGRESS.md, finds the last checkpoint commit, and continues from there.
@@ -48,10 +49,10 @@ Hooks auto-load plan state on the first message. The orchestrator reads PROGRESS
 
 ### After a Crash / Disconnect
 
-Same as a new session — paste the execute command.
+Same as a new session.
 
 ```
-/kmm-workflow execute .claude/gameplans/<name>/
+/kmm-workflow → pick Continue → pick gameplan from list
 ```
 
 The orchestrator:
@@ -73,7 +74,7 @@ After fix confirmed: orchestrator updates PROGRESS.md and continues.
 If the debug loop runs many iterations and context becomes heavy:
 ```
 /clear
-/kmm-workflow execute .claude/gameplans/<name>/
+/kmm-workflow → pick Continue → pick gameplan from list
 ```
 Hooks restore state from PROGRESS.md. Execution continues from the last checkpoint.
 
@@ -84,10 +85,7 @@ Hooks restore state from PROGRESS.md. Execution continues from the last checkpoi
 Android and iOS are distinct phases, always in this order:
 
 ```
-After Android manual test passes:
-  Orchestrator commits Android changes
-  Tell user: "Android complete. Ready for iOS. /clear then paste:"
-  /kmm-workflow execute .claude/gameplans/<name>/
+/kmm-workflow → pick Continue → pick the same gameplan → fresh context for iOS
 ```
 
 Fresh context for iOS work. `migration-guide.md` already has iOS screen specs from planning.
@@ -230,16 +228,16 @@ After user approves:
 ```
 Planning complete. Run /clear then paste:
 
-/kmm-workflow execute .claude/gameplans/login-20260326/
+/kmm-workflow execute ~/dev/gameplans/login-20260326/
 ```
 
 ---
 
 ### Context Reset
 
-User runs `/clear`. Chat history is gone. Only the four files in `.claude/gameplans/login-20260326/` survive.
+User runs `/clear`. Chat history is gone. Only the four files in `~/dev/gameplans/login-20260326/` survive.
 
-User pastes: `/kmm-workflow execute .claude/gameplans/login-20260326/`
+User pastes: `/kmm-workflow execute ~/dev/gameplans/login-20260326/`
 
 Orchestrator wakes up. Hooks inject PLAN.md status. Orchestrator reads PROGRESS.md — all checkboxes empty — and starts Phase 1.
 
@@ -426,7 +424,7 @@ npx appium-runner e2e-tests/login-flow.test.js --platform android
 After Android commits, fresh `/clear`:
 
 ```
-/kmm-workflow execute .claude/gameplans/login-20260326/
+/kmm-workflow execute ~/dev/gameplans/login-20260326/
 ```
 
 Orchestrator reads PROGRESS.md — Android phase complete, iOS phase next.
