@@ -1,5 +1,7 @@
-# Guardrail Cheat Sheet
+**1:1 MECHANICAL PORT.** THE rule. Only Android→KMM specifics change. Any behavioral change → REQUIRES_APPROVAL.
 
+- **REQUIRES_APPROVAL.** Any change altering observable behavior → stop and present: (1) The problem — what you found and why it matters, (2) Options — each with detailed explanation, pros/cons, long-term implications, (3) Recommended option — biased toward correctness and long-term maintenance, NEVER toward speed or convenience, (4) Why — explain the recommendation reasoning. Wait for user choice.
+- **Every decision in files.** After /clear, only files survive. Never leave decisions only in chat.
 - **No type casting.** Never use `as`, `as?`, `as!` in Kotlin or Swift. Use polymorphism, generics, protocol conformance, or `is` checks instead.
 - **kotlinx.serialization only.** Never use Gson or Moshi in shared/common code.
 - **`sealed interface`, not `sealed class`.** Prefer `sealed interface` for KMM discriminated unions.

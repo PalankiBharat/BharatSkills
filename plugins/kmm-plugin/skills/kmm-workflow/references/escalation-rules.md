@@ -2,6 +2,45 @@
 
 This file defines when and how to escalate blockers during KMM workflow execution.
 
+There are two distinct escalation mechanisms:
+
+- **REQUIRES_APPROVAL** — for behavioral decisions (combining, splitting, signature changes, logic changes). These are correctness issues, not technical failures.
+- **3-Strike** — for technical failures (build errors, test failures, runtime crashes). These require diagnosis and repair.
+
+Both mechanisms require stopping and presenting a full analysis to the user. Neither allows silent workarounds.
+
+---
+
+## REQUIRES_APPROVAL
+
+Any change that alters observable behavior requires explicit user approval.
+
+### Triggers
+
+- Combining two methods into one (or splitting one into many)
+- Changing a method signature (parameter names, types, order, or return type)
+- Adding or removing behavior not present in the original Android code
+- Changing error handling strategy (swallowing exceptions, changing error types)
+- Any "improvement" or "simplification" of the original logic
+
+### Decision Presentation Format
+
+Stop and present to the user in this exact format:
+
+1. **The problem** — what you found in the source code and why it creates a decision point. Be specific: which file, which method, what the exact conflict is.
+2. **Options** — 2-4 concrete options, each with:
+   - What it involves (specific code changes)
+   - Pros — including long-term maintenance implications
+   - Cons — including risk of introducing bugs or diverging from Android behavior
+3. **Recommended option** — biased toward correctness and long-term maintainability. NEVER recommend the fastest or most convenient option if it trades off correctness. If correctness and speed conflict, always recommend correctness.
+4. **Why** — explain your reasoning. What would a senior engineer who maintains this codebase for 5 years prefer?
+
+Wait for the user to choose before writing any code.
+
+### Batching
+
+During autonomous execution (no user at keyboard), batch REQUIRES_APPROVAL items at phase boundaries — not one-by-one. At the end of each phase, present all accumulated decision points together. Do not pause execution mid-phase for a single REQUIRES_APPROVAL unless it blocks the entire phase.
+
 ---
 
 ## Never Work Around Blockers With Hacks
@@ -15,17 +54,18 @@ When the plan or requirements specify how something should work, implement it as
 
 ---
 
-## When to Escalate
+## When to Escalate (Technical Blockers)
 
-If implementing a task as specified would require something you're unsure about (platform support, library compatibility, API availability), stop and present the user with:
+If implementing a task as specified would require something you're unsure about (platform support, library compatibility, API availability), stop and present the user with using the REQUIRES_APPROVAL format:
 
-1. **The blocker** — what you're trying to do and why it's not straightforward
+1. **The problem** — what you're trying to do, what's blocking it, and why it's not straightforward
 2. **Options** (2-4), each with:
    - What it involves
-   - Pros
-   - Cons
+   - Pros and cons
+   - Long-term implications
    - Your confidence it will work
-3. **Your recommendation** — which option you'd pick and why
+3. **Recommended option** — biased toward correctness and long-term maintenance over speed
+4. **Why** — your reasoning
 
 Wait for the user to choose before proceeding.
 

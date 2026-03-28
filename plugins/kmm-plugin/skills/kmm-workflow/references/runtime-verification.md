@@ -1,34 +1,96 @@
 # Runtime Verification Execution Model
 
-Launch the app on both platforms after completeness verification to catch KMM-specific runtime
-crashes before handing off to manual testing.
+Launch the app on each platform after wiring to catch KMM-specific runtime crashes before handing
+off to manual testing.
+
+**Primary tool:** mobile-mcp (structured, screenshot-capable, works for both Android and iOS)
+**Fallback:** adb (Android) / xcrun simctl (iOS) — use when mobile-mcp is unavailable
+
+For debugging failures found during verification, follow the structured debug loop in
+`references/agent-prompts/debugger.md`. Do not attempt ad-hoc fixes — use the debug loop.
+
+---
 
 ## Android Runtime Verification
 
+### mobile-mcp (primary)
+
+```
+mobile_install_app → mobile_launch_app
+For each screen in migration-guide.md:
+  mobile_take_screenshot → verify layout matches expected
+  mobile_list_elements_on_screen → verify data present
+  mobile_click_on_screen_at_coordinates → navigate to next screen
+Save screenshots to e2e-tests/screenshots/android/
+```
+
+### adb (fallback)
+
 ```bash
+# Uninstall first to ensure clean state
+adb uninstall <package>
+
 # Build & install
 ./gradlew :app:installProductionDebug
 
-# Launch app and capture logcat (clear first, then filter for crashes)
+# Clear logs, launch, capture errors
 adb logcat -c
 adb shell am start -n <package>/<activity>
-sleep 3
 adb logcat -d *:E | grep -E "FATAL|AndroidRuntime|KoinApplication|SKIE|ClassCastException|IllegalStateException|NullPointerException|CoroutineException|JobCancellation"
+```
+
+### Napier log tag filtering
+
+When debugging a specific screen, use Napier log tags for efficient filtering:
+
+```bash
+# Filter by debug tag (set during debug loop instrumentation)
+adb logcat -s "DebugLoginScreen"
+
+# After fix confirmed, remove Napier instrumentation before committing
 ```
 
 To find the package and activity: check `AndroidManifest.xml` for the package name and the
 launcher activity (the one with `MAIN` + `LAUNCHER` intent filters).
 
+---
+
 ## iOS Runtime Verification
 
+### mobile-mcp (primary)
+
+```
+mobile_install_app → mobile_launch_app (iOS simulator)
+For each screen in migration-guide.md:
+  mobile_take_screenshot → compare with Android screenshot (parity check)
+  mobile_list_elements_on_screen → verify same data as Android
+  mobile_click_on_screen_at_coordinates → navigate
+Save screenshots to e2e-tests/screenshots/ios/
+```
+
+### xcrun simctl (fallback)
+
 ```bash
+# Uninstall first to ensure clean state
+xcrun simctl uninstall booted <bundle-id>
+
 # Install and launch with console output
 xcrun simctl install booted path/to/App.app
 xcrun simctl launch --console-pty booted <bundle-id> 2>&1 | head -100
 ```
 
-The `.app` bundle path comes from the build output (`xcodebuild` logs the `.app` path under
-`CONFIGURATION_BUILD_DIR`). The bundle ID is in `Info.plist` as `CFBundleIdentifier`.
+### Napier log tag filtering on iOS
+
+```bash
+# Filter console output by Napier debug tag
+xcrun simctl launch --console-pty booted <bundle-id> 2>&1 | grep "DebugLoginScreen"
+```
+
+Napier outputs to OSLog on iOS, which appears in the simulator console. The tag set during
+instrumentation is the grep target.
+
+The `.app` bundle path comes from `xcodebuild` output under `CONFIGURATION_BUILD_DIR`.
+The bundle ID is in `Info.plist` as `CFBundleIdentifier`.
 
 ## Crash Pattern Recognition
 
@@ -60,16 +122,21 @@ Common KMM runtime crash signatures to look for in logs:
 
 ## Loop Protocol
 
-1. **Build & install** (or use existing build from checkpoint if it's fresh)
-2. **Launch app, capture logs for 5 seconds**
-3. **Parse crash output** — match against the six patterns above
-4. **If crash detected:**
+1. **Uninstall** old build (ensures clean state — never skip this step)
+2. **Build & install**
+3. **Launch app, capture logs**
+4. **Parse crash output** — match against the patterns above
+5. **If crash detected:**
    - Identify crash category from patterns above
-   - Read the crashing file + its dependencies (context-first)
-   - Apply fix based on category (follow migrator agent prompt for bugfix patterns)
-   - Incremental rebuild only — `./gradlew :app:assembleProductionDebug` or `./gradlew :app:installProductionDebug`
+   - Check findings.md Known Fixes table first — the fix may already be documented
+   - If not found: invoke the structured debug loop from `references/agent-prompts/debugger.md`
+   - Each fix attempt logged in PROGRESS.md
+   - Incremental rebuild only — `./gradlew :app:assembleProductionDebug` or `xcodebuild`
    - Re-launch and re-capture logs
-   - Repeat until clean launch (**max 5 iterations per platform**, then escalate to user)
-5. **If clean launch on both platforms** → proceed to Manual Testing Loop. If still crashing after 5 iterations, **STOP** and escalate: provide full stacktraces (not just filtered lines), all fixes attempted (what was changed, why, what happened), and your recommendation. Do not attempt a 6th fix.
+   - Repeat until clean launch (**max 3 iterations via debug loop**, then escalate to user)
+6. **If clean launch** → proceed to Appium automated tests, then Summary Table, then manual test
+
+If still crashing after 3 debug loop iterations, **STOP** and escalate: provide full stacktraces
+(not just filtered lines), all fixes attempted, and your recommendation. Do not attempt a 4th fix.
 
 Each fix attempt must be logged in PROGRESS.md.
