@@ -1,385 +1,461 @@
-# kmm-workflow v2.0
+# kmm-workflow v3.0
 
-A self-contained KMM migration orchestrator that drives multi-file Android-to-shared migrations through a strict state machine (ASSESS → PLAN → EXECUTE → VERIFY → RUNTIME → MANUAL TEST → DONE). The key innovation is that the orchestrator never touches migration code directly — it dispatches Haiku agents for cheap discovery, Sonnet agents for TDD and migration work, enforces completion promise strings before accepting any agent output, and uses Claude hooks to auto-inject plan state on every message so sessions survive disconnects without losing context.
+A self-contained KMM migration orchestrator built around one rule: **1:1 MECHANICAL PORT**. Only Android-to-KMM specifics change. Any behavioral change requires explicit user approval.
 
----
-
-## Sample Workflow: Login Module Migration
-
-### Phase A: Assess
-
-The orchestrator dispatches Haiku agents in parallel to discover files, then classifies each one.
-
-**Step 1 — Haiku discovery agents (parallel, background):**
-
-Agent 1 prompt: `Grep for "Login" in androidApp/src. Return file paths only. No explanation.`
-
-Agent 2 prompt: `Grep for "Session|Token" in androidApp/src. Return file paths only. No explanation.`
-
-Agent 3 prompt: `Grep for "LoginViewModel|LoginRepository" in androidApp/src. Return file paths only. No explanation.`
-
-Returns (all three finish ~simultaneously):
-
-```
-Agent 1:
-androidApp/src/main/java/com/acme/login/LoginRepository.kt
-androidApp/src/main/java/com/acme/login/LoginApi.kt
-androidApp/src/main/java/com/acme/login/LoginUseCase.kt
-androidApp/src/main/java/com/acme/login/ui/LoginScreen.kt
-
-Agent 2:
-androidApp/src/main/java/com/acme/login/SessionStore.kt
-androidApp/src/main/java/com/acme/login/TokenManager.kt
-androidApp/src/main/java/com/acme/auth/AuthCredentials.kt
-
-Agent 3:
-androidApp/src/main/java/com/acme/login/LoginViewModel.kt
-androidApp/src/main/java/com/acme/login/ui/LoginScreen.kt  (duplicate — deduplicated)
-```
-
-**Step 2 — Haiku classification agents (parallel, background), one per file:**
-
-Each agent receives the file contents and returns a single classification line.
-
-```
-LoginRepository.kt  -> migrate-pure
-LoginApi.kt         -> migrate-swap  (Retrofit -> ktor-client)
-SessionStore.kt     -> migrate-swap  (SharedPreferences -> multiplatform-settings)
-TokenManager.kt     -> migrate-pure
-LoginUseCase.kt     -> migrate-pure
-AuthCredentials.kt  -> migrate-pure
-LoginViewModel.kt   -> platform-stay (uses Android ViewModel, Compose state)
-LoginScreen.kt      -> platform-stay (Compose UI)
-```
-
-**Step 3 — Orchestrator presents classification table and confirms with user:**
-
-```
-Discovered 8 files in the Login module. Proposed classification:
-
-File                    | Classification          | Notes
-------------------------|-------------------------|----------------------------------
-LoginRepository.kt      | migrate-pure            | no platform deps
-LoginApi.kt             | migrate-swap            | Retrofit -> ktor-client
-SessionStore.kt         | migrate-swap            | SharedPreferences -> multiplatform-settings
-TokenManager.kt         | migrate-pure            | no platform deps
-LoginUseCase.kt         | migrate-pure            | no platform deps
-AuthCredentials.kt      | migrate-pure            | no platform deps
-LoginViewModel.kt       | platform-stay           | Android ViewModel + Compose state
-LoginScreen.kt          | platform-stay           | Compose UI
-
-Migration order (bottom-up): AuthCredentials -> TokenManager -> LoginRepository ->
-  LoginApi -> SessionStore -> LoginUseCase -> (LoginViewModel, LoginScreen stay)
-
-Does this look right? Any files missing or misclassified?
-```
+The key design: two-phase context separation. Phase 1 (planning) is context-heavy — read everything, resolve all decisions, write four output files. After user approves, `/clear` resets context. Phase 2 (execution) is lean — agents consume migration-guide.md entries (~100 tokens each) and execute with zero improvisation.
 
 ---
 
-### Phase B: Plan
+## Part 1: How to Use This Skill
 
-After user confirms, the orchestrator writes three planning files and waits for approval.
+### Starting a New Migration
 
-**FINDINGS.md (abbreviated):**
+```
+1. /kmm-workflow <module>               ← enters planning mode (heavy context, read-only)
+2. Answer questions one at a time       ← all decisions captured in files, not chat
+3. Review PLAN.md + migration-guide.md  ← approve or adjust before execution starts
+4. /clear                               ← reset context (planning context is no longer needed)
+5. Paste: /kmm-workflow execute .claude/gameplans/<name>/
+```
+
+Planning produces four files in `.claude/gameplans/<module-name>/`:
+- `PLAN.md` — phases, status block, rules
+- `PROGRESS.md` — empty checkboxes for every task (filled during execution)
+- `migration-guide.md` — per-file migration spec (agents consume this, never re-read source)
+- `findings.md` — known fixes, gotchas, verified library versions
+
+A Sonnet agent also writes Appium test specs + fake server config to `e2e-tests/` during planning.
+
+---
+
+### Resuming After a Break (same session)
+
+Just keep working. Hooks auto-inject PLAN.md status on every message.
+
+If context feels stale: read PLAN.md + PROGRESS.md manually to re-orient, then continue.
+
+---
+
+### Resuming in a New Session
+
+```
+/kmm-workflow execute .claude/gameplans/<name>/
+```
+
+Hooks auto-load plan state on the first message. The orchestrator reads PROGRESS.md, finds the last checkpoint commit, and continues from there.
+
+---
+
+### After a Crash / Disconnect
+
+Same as a new session — paste the execute command.
+
+```
+/kmm-workflow execute .claude/gameplans/<name>/
+```
+
+The orchestrator:
+1. Reads PROGRESS.md to find last confirmed state
+2. Runs `git diff --stat` to see what was written before the crash
+3. Re-dispatches only agents whose completion promise was never confirmed
+4. Does not re-read source files or re-assess anything already decided
+
+---
+
+### During Debugging
+
+The debug loop runs within the current session — no `/clear` needed.
+
+Each fix cycle: uninstall → install → launch → capture logs → user reproduces → analyze → fix → verify.
+
+After fix confirmed: orchestrator updates PROGRESS.md and continues.
+
+If the debug loop runs many iterations and context becomes heavy:
+```
+/clear
+/kmm-workflow execute .claude/gameplans/<name>/
+```
+Hooks restore state from PROGRESS.md. Execution continues from the last checkpoint.
+
+---
+
+### Between Android and iOS
+
+Android and iOS are distinct phases, always in this order:
+
+```
+After Android manual test passes:
+  Orchestrator commits Android changes
+  Tell user: "Android complete. Ready for iOS. /clear then paste:"
+  /kmm-workflow execute .claude/gameplans/<name>/
+```
+
+Fresh context for iOS work. `migration-guide.md` already has iOS screen specs from planning.
+
+---
+
+### When Done
+
+- All phases in PROGRESS.md marked `[x]`
+- Final commit: Appium tests in `e2e-tests/` (regression suite for CI)
+- `findings.md` saved — reusable for the next migration (known fixes, gotchas, verified versions)
+- `PLAN.md` and `migration-guide.md` can be deleted or kept for reference
+
+---
+
+## Part 2: Sample Workflow — Login Module Migration
+
+This shows the full two-phase flow for a Login module with 6 files to migrate.
+
+### Phase 1: Planning
+
+The orchestrator enters planning mode (read-only, all decisions resolved upfront).
+
+**Step 1: Discover and classify files**
+
+Haiku agents grep for Login-related files. Orchestrator classifies each:
+
+```
+LoginRepository.kt  → migrate-swap  (Retrofit → Ktor)
+LoginApi.kt         → migrate-swap  (Retrofit → Ktor)
+SessionStore.kt     → migrate-swap  (SharedPreferences → MultiplatformSettings)
+TokenManager.kt     → migrate-pure  (no platform deps)
+LoginUseCase.kt     → migrate-pure  (no platform deps)
+AuthCredentials.kt  → migrate-pure  (no platform deps)
+LoginViewModel.kt   → platform-stay (Android ViewModel + Compose state)
+LoginScreen.kt      → platform-stay (iOS screen needed)
+```
+
+Orchestrator presents classification table, waits for user confirmation.
+
+**Step 2: Write migration-guide.md**
+
+One entry per file. Example entry:
 
 ```markdown
-# FINDINGS: Login Module
-
-## File Table
-| File               | Classification  | Migration Phase |
-|--------------------|-----------------|-----------------|
-| AuthCredentials.kt | migrate-pure    | Phase 1         |
-| TokenManager.kt    | migrate-pure    | Phase 1         |
-| LoginRepository.kt | migrate-pure    | Phase 1         |
-| LoginApi.kt        | migrate-swap    | Phase 2         |
-| SessionStore.kt    | migrate-swap    | Phase 2         |
-| LoginUseCase.kt    | migrate-pure    | Phase 3         |
-| LoginViewModel.kt  | platform-stay   | Phase 4         |
-| LoginScreen.kt     | platform-stay   | Phase 4         |
-
-## Dependency Map (selected entries)
-- LoginUseCase -> LoginRepository, LoginApi, SessionStore
-- LoginRepository -> AuthCredentials, TokenManager
-- LoginApi -> AuthCredentials
-
-## Known Fixes
-| Symptom                                      | Fix                                                  |
-|----------------------------------------------|------------------------------------------------------|
-| Gradle: Could not resolve ktor-client-okhttp | Add `resolutionStrategy.force "io.ktor:..."` in app  |
-| ksp not found in commonMain                  | Move ksp() to androidMain sourceSet in build.gradle  |
+## LoginRepository.kt
+- Source: androidApp/src/main/java/com/acme/login/LoginRepository.kt
+- Target: shared/src/commonMain/kotlin/com/acme/login/LoginRepository.kt
+- Classification: migrate-swap
+- Public API:
+  - login(email: String, pwd: String): Result<User>
+  - logout(): Unit
+  - isLoggedIn(): Flow<Boolean>
+- Library swaps: Retrofit Call<T> → suspend fun (Ktor 3.1.0)
+- API endpoints: POST /api/auth/login, DELETE /api/auth/session
+- expect/actual: none
+- Migrate after: AuthCredentials.kt, TokenManager.kt
+- Consumers: LoginUseCase.kt, LoginViewModel.kt (update imports after)
+- Rules: keep login(email) and login(phone) as SEPARATE methods — DO NOT combine
 ```
 
-**PLAN.md STATUS block (first 15 lines — what hooks inject on every message):**
+**Step 3: Write PLAN.md, PROGRESS.md, findings.md**
+
+PLAN.md STATUS block (first 15 lines — injected by hooks on every message):
 
 ```
-STATUS: EXECUTE Phase 1
-MODULE: :feature:login
-PHASES: 4
-DONE: 0/4
-CHECKPOINT: none yet
-PLAN_DIR: .claude/gameplans/login-20241015-143200
-PROGRESS: .claude/gameplans/login-20241015-143200/PROGRESS.md
-FINDINGS: .claude/gameplans/login-20241015-143200/FINDINGS.md
+<!-- STATUS: 1:1 MECHANICAL PORT | Phase 0 of 5 | Setup | planning -->
+<!-- NEXT: Task 0.1 — Baseline build verification -->
+<!-- VERIFY: ./gradlew :shared:test :app:assembleDebug -->
+<!-- CHECKPOINT: none yet -->
+## KMM Migration: login
+## Rules (always in scope)
+- 1:1 MECHANICAL PORT: only Android→KMM specifics change, any behavioral change → REQUIRES_APPROVAL
+- Agents return completion promises — no promise = not accepted
+- Haiku verifier after every migration — VERIFY_PASS required before continuing
+- 3-platform build at every checkpoint
+- Escalate after 3 failures, never suppress errors
+- migration-guide.md = per-file spec | findings.md = known fixes + research
+```
+
+PROGRESS.md (created with empty checkboxes during planning):
+
+```markdown
+## Phase 1: Domain
+[ ] AuthCredentials.kt
+[ ] TokenManager.kt
+[ ] LoginUseCase.kt
+[ ] Checkpoint 1
+
+## Phase 2: Network/Storage
+[ ] LoginRepository.kt
+[ ] LoginApi.kt
+[ ] SessionStore.kt
+[ ] Checkpoint 2
+
+## Wire Android
+[ ] Update imports in LoginViewModel.kt
+[ ] Update Koin DI module
+[ ] Delete original Android files
+[ ] Android build + test
+[ ] Runtime verify (mobile-mcp)
+[ ] Appium flow tests
+[ ] Summary Table
+[ ] Manual test
+[ ] Checkpoint Android
+
+## Wire iOS
+[ ] LoginScreen.swift (SwiftUI)
+[ ] Wire Koin iOS module
+[ ] Wire SKIE StateFlow observations
+[ ] iOS build (xcodebuild)
+[ ] Runtime verify (mobile-mcp simulator)
+[ ] Appium flow tests (iOS)
+[ ] Summary Table
+[ ] Manual test
+[ ] Checkpoint iOS
+```
+
+**Step 4: Dispatch Sonnet agent for Appium specs**
+
+The agent records the API endpoints from migration-guide.md and writes:
+- `e2e-tests/fake-server-config.json` — deterministic responses for all endpoints
+- `e2e-tests/login-flow.test.js` — Appium tests for login, logout, session restore flows
+
+**Step 5: Present plan to user**
+
+```
+Planning complete. 5 phases, 8 files.
+Phase 1: Domain layer (3 files — pure)
+Phase 2: Network/Storage (3 files — library swaps)
+Wire Android: imports, DI, delete originals, build + test
+Wire iOS: LoginScreen.swift, Koin iOS, SKIE
+Final verify: regression suite committed
+
+Review PLAN.md and migration-guide.md. Approve?
+```
+
+After user approves:
+
+```
+Planning complete. Run /clear then paste:
+
+/kmm-workflow execute .claude/gameplans/login-20260326/
+```
+
 ---
-Phase 1: Domain layer (AuthCredentials, TokenManager, LoginRepository) — migrate-pure, Full Batched
-Phase 2: API + Storage (LoginApi, SessionStore) — migrate-swap, Full Batched
-Phase 3: Use case (LoginUseCase) — migrate-pure, Simplified
-Phase 4: Platform screens (LoginViewModel, LoginScreen) — platform-stay, SwiftUI
----
-```
 
-**Orchestrator approval prompt:**
+### Context Reset
 
-```
-Plan ready. 4 phases, 8 files total.
-Phase 1: 3 pure domain files (Full Batched, TDD enforced)
-Phase 2: 2 swap files with lib deps (Full Batched, TDD enforced)
-Phase 3: 1 use case (Simplified, no intra-phase deps)
-Phase 4: 2 platform-stay files (SwiftUI screens)
+User runs `/clear`. Chat history is gone. Only the four files in `.claude/gameplans/login-20260326/` survive.
 
-Approve to start execution?
-```
+User pastes: `/kmm-workflow execute .claude/gameplans/login-20260326/`
+
+Orchestrator wakes up. Hooks inject PLAN.md status. Orchestrator reads PROGRESS.md — all checkboxes empty — and starts Phase 1.
 
 ---
 
-### Phase C: Execute
+### Phase 2: Execute — Domain Layer
 
-#### Phase 1 — Domain Layer (Full Batched Mode)
-
-Three files with internal deps: `AuthCredentials.kt`, `TokenManager.kt`, `LoginRepository.kt`.
-`LoginRepository` depends on the other two, so Full Batched mode is required.
-
-**Step 1: Dispatch 3 parallel Sonnet test-writing agents (background):**
-
-The orchestrator reads `references/agent-prompts/test-writer.md` and constructs each prompt. Example for `LoginRepository.kt`:
+**Migrate → Verify loop for AuthCredentials.kt:**
 
 ```
-You are a KMM test-writing agent. Do NOT write migration code. Do NOT run Gradle.
+Orchestrator dispatches Sonnet migrator agent:
+  "Migrate AuthCredentials.kt per migration-guide.md entry. 1:1 mechanical port."
 
-TASK: Write characterization tests for:
-  androidApp/src/main/java/com/acme/login/LoginRepository.kt
+Agent returns:
+  MIGRATION_COMPLETE: com.acme.login.AuthCredentials | swaps: [] | expect-actual: []
 
-TARGET TEST FILE:
-  shared/src/commonTest/kotlin/com/acme/login/LoginRepositoryTest.kt
+Orchestrator dispatches Haiku verifier agent:
+  "Diff migrated vs original. Check: API surface match, no logic added/removed."
 
-GUARDRAILS (from references/guardrail-cheatsheet.md):
-- Tests go in commonTest, not androidTest
-- Use kotlin.test, not JUnit
-- Mock only external boundaries (LoginApi, SessionStore)
-- Do not import android.* in commonTest
-- Cover the happy path + at least one error path per public function
-
-COMPLETION PROMISE (required — last line of your output):
-  TDD_COMPLETE: com.acme.login.LoginRepository | tests: LoginRepositoryTest.kt | count: N
+Verifier returns:
+  VERIFY_PASS: AuthCredentials.kt | methods: 3/3 match | behavioral: identical
 ```
 
-All 3 agents run in parallel. Returns:
+Same loop for TokenManager.kt and LoginUseCase.kt (parallelized — no shared deps).
 
-```
-Agent 1: TDD_COMPLETE: com.acme.login.AuthCredentials | tests: AuthCredentialsTest.kt | count: 4
-Agent 2: TDD_COMPLETE: com.acme.login.TokenManager | tests: TokenManagerTest.kt | count: 6
-Agent 3: TDD_COMPLETE: com.acme.login.LoginRepository | tests: LoginRepositoryTest.kt | count: 8
-```
-
-All 3 returned valid promises. Orchestrator advances.
-
-**Step 2: Orchestrator runs baseline:**
+**After all three pass:**
 
 ```bash
 ./gradlew :shared:testDebugUnitTest
-
-> Task :shared:testDebugUnitTest
-AuthCredentialsTest > test_credentials_serialization PASSED
-AuthCredentialsTest > test_empty_username_rejected PASSED
-TokenManagerTest > test_token_stored PASSED
-...
-LoginRepositoryTest > test_login_success PASSED
-LoginRepositoryTest > test_login_network_error PASSED
-...
 
 BUILD SUCCESSFUL in 14s
-18 tests passed, 0 failed
+12 tests passed, 0 failed
 ```
 
-Baseline green. Orchestrator advances to migration.
-
-**Step 3: Dispatch 3 parallel Sonnet migration agents (background):**
-
-Example prompt for `LoginRepository.kt`:
-
+PROGRESS.md updated:
 ```
-You are a KMM migration agent. Do NOT run Gradle. Do NOT modify test files.
-
-TASK: Migrate to commonMain:
-  FROM: androidApp/src/main/java/com/acme/login/LoginRepository.kt
-  TO:   shared/src/commonMain/kotlin/com/acme/login/LoginRepository.kt
-
-DEPS ALREADY MIGRATED: AuthCredentials.kt, TokenManager.kt (check commonMain)
-
-GUARDRAILS (from references/guardrail-cheatsheet.md):
-- Remove android.* imports
-- Use kotlinx.coroutines.flow.Flow (not LiveData)
-- Update package to com.acme.login (shared)
-- Do not add expect/actual unless classification says migrate-expect-actual
-
-COMPLETION PROMISE (required — last line of your output):
-  MIGRATION_COMPLETE: com.acme.login.LoginRepository | swaps: [] | expect-actual: []
+[x] AuthCredentials.kt — VERIFY_PASS, migrated
+[x] TokenManager.kt — VERIFY_PASS, migrated
+[x] LoginUseCase.kt — VERIFY_PASS, migrated
+[x] Checkpoint 1 — abc1234
 ```
-
-Returns:
-
-```
-Agent 1: MIGRATION_COMPLETE: com.acme.login.AuthCredentials | swaps: [] | expect-actual: []
-Agent 2: MIGRATION_COMPLETE: com.acme.login.TokenManager | swaps: [] | expect-actual: []
-Agent 3: MIGRATION_COMPLETE: com.acme.login.LoginRepository | swaps: [] | expect-actual: []
-```
-
-**Step 4: Orchestrator runs re-test:**
-
-```bash
-./gradlew :shared:testDebugUnitTest
-
-BUILD SUCCESSFUL in 13s
-18 tests passed, 0 failed
-```
-
-Same 18 tests pass without modification. Orchestrator advances.
-
-**Step 5: Checkpoint commit:**
-
-```bash
-./gradlew :shared:build :androidApp:assembleDebug :iosApp:build
-
-BUILD SUCCESSFUL (all 3 platforms)
-
-git add shared/src/commonMain/kotlin/com/acme/login/AuthCredentials.kt \
-        shared/src/commonMain/kotlin/com/acme/login/TokenManager.kt \
-        shared/src/commonMain/kotlin/com/acme/login/LoginRepository.kt \
-        shared/src/commonTest/kotlin/com/acme/login/
-git commit -m "chore(login): Phase 1 — migrate domain layer to commonMain"
-```
-
-PLAN.md STATUS block updated: `DONE: 1/4`, `CHECKPOINT: login-phase1`.
 
 ---
 
-#### Phase 2 — API + Storage Layer (Full Batched Mode, migrate-swap)
+### Phase 2: Execute — Network/Storage Layer
 
-`LoginApi.kt` swaps Retrofit for ktor-client. `SessionStore.kt` swaps SharedPreferences for multiplatform-settings. These files have no dependency on each other, but both need Full Batched because the swap libs require careful test coverage before touching the implementation.
+Same migrate → verify → test loop. LoginApi.kt requires a library swap (Retrofit → Ktor 3.1.0).
 
-Same TDD → baseline → migration → re-test → checkpoint cycle as Phase 1. The migration agents receive additional swap instructions injected from `references/dependency-map.md`:
+**REQUIRES_APPROVAL scenario:**
 
-```
-SWAP INSTRUCTIONS:
-- retrofit2.Call -> suspend fun (ktor-client)
-- SharedPreferences -> com.russhwolf.settings.Settings
-- See references/dependency-map.md for import replacements
-```
+During migration of LoginApi.kt, the migrator notices the Android code has two methods — `loginWithEmail()` and `loginWithPhone()` — that share 90% identical logic. The migration-guide.md entry says "keep as SEPARATE methods — DO NOT combine". No decision needed — the spec is clear.
 
-Returns:
+But suppose migration-guide.md had NOT specified this. The migrator would stop and present:
 
 ```
-Agent 1: MIGRATION_COMPLETE: com.acme.login.LoginApi | swaps: [retrofit2->ktor-client] | expect-actual: []
-Agent 2: MIGRATION_COMPLETE: com.acme.login.SessionStore | swaps: [SharedPreferences->multiplatform-settings] | expect-actual: []
+REQUIRES_APPROVAL: LoginApi.kt
+
+Problem: loginWithEmail() and loginWithPhone() share identical logic. I could
+combine them into login(identifier: String) or keep them separate.
+
+Options:
+1. Keep separate (two methods)
+   - Matches Android source exactly
+   - Callers need no changes
+   - More code, some duplication
+   - Long-term: clear intent, easy to diverge behavior later
+
+2. Combine into login(identifier: String)
+   - Less code
+   - Callers must change (LoginUseCase.kt, LoginViewModel.kt)
+   - Long-term: ambiguous intent, harder to add email-vs-phone specific logic
+
+Recommended: Option 1 (keep separate). 1:1 mechanical port — the Android source
+has two methods and we should too. Combining is an improvement, not a port.
+
+Waiting for user choice.
 ```
-
-Checkpoint commit: `"chore(login): Phase 2 — swap Retrofit + SharedPreferences to KMM equivalents"`
-
-PLAN.md STATUS block: `DONE: 2/4`.
 
 ---
 
-### Hook Activity
-
-**UserPromptSubmit — on session start (or reconnect):**
-
-```
-[kmm-workflow] ACTIVE MIGRATION:
-STATUS: EXECUTE Phase 2
-MODULE: :feature:login
-PHASES: 4
-DONE: 1/4
-CHECKPOINT: login-phase1
-...
-
-=== recent progress ===
-[x] Phase 1: Domain layer — checkpoint committed (18 tests pass)
-[ ] Phase 2: API + Storage — in progress
-```
-
-**PreToolUse — before any Write or Edit:**
-
-```
-STATUS: EXECUTE Phase 2
-MODULE: :feature:login
-PHASES: 4
-DONE: 1/4
-CHECKPOINT: login-phase1
-...
-```
-
-**PostToolUse — after any Write or Edit:**
-
-```
-[kmm-workflow] Update PROGRESS.md with what you just did.
-```
-
-**Stop hook — orchestrator tries to end session mid-migration:**
-
-```
-[kmm-workflow] Migration in progress: 1/4 phases complete. Update PROGRESS.md before stopping.
-```
-
-**PreCompact — context window nearing limit:**
-
-```
-[kmm-workflow] Plan files backed up before compaction. Re-read PLAN.md + PROGRESS.md now.
-```
-
-Backup written to: `.claude/gameplans/login-20241015-143200/backups/PLAN_1729003200.md`
-
----
-
-### Session Recovery Example
-
-Session dies mid-Phase 2. User reconnects and sends any message.
-
-UserPromptSubmit hook fires immediately:
-
-```
-[kmm-workflow] ACTIVE MIGRATION:
-STATUS: EXECUTE Phase 2
-MODULE: :feature:login
-PHASES: 4
-DONE: 1/4
-CHECKPOINT: login-phase1
-PLAN_DIR: .claude/gameplans/login-20241015-143200
-...
-
-=== recent progress ===
-[x] Phase 1: Domain layer — checkpoint committed (18 tests pass)
-[ ] Phase 2: API + Storage — TDD_COMPLETE received, baseline passed, migration dispatched (lost session)
-```
-
-Orchestrator reads injected state, runs `git diff --stat` to see what was written before the crash, then re-dispatches only the migration agents whose `MIGRATION_COMPLETE` was never confirmed. No re-reading of all files. No re-assessment. Continues from the last known good state.
-
----
-
-### Known Fixes in Action
+### Debug Loop Example
 
 Phase 2 re-test fails:
 
 ```
 > Task :shared:testDebugUnitTest FAILED
 
-Could not resolve io.ktor:ktor-client-okhttp:2.3.4.
+LoginApiTest > test_login_success FAILED
+java.lang.AssertionError: expected 200 but was 0
 ```
 
-Before spending tokens diagnosing, orchestrator checks FINDINGS.md Known Fixes table:
+Orchestrator checks findings.md Known Fixes table — no match.
+
+Orchestrator invokes debugger.md structured loop:
+
+**Step 1 — INSTRUMENT:**
+```kotlin
+// Added to LoginApi.kt
+Napier.d("[DebugLoginApi] login called, endpoint: $endpoint")
+Napier.d("[DebugLoginApi] response status: ${response.status.value}")
+```
+
+**Step 2 — CAPTURE (Android):**
+```bash
+adb uninstall com.acme.app
+./gradlew :app:installDebug
+adb logcat -c
+adb logcat -s "DebugLoginApi"
+```
+
+**Step 3 — WAIT:** Tells user "Reproduce the login flow, then say done."
+
+**Step 4 — ANALYZE:** Logs show response status is 0 — the Ktor client is not sending the Content-Type header required by the fake server.
+
+**Step 5 — ROOT CAUSE:** Ktor 3.1.0 does not auto-set Content-Type for POST bodies without explicit configuration.
+
+**Step 6 — FIX (minimal, 1:1 rule applies):**
+```kotlin
+// Added to Ktor client config in LoginApi.kt
+install(ContentNegotiation) { json() }
+```
+
+**Step 7 — VERIFY:** Rebuild, reinstall, re-capture. Status is 200. Test passes.
+
+**Step 8 — Record in findings.md:**
+```
+| Ktor POST returns status 0 | Content-Type not auto-set in Ktor 3.1.0 | Add ContentNegotiation { json() } to client | ktor |
+```
+
+Remove Napier instrumentation. PROGRESS.md updated.
+
+---
+
+### Wire Android Phase
+
+After all shared phases pass:
+
+1. Sonnet agent updates imports in LoginViewModel.kt (androidApp → shared)
+2. Sonnet agent updates Koin DI module
+3. Grep-before-delete: verify no remaining usages, then delete original Android files
+4. Android build + full test suite
+5. Runtime verify via mobile-mcp:
 
 ```
-Symptom: Could not resolve ktor-client-okhttp
-Fix: Add `resolutionStrategy.force "io.ktor:ktor-client-okhttp:2.3.4"` to app/build.gradle
+mobile_uninstall_app
+mobile_install_app
+mobile_launch_app
+mobile_take_screenshot  ← Login screen
+mobile_list_elements_on_screen  ← verify email field, password field, login button
+mobile_click_on_screen_at_coordinates  ← tap login button
+mobile_take_screenshot  ← verify navigation to home screen
 ```
 
-Match found. Orchestrator applies the fix directly, re-runs the build, passes. Zero tokens spent re-diagnosing a known issue.
+6. Appium flow tests (fake server):
+
+```bash
+# Start fake server
+node e2e-tests/fake-server.js
+
+# Run login flow tests
+npx appium-runner e2e-tests/login-flow.test.js --platform android
+
+# All 3 flows pass: login success, login failure, session restore
+```
+
+7. Summary Table:
+
+```
+| File | Promised | Achieved | VERIFY | Notes |
+|------|---------|---------|--------|-------|
+| LoginRepository.kt | login(email), login(phone) separate | login(email), login(phone) separate | VERIFY_PASS | — |
+| LoginApi.kt | Retrofit→Ktor 3.1.0 | Ktor 3.1.0 + ContentNegotiation fix | VERIFY_PASS | known fix applied |
+| SessionStore.kt | SharedPreferences→MultiplatformSettings | MultiplatformSettings 1.3.0 | VERIFY_PASS | — |
+```
+
+8. Manual test: user tests against real backend. Bug found → debug loop → fix → retest.
+
+9. Commit: `feat(login): Android wiring complete — shared module migration`
+
+---
+
+### Wire iOS Phase
+
+After Android commits, fresh `/clear`:
+
+```
+/kmm-workflow execute .claude/gameplans/login-20260326/
+```
+
+Orchestrator reads PROGRESS.md — Android phase complete, iOS phase next.
+
+1. Sonnet agent writes LoginScreen.swift per migration-guide.md iOS spec
+2. Wire Koin iOS module (register shared dependencies)
+3. Wire SKIE StateFlow observations in SwiftUI
+4. Register new files in pbxproj
+5. iOS build: `xcodebuild -scheme App -sdk iphonesimulator`
+6. Runtime verify on simulator via mobile-mcp — screenshots saved to `e2e-tests/screenshots/ios/`
+7. Parity check: compare iOS screenshots against Android screenshots from Wire Android phase
+8. Appium flow tests adapted for iOS selectors
+9. Summary Table (compare Android vs iOS)
+10. Manual test on iOS simulator
+11. Commit: `feat(login): iOS wiring complete — SwiftUI screen + SKIE observations`
+
+---
+
+### Done
+
+```
+All phases complete:
+[x] Phase 1: Domain — abc1234
+[x] Phase 2: Network/Storage — def5678
+[x] Wire Android — ghi9012
+[x] Wire iOS — jkl3456
+
+Regression suite committed to e2e-tests/
+findings.md ready for next migration
+```
+
+Appium tests in `e2e-tests/` run on CI for every PR touching shared code.

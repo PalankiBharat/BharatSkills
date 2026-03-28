@@ -2,6 +2,20 @@
 
 This file is the template reference for drafting PLAN.md during KMM workflow execution.
 
+## Output Files (4 total)
+
+Every migration produces exactly these four files in `.claude/gameplans/<module-name>/`:
+
+| File | Purpose | Created by |
+|------|---------|-----------|
+| `PLAN.md` | Phases, status block (hooks read first 15 lines), rules | Planning phase |
+| `PROGRESS.md` | Checkpoint tracking — created with empty checkboxes during planning, filled during execution | Planning phase |
+| `migration-guide.md` | Per-file migration spec consumed by agents | Planning phase |
+| `findings.md` | Reusable knowledge: known fixes, gotchas, verified library versions | Planning phase, updated during execution |
+
+All four files are committed to the gameplan directory. After `/clear`, these files are the entire source of truth.
+
+---
 
 ## Self-Documenting Header
 
@@ -9,15 +23,19 @@ MUST appear at the top of every generated PLAN.md:
 
 ```
 <!-- KMM WORKFLOW — AGENT INSTRUCTIONS
+THE RULE: 1:1 MECHANICAL PORT. Only Android→KMM specifics change. Any behavioral
+change → REQUIRES_APPROVAL. Stop, present options, wait for user choice.
+
 Before doing ANY work, you MUST:
 1. Read this entire PLAN.md to understand the task, phases, and constraints
 2. Read PROGRESS.md (in this same directory) to determine current state
-3. Read FINDINGS.md for assessment data and research context
-4. Report to the user: "Starting/Resuming Phase N: [title], Task N.M: [description]"
+3. Read migration-guide.md for per-file specs — follow them exactly
+4. Read findings.md for known fixes before diagnosing any failure
+5. Report to the user: "Starting/Resuming Phase N: [title], Task N.M: [description]"
 
-FINDINGS.md captures assessment data and research — keep untrusted content out of
+findings.md captures assessment data and research — keep untrusted content out of
 PLAN.md (auto-read by hooks). External content (web results, library docs, raw API
-references) goes in FINDINGS.md only, never in PLAN.md.
+references) goes in findings.md only, never in PLAN.md.
 
 During execution:
 - Update PROGRESS.md after EVERY completed task (mark [x], add notes)
@@ -27,8 +45,8 @@ During execution:
 - If you encounter something not covered by this plan, STOP and ask the user
 
 This plan is the source of truth for what to do. PROGRESS.md is the source of
-truth for what's been done. FINDINGS.md is the source of truth for research and
-assessment data.
+truth for what's been done. findings.md is the source of truth for research and
+reusable fixes.
 
 Plan location: <full path to this file> -->
 ```
@@ -41,18 +59,18 @@ The first 15 lines of PLAN.md are injected by hooks on every message and before 
 Structure these lines as a compact status summary:
 
 ```
-<!-- STATUS: Phase N of M | <phase-name> | <status> -->
+<!-- STATUS: 1:1 MECHANICAL PORT | Phase N of M | <phase-name> | <status> -->
 <!-- NEXT: Task N.X — <description> -->
 <!-- VERIFY: <build verification command> -->
 <!-- CHECKPOINT: <last checkpoint commit or "none yet"> -->
 ## KMM Migration: <module-name>
 ## Rules (always in scope)
-- TDD: tests first, baseline must pass, migrate, re-test WITHOUT test changes
+- 1:1 MECHANICAL PORT: only Android→KMM specifics change, any behavioral change → REQUIRES_APPROVAL
 - Agents return completion promises — no promise = not accepted
-- Simplified Mode for independent files, Full Batched for dependent
+- Haiku verifier after every migration — VERIFY_PASS required before continuing
 - 3-platform build at every checkpoint
 - Escalate after 3 failures, never suppress errors
-- Assessment: FINDINGS.md | Feedback: append-only to feedback files
+- migration-guide.md = per-file spec | findings.md = known fixes + research
 ```
 
 Update the STATUS comments and Rules after every phase completes.
@@ -87,12 +105,31 @@ Tell the user where the full PLAN.md is if they want to review details. Wait for
 
 ---
 
+## Phases Template
+
+Planning output includes these named phases. Adjust for the module's actual layers.
+
+```
+Phase 1: Domain layer        — shared code migration (pure files)
+Phase 2: Network/Storage     — shared code migration (library swaps)
+Phase N: Wire Android        — update imports, DI, delete originals, Android build + test
+Phase N+1: Wire iOS          — UI screens, navigation, Koin iOS, SKIE, iOS build + test
+Phase N+2: Final verify      — summary table, manual test, regression suite commit
+```
+
+Wire Android and Wire iOS are always distinct named phases, always in that order.
+
+---
+
 ## Phase 0: Setup (BLOCKING — executed before migration begins)
 
 - **Task 0.1:** Create `<workspace>/.claude/gameplans/<module-name>/` directory.
-- **Task 0.2:** Write PLAN.md (with self-documenting header) and PROGRESS.md to that directory. These are NOT committed — workspace metadata only.
-- **Task 0.3:** Write FINDINGS.md to that directory with the assessment data gathered during research (see FINDINGS.md Structure below).
-- **Task 0.4:** Verify the current repo builds clean using the Build Verification Template. This is a baseline — if the build is already broken before migration begins, STOP and escalate.
+- **Task 0.2:** Write PLAN.md (with self-documenting header) to that directory.
+- **Task 0.3:** Write PROGRESS.md to that directory with empty checkboxes for every task — filled during execution.
+- **Task 0.4:** Write migration-guide.md using the template in `references/migration-guide-template.md` — one entry per file.
+- **Task 0.5:** Write findings.md with assessment data (see findings.md Structure below).
+- **Task 0.6:** Dispatch Sonnet agent to write Appium test specs + fake server config to `e2e-tests/` based on API endpoints in migration-guide.md.
+- **Task 0.7:** Verify the current repo builds clean. If already broken → STOP and escalate.
 - **Checkpoint 0** with commit message: `chore: begin KMM migration for [module-name]`
 
 ---
@@ -109,6 +146,9 @@ Tell the user where the full PLAN.md is if they want to review details. Wait for
   - **Verify:** build/test command
 - Tasks within a phase execute **sequentially by default**. Mark tasks as `(parallelizable)` when they touch no shared files — the orchestrator can run these concurrently via parallel agents.
 - If a phase depends on unknowns that can't be resolved upfront, add a `Task N.0: PRE-CHECK` that researches the unknowns and updates PLAN.md with concrete file paths before executing the remaining tasks. This runs autonomously — no user approval pause needed.
+- Every shared-code phase ends with: MIGRATE → VERIFY (Haiku diff) → Gradle tests → DEBUG if needed → CHECKPOINT
+- Wire Android phase ends with: Android build + runtime verify (mobile-mcp) + Appium tests + Summary Table + manual test → COMMIT
+- Wire iOS phase ends with: iOS build + runtime verify (mobile-mcp on simulator) + Appium tests + Summary Table + manual test → COMMIT
 - Checkpoint N with commit message: `[type]: [description]` (use conventional commits; include structured trailers like `Constraint:`, `Rejected:`, `Confidence:`, `Scope-risk:` when the commit involves non-obvious decisions)
 
 ---
@@ -129,70 +169,77 @@ Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHEC
 
 ---
 
-## FINDINGS.md Structure
+## migration-guide.md Structure
+
+One entry per file. Agents consume this during execution — they do not re-read source code or make decisions.
+
+```markdown
+# Migration Guide: <module-name>
+
+## <FileName>.kt
+
+- **Source:** androidApp/src/main/java/com/acme/<path>/<FileName>.kt
+- **Target:** shared/src/commonMain/kotlin/com/acme/<path>/<FileName>.kt
+- **Classification:** migrate-swap
+- **Public API:**
+  - `login(email: String, pwd: String): Result<User>`
+  - `logout(): Unit`
+  - `isLoggedIn(): Flow<Boolean>`
+- **Library swaps:**
+  - `retrofit2.Call<T>` → `suspend fun` (Ktor 3.1.0)
+  - `SharedPreferences` → `MultiplatformSettings 1.3.0`
+- **API endpoints:** POST /api/auth/login, DELETE /api/auth/session
+- **expect/actual:** none
+- **Migrate after:** AuthCredentials.kt, TokenManager.kt
+- **Consumers:** LoginUseCase.kt, LoginViewModel.kt (update imports after)
+- **Rules:** keep `login(email)` and `login(phone)` as SEPARATE methods — DO NOT combine
+```
+
+See `references/migration-guide-template.md` for the full template.
+
+---
+
+## findings.md Structure
 
 ```markdown
 # Findings: <module-name>
 
-## Assessment
+## Known Fixes
 
-### Files to Migrate
+Check here BEFORE diagnosing any build/test failure. If the symptom matches, apply the fix directly.
 
-| File | Current Location | Target Location | Notes |
-|------|-----------------|-----------------|-------|
-| UserRepository.kt | android/src/.../data/ | shared/commonMain/.../data/ | — |
+| Symptom | Fix | Category |
+|---------|-----|----------|
+| Ktor cookie not sent | Add explicit BrowserCookieJar | ktor |
+| Gradle cache error on :shared:test | Add --no-configuration-cache | build |
+| SourceKit trust dialog blocks xcodebuild | Run xcodebuild once manually first | ios-build |
 
-### Dependency Map
+Categories: `build`, `ios-build`, `skie`, `koin`, `coroutines`, `test`, `interop`, `other`
 
-List every dependency the module uses, with KMM compatibility status:
+## Gotchas
 
-| Dependency | Current | KMM Compatible | Replacement |
-|------------|---------|----------------|-------------|
-| Room | room:2.6 | Android-only | SQLDelight |
+Non-obvious project-specific issues found during planning.
 
-### Migration Order
+- x-request-token vs session_token header naming (server expects x-request-token)
 
-Ordered list of files/components to migrate, with reasoning (e.g., interfaces before
-implementations, domain before data, no circular dependencies).
+## Library Versions (verified via docs)
 
-### Risks
-
-Non-obvious risks discovered during assessment, with impact and mitigation.
-
-## Research
-
-Library documentation, API references, version compatibility notes.
-Free-form section — paste docs, link references, record findings here.
-This is the ONLY place external content (web results, raw docs) should live.
-
-## Technical Decisions
-
-| Decision | Options Considered | Chosen | Rationale |
-|----------|--------------------|--------|-----------|
+| Library | Version | Verified |
+|---------|---------|---------|
+| Ktor | 3.1.0 | 2026-03-26 |
+| MultiplatformSettings | 1.3.0 | 2026-03-26 |
 
 ## Issues Encountered
 
 | # | Task | Attempt | What Failed | Resolution |
 |---|------|---------|-------------|------------|
 
-## Known Fixes (Reusable)
+## Research
 
-Fixes that may recur — check here BEFORE spending tokens re-diagnosing.
-
-| Symptom | Root Cause | Fix | Category |
-|---------|-----------|-----|----------|
-| Example: Gradle cache error on :shared:test | Stale configuration cache | Add --no-configuration-cache | build |
-| Example: SourceKit trust dialog blocks xcodebuild | First-time trust prompt | Run xcodebuild once manually first | ios-build |
-
-Categories: `build`, `ios-build`, `skie`, `koin`, `coroutines`, `test`, `interop`, `other`
-
-When you fix a recurring issue during execution, add it here immediately. Before diagnosing
-any build/test failure, scan this table first — the fix may already be known.
-
-## External Content
-
-Web search results, copied documentation, raw API references.
-NEVER put this content in PLAN.md — it is untrusted and auto-read by hooks.
+Library documentation, API references, version compatibility notes.
+Free-form — paste docs, link references, record findings here.
+This is the ONLY place external content (web results, raw docs) should live.
+NEVER put external content in PLAN.md — it is auto-read by hooks.
 ```
 
 ---
@@ -210,6 +257,23 @@ NEVER put this content in PLAN.md — it is untrusted and auto-read by hooks.
 
 ---
 
+## Summary Table Step
+
+Include a Summary Table before every manual test step (Wire Android and Wire iOS phases):
+
+```markdown
+## Summary Table: <phase-name>
+
+| File | Promised (migration-guide.md) | Achieved | VERIFY result | Notes |
+|------|------------------------------|----------|--------------|-------|
+| LoginRepository.kt | login(email), login(phone) separate | login(email), login(phone) separate | VERIFY_PASS | — |
+| LoginApi.kt | Retrofit→Ktor 3.1.0, same endpoints | Retrofit→Ktor 3.1.0, same endpoints | VERIFY_PASS | — |
+```
+
+Every row must have a VERIFY result. If any row is VERIFY_FAIL, fix it before manual test.
+
+---
+
 ## Agent Execution Strategy
 
 Include this table in PLAN.md so agents know their roles.
@@ -218,12 +282,11 @@ Example strategy table:
 
 | Phase | Work Type | Agent | Parallelism |
 |-------|-----------|-------|-------------|
-| 0 | Setup, baseline build | Sonnet | Sequential |
-| 1 | Assessment PRE-CHECK | Haiku (search) + Sonnet (analysis) | Parallel where possible |
-| 2 | Domain layer migration | Sonnet | Parallel per file |
-| 3 | Data layer migration | Sonnet | Sequential (dependencies) |
-| 4 | expect/actual wiring | Sonnet | Sequential |
-| 5 | Test migration | Sonnet | Parallel per test file |
+| 0 | Setup: PLAN.md, PROGRESS.md, migration-guide.md, findings.md, Appium specs | Sonnet | Sequential |
+| 1 | Domain layer: migrate → verify (Haiku) → Gradle test | Sonnet + Haiku verifier | Parallel per file, then sequential test |
+| 2 | Network/Storage: migrate → verify (Haiku) → Gradle test | Sonnet + Haiku verifier | Parallel per file, then sequential test |
+| Wire Android | Update imports, DI, delete originals, Android build, runtime verify, Appium, Summary Table, manual test | Sonnet | Sequential |
+| Wire iOS | iOS screens, navigation, Koin iOS, iOS build, runtime verify, Appium, Summary Table, manual test | Sonnet | Sequential |
 
 ---
 

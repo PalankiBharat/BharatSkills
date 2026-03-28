@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "2.0.0",
-  "description": "Battle-tested KMM migration toolkit with hook enforcement — TDD-driven file migration, self-contained orchestrator with agent prompt injection, SwiftUI screen generation, SKIE interop, auditing, and dependency mapping.",
+  "version": "3.0.0",
+  "description": "Self-contained KMM migration orchestrator — 1:1 mechanical port enforcement, two-phase context separation (plan then /clear then execute), per-file migration specs, Haiku verification after every migration, structured debug loop, Appium + fake server regression suite, Android and iOS wiring as distinct phases.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"
