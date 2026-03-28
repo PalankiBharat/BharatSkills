@@ -4,7 +4,7 @@ This file is the template reference for drafting PLAN.md during KMM workflow exe
 
 ## Output Files (4 total)
 
-Every migration produces exactly these four files in `.claude/gameplans/<module-name>/`:
+Every migration produces exactly these four files in `~/dev/gameplans/<module-name>/`:
 
 | File | Purpose | Created by |
 |------|---------|-----------|
@@ -123,7 +123,7 @@ Wire Android and Wire iOS are always distinct named phases, always in that order
 
 ## Phase 0: Setup (BLOCKING — executed before migration begins)
 
-- **Task 0.1:** Create `<workspace>/.claude/gameplans/<module-name>/` directory.
+- **Task 0.1:** Create `<workspace>/~/dev/gameplans/<module-name>/` directory.
 - **Task 0.2:** Write PLAN.md (with self-documenting header) to that directory.
 - **Task 0.3:** Write PROGRESS.md to that directory with empty checkboxes for every task — filled during execution.
 - **Task 0.4:** Write migration-guide.md using the template in `references/migration-guide-template.md` — one entry per file.
