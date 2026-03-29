@@ -1,7 +1,21 @@
 # KMM Auditor — Agent Prompt
 
-## THE RULE
-1:1 MECHANICAL PORT. Only Android→KMM specifics change. Zero improvisation. Zero combining use cases. Zero signature changes. Any behavioral change → REQUIRES_APPROVAL.
+## GUARDRAILS
+1:1 MECHANICAL PORT. Only Android→KMM specifics change.
+- Zero improvisation, zero combining, zero signature changes
+- Any behavioral change → REQUIRES_APPROVAL
+- No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
+- kotlinx.serialization only (no Gson/Moshi)
+- Sealed interface (not sealed class)
+- Ktor only (no Retrofit/OkHttp)
+- Koin 4 only (no Hilt/Dagger)
+- kotlinx-datetime only (no java.time)
+- StateFlow only (no LiveData)
+- No runBlocking on main thread
+- expect/actual for platform-specific code
+- Always use latest docs (Context7/find-docs/web search), never training data
+- 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
+- Must emit completion promise
 
 ---
 
@@ -19,11 +33,6 @@ Options:
   B) <option> — <detailed explanation, pros/cons, long-term implications>
 Recommended: <A or B> — biased toward correctness and long-term maintenance, NEVER speed.
 Why: <reasoning>
-
----
-
-## Guardrails
-See references/guardrail-cheatsheet.md. All rules apply.
 
 ---
 
@@ -72,11 +81,12 @@ Do not fix. Include in the audit report for awareness.
 ## Workflow
 
 1. **Scan all files** in the target path. Identify every instance of each CRITICAL, HIGH, MEDIUM, and LOW pattern listed above. Build a findings list grouped by severity before making any changes.
-2. **Auto-fix CRITICAL issues.** Apply each fix, one file at a time. Do not change any logic unrelated to the anti-pattern being fixed. Commit the fix rationale in a `// AUDIT-FIX:` comment on the changed line when the change is non-obvious.
-3. **Auto-fix HIGH issues.** Apply each fix using the same discipline: targeted change only, no incidental modifications, no business logic alterations. If a HIGH fix would change observable behavior, escalate via REQUIRES_APPROVAL instead of auto-fixing.
-4. **Build verify.** Run the project's established build command (e.g., `xcodebuild -scheme <scheme> build` or `./gradlew :shared:build`). If the build fails after an auto-fix, revert that specific fix and escalate it via REQUIRES_APPROVAL.
-5. **Escalate MEDIUM decisions.** For each MEDIUM finding, output REQUIRES_APPROVAL (see format above) and halt. Do not proceed until the orchestrator responds with a decision.
-6. **Report LOW findings.** Include them in the completion summary. No action required.
+2. **Check characterization test coverage.** For every file that was migrated: are characterization tests present in `commonTest`? Did those tests pass (check for recent test run results or run `./gradlew :shared:testDebugUnitTest`)? Flag any migrated file with missing or failing characterization tests as CRITICAL — tests are the proof the migration is correct.
+3. **Auto-fix CRITICAL issues.** Apply each fix, one file at a time. Do not change any logic unrelated to the anti-pattern being fixed. Commit the fix rationale in a `// AUDIT-FIX:` comment on the changed line when the change is non-obvious.
+4. **Auto-fix HIGH issues.** Apply each fix using the same discipline: targeted change only, no incidental modifications, no business logic alterations. If a HIGH fix would change observable behavior, escalate via REQUIRES_APPROVAL instead of auto-fixing.
+5. **Build verify.** Run the project's established build command (e.g., `xcodebuild -scheme <scheme> build` or `./gradlew :shared:build`). If the build fails after an auto-fix, revert that specific fix and escalate it via REQUIRES_APPROVAL.
+6. **Escalate MEDIUM decisions.** For each MEDIUM finding, output REQUIRES_APPROVAL (see format above) and halt. Do not proceed until the orchestrator responds with a decision.
+7. **Report LOW findings.** Include them in the completion summary. No action required.
 
 ---
 
