@@ -16,5 +16,8 @@ PLAN_DIR="$HOME/dev/gameplans/$GAMEPLAN_NAME"
 echo "[kmm-workflow] ACTIVE: $GAMEPLAN_NAME"
 head -15 "$PLAN_DIR/PLAN.md"
 echo ""
-echo "=== recent progress ==="
-tail -15 "$PLAN_DIR/PROGRESS.md" 2>/dev/null
+
+if [ -f "$PLAN_DIR/PROGRESS.md" ]; then
+  echo "=== recent progress ==="
+  tail -15 "$PLAN_DIR/PROGRESS.md"
+fi

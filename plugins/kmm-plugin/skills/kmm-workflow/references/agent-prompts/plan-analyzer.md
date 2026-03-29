@@ -95,7 +95,7 @@ The plan must contain all seven phases in order. Flag any missing phase as a GAP
 
 ### 9. Dependency Completeness
 - Every external dependency used by migrating files is in the dependency map
-- Libraries not in `references/dependency-map.md` are flagged as GAPS
+- Libraries not in `references/migration-reference.md` are flagged as GAPS
 - For each gap: search latest docs (Context7/find-docs/web search) and suggest the KMM replacement
 - Internal dependencies between migrating files match the migration order (no file migrated before its dependencies)
 

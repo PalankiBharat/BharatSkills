@@ -57,7 +57,7 @@ On ANY invocation, always ask: Create / Continue. Never auto-resume. Never assum
   - Do NOT use plan mode — write PLAN.md, PROGRESS.md, migration-guide.md, findings.md directly
   - After approval: tell user /clear then /kmm-workflow → Continue
 - **Continue** → scan ~/dev/gameplans/, list ALL with status, user picks
-  - Write session marker → read PLAN.md + PROGRESS.md → report state → continue
+  - Write session marker (`~/dev/gameplans/.sessions/<session_id>.active`) → read PLAN.md + PROGRESS.md → report state → continue
 - On completion (all phases done + committed): delete session marker
 
 ## Workflow
@@ -76,7 +76,7 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 - Dispatch plan-analyzer → present gaps → user approval
 - Read `references/planning-and-execution.md` before this phase
 
-### Phase 2a: SCAFFOLD
+### Phase 2: SCAFFOLD
 
 - From migration-guide.md, identify ALL external dependencies (classes not being migrated)
 - For each: create interface in commonMain + androidMain actual delegating to original
@@ -84,7 +84,7 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 - CHECKPOINT COMMIT "scaffold: interfaces for <module>"
 - Read `references/migration-reference.md` before this phase
 
-### Phase 2b: SHARED CODE MIGRATION (dependency-level parallelism)
+### Phase 3: SHARED CODE MIGRATION (dependency-level parallelism)
 
 - Build dependency DAG from migration-guide.md "Migrate after" fields
 - For each level (leaves first):
@@ -96,15 +96,16 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
     5. Migrate androidMain → commonMain (library swaps, expect/actual)
     6. Run same tests against commonMain → must PASS
     7. If FAIL → debug loop (3-strike)
-    8. Dispatch Haiku verifier (background)
+    8. Dispatch Haiku verifier (background) — verifier writes VERIFY_PASS/FAIL to PROGRESS.md before exiting
     9. Delete staged androidMain copy
     → FILE_COMPLETE or FILE_BLOCKED
   - Gate: ALL files at this level complete before next level
 - After all levels: `./gradlew :shared:testDebugUnitTest`
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/migration-reference.md` and `references/rules-and-guardrails.md` before this phase
+- After all levels complete: dispatch auditor (sonnet) for code quality sweep → AUDIT_COMPLETE required before wiring
 
-### Phase 3: WIRE ANDROID
+### Phase 4: WIRE ANDROID
 
 - PARALLEL: [Haiku per consumer for import updates] ‖ [Sonnet for DI (Hilt→Koin)]
 - Delete originals (grep-before-delete)
@@ -112,7 +113,7 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/android-wiring.md` before this phase
 
-### Phase 4: APPIUM ANDROID
+### Phase 5: APPIUM ANDROID
 
 - Write Appium tests from planned scenarios
 - Run against Android app
@@ -120,7 +121,7 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/automated-testing.md` before this phase
 
-### Phase 5: WIRE iOS
+### Phase 6: WIRE iOS
 
 - PARALLEL: [Sonnet ui-migrator per screen] ‖ [Sonnet Koin iOS]
 - Wire navigation + pbxproj
@@ -128,7 +129,7 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/ios-wiring.md` before this phase
 
-### Phase 6: APPIUM iOS
+### Phase 7: APPIUM iOS
 
 - Adapt Appium tests for iOS selectors
 - Run against iOS simulator
@@ -142,7 +143,7 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 |------|--------|-------|---------|
 | Migrate file (full TDD pipeline) | agent-prompts/migrator.md | sonnet | FILE_COMPLETE / FILE_BLOCKED |
 | Verify migration (structural diff) | agent-prompts/verifier.md | haiku | VERIFY_PASS / VERIFY_FAIL |
-| Write characterization tests | agent-prompts/test-writer.md | sonnet | TDD_COMPLETE / TDD_BLOCKED |
+| Write characterization tests (standalone only — migrator handles test-writing during normal TDD flow; test-writer is for standalone characterization test scenarios outside the migration pipeline) | agent-prompts/test-writer.md | sonnet | TDD_COMPLETE / TDD_BLOCKED |
 | Debug failure | agent-prompts/debugger.md | sonnet | DEBUG_COMPLETE / DEBUG_BLOCKED |
 | UI migration (per screen) | agent-prompts/ui-migrator.md | sonnet | UI_COMPLETE / UI_BLOCKED |
 | Audit code | agent-prompts/auditor.md | sonnet | AUDIT_COMPLETE / AUDIT_BLOCKED |
@@ -151,11 +152,11 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 ## References (read ONLY when entering relevant phase)
 
 - `references/planning-and-execution.md` — Phase 1 (PLAN)
-- `references/migration-reference.md` — Phases 2a, 2b (SCAFFOLD, SHARED CODE MIGRATION)
-- `references/rules-and-guardrails.md` — Phase 2b (SHARED CODE MIGRATION)
-- `references/android-wiring.md` — Phase 3 (WIRE ANDROID)
-- `references/ios-wiring.md` — Phase 5 (WIRE iOS)
-- `references/automated-testing.md` — Phases 4, 6 (APPIUM ANDROID, APPIUM iOS)
+- `references/migration-reference.md` — Phases 2, 3 (SCAFFOLD, SHARED CODE MIGRATION)
+- `references/rules-and-guardrails.md` — Phase 3 (SHARED CODE MIGRATION)
+- `references/android-wiring.md` — Phase 4 (WIRE ANDROID)
+- `references/ios-wiring.md` — Phase 6 (WIRE iOS)
+- `references/automated-testing.md` — Phases 5, 7 (APPIUM ANDROID, APPIUM iOS)
 
 ## Rules
 
