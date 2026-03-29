@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "3.0.0",
-  "description": "Self-contained KMM migration orchestrator — 1:1 mechanical port enforcement, two-phase context separation (plan then /clear then execute), per-file migration specs, Haiku verification after every migration, structured debug loop, Appium + fake server regression suite, Android and iOS wiring as distinct phases.",
+  "version": "4.0.0",
+  "description": "KMM migration orchestrator v4 — 1:1 mechanical port, session-scoped gameplans (parallel migrations), dependency-level fan-out (parallel subagents per file), TDD parity verification (tests pass on original then migrated), scaffolding phase for external deps, per-phase checkpoint commits, consolidated references with conditional loading, extracted hook scripts.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"

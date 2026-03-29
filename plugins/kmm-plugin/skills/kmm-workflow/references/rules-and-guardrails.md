@@ -1,34 +1,197 @@
-# KMM Anti-Patterns Audit Checklist
+# Rules and Guardrails
 
-Use this checklist when auditing a KMM migration. Items are ordered by severity within each tier.
+Consolidated reference combining guardrails, escalation protocol, and audit checklist for KMM workflow agents.
+
+---
 
 ## Table of Contents
 
-- [CRITICAL — Must fix immediately (app crash, data loss, security)](#critical--must-fix-immediately-app-crash-data-loss-security)
-  - [runBlocking on Main Thread](#runblocking-on-main-thread)
-  - [TODO() in Production Code](#todo-in-production-code)
-  - [Missing NSFaceIDUsageDescription](#missing-nsfaceidusagedescription)
-  - [Hardcoded Secrets](#hardcoded-secrets)
-  - [Type Casting (as / as? / as!)](#type-casting-as--as--as)
-- [HIGH — Should fix (memory leaks, logic errors, architecture violations)](#high--should-fix-memory-leaks-logic-errors-architecture-violations)
-  - [Leaked CoroutineScopes](#leaked-coroutinescopes)
-  - [Swift Force Unwrap in KMM Bridge Code (iOS only)](#swift-force-unwrap-in-kmm-bridge-code-ios-only)
-  - [Redundant Flow Wrappers with SKIE](#redundant-flow-wrappers-with-skie)
-  - [ViewModels in iosMain](#viewmodels-in-iosmain)
-  - [Non-Atomic State Updates](#non-atomic-state-updates)
-  - [Feature Flag Wiring Gaps](#feature-flag-wiring-gaps)
-  - [Koin `single` Scope for ViewModels](#koin-single-scope-for-viewmodels)
-  - [Disconnected UI State (iOS only)](#disconnected-ui-state-ios-only)
-- [MEDIUM — Should fix (code quality, consistency, maintainability)](#medium--should-fix-code-quality-consistency-maintainability)
-  - [Dual Base Classes](#dual-base-classes)
-  - [Typography Line Height Not Applied](#typography-line-height-not-applied)
-  - [Duplicated Patterns](#duplicated-patterns)
-  - [Lost Concurrency](#lost-concurrency)
-  - [Hardcoded Strings (Face ID vs Touch ID)](#hardcoded-strings-face-id-vs-touch-id-ios-only)
-- [LOW — Nice to fix (cosmetic, expected behavior)](#low--nice-to-fix-cosmetic-expected-behavior)
-  - [SourceKit False Positives](#sourcekit-false-positives)
-  - [SKIE Build Time Increase](#skie-build-time-increase)
-- [Audit Usage Notes](#audit-usage-notes)
+1. [Core Guardrails (inject into all agent prompts)](#1-core-guardrails-inject-into-all-agent-prompts)
+2. [Escalation Protocol](#2-escalation-protocol)
+   - [REQUIRES_APPROVAL](#requires_approval)
+   - [Never Work Around Blockers With Hacks](#never-work-around-blockers-with-hacks)
+   - [When to Escalate Technical Blockers](#when-to-escalate-technical-blockers)
+   - [3-Strike Error Protocol](#3-strike-error-protocol)
+   - [KMM-Specific Escalation Triggers](#kmm-specific-escalation-triggers)
+3. [Audit Checklist by Severity](#3-audit-checklist-by-severity)
+   - [CRITICAL — Must fix immediately](#critical--must-fix-immediately-app-crash-data-loss-security)
+   - [HIGH — Should fix](#high--should-fix-memory-leaks-logic-errors-architecture-violations)
+   - [MEDIUM — Should fix](#medium--should-fix-code-quality-consistency-maintainability)
+   - [LOW — Nice to fix](#low--nice-to-fix-cosmetic-expected-behavior)
+   - [Audit Usage Notes](#audit-usage-notes)
+
+---
+
+## 1. Core Guardrails (inject into all agent prompts)
+
+> **Inject this entire section verbatim into every agent prompt system block. ~500 tokens.**
+
+**1:1 MECHANICAL PORT.** THE rule. Only Android→KMM specifics change. Any behavioral change → REQUIRES_APPROVAL.
+
+- **REQUIRES_APPROVAL.** Any change altering observable behavior → stop and present: (1) The problem — what you found and why it matters, (2) Options — each with detailed explanation, pros/cons, long-term implications, (3) Recommended option — biased toward correctness and long-term maintenance, NEVER toward speed or convenience, (4) Why — explain the recommendation reasoning. Wait for user choice.
+- **Every decision in files.** After /clear, only files survive. Never leave decisions only in chat.
+- **No type casting.** Never use `as`, `as?`, `as!` in Kotlin or Swift. Use polymorphism, generics, protocol conformance, or `is` checks instead.
+- **kotlinx.serialization only.** Never use Gson or Moshi in shared/common code.
+- **`sealed interface`, not `sealed class`.** Prefer `sealed interface` for KMM discriminated unions.
+- **Ktor only.** Never use Retrofit or OkHttp in `commonMain`. Use Ktor client.
+- **Koin 4 only.** Never use Hilt or Dagger in shared code. Use Koin 4 for DI.
+- **`kotlinx-datetime` only.** Never use `java.time` or platform date APIs in `commonMain`.
+- **`StateFlow` only.** Never use `LiveData` in shared/KMM code.
+- **No `runBlocking` on the main thread.** Use structured concurrency; `runBlocking` only in tests or background entry points.
+- **`expect`/`actual` for platform-specific code.** Never use `#ifdef`, runtime platform checks, or conditional imports as a substitute.
+- **Context-first.** Before modifying any file, read the target, all its dependencies (imports, interfaces, base classes), and all its consumers. Never modify with partial context.
+- **Escalate unclear failures — never suppress.** If a build fails and the cause is unclear: stop, present the problem, list options with pros/cons, give a recommendation, wait for the user. Never add no-op stubs or use `--no-verify` / `@Suppress` to force a pass.
+- **Completion promise required.** Every agent must emit a completion promise string as its last output. No promise = work not accepted.
+- **Tests are immutable after baseline.** Once the orchestrator runs baseline and tests pass, test files must not be modified. If tests fail after migration, fix the migration.
+- **API signature parity.** Migrated KMM code must have identical method signatures to Android — same method names, parameter names, parameter order, return types.
+- **Always use latest docs.** Use Context7, `/find-docs`, or web search for library APIs, versions, and patterns. Never rely on training data — it may be outdated.
+- **Latest stable deps.** When adding new dependencies, check the latest stable version via live docs, not training data.
+
+---
+
+## 2. Escalation Protocol
+
+There are two distinct escalation mechanisms:
+
+- **REQUIRES_APPROVAL** — for behavioral decisions (combining, splitting, signature changes, logic changes). These are correctness issues, not technical failures.
+- **3-Strike** — for technical failures (build errors, test failures, runtime crashes). These require diagnosis and repair.
+
+Both mechanisms require stopping and presenting a full analysis to the user. Neither allows silent workarounds.
+
+---
+
+### REQUIRES_APPROVAL
+
+Any change that alters observable behavior requires explicit user approval.
+
+**Triggers:**
+
+- Combining two methods into one (or splitting one into many)
+- Changing a method signature (parameter names, types, order, or return type)
+- Adding or removing behavior not present in the original Android code
+- Changing error handling strategy (swallowing exceptions, changing error types)
+- Any "improvement" or "simplification" of the original logic
+
+**Decision Presentation Format:**
+
+Stop and present to the user in this exact format:
+
+1. **The problem** — what you found in the source code and why it creates a decision point. Be specific: which file, which method, what the exact conflict is.
+2. **Options** — 2-4 concrete options, each with:
+   - What it involves (specific code changes)
+   - Pros — including long-term maintenance implications
+   - Cons — including risk of introducing bugs or diverging from Android behavior
+3. **Recommended option** — biased toward correctness and long-term maintainability. NEVER recommend the fastest or most convenient option if it trades off correctness. If correctness and speed conflict, always recommend correctness.
+4. **Why** — explain your reasoning. What would a senior engineer who maintains this codebase for 5 years prefer?
+
+Wait for the user to choose before writing any code.
+
+**Batching:**
+
+During autonomous execution (no user at keyboard), batch REQUIRES_APPROVAL items at phase boundaries — not one-by-one. At the end of each phase, present all accumulated decision points together. Do not pause execution mid-phase for a single REQUIRES_APPROVAL unless it blocks the entire phase.
+
+---
+
+### Never Work Around Blockers With Hacks
+
+When the plan or requirements specify how something should work, implement it as specified. If you hit a blocker that makes the specified approach seem impossible, STOP and escalate — do not invent workarounds to keep the build green. Specifically:
+
+- **No stubs or placeholder implementations** — don't create empty/mock implementations just to satisfy the compiler
+- **No technology substitutions** — don't swap a specified dependency for a "simpler" alternative (e.g., using an in-memory store instead of SQLDelight because you think it won't work on the target platform)
+- **No feature omissions** — don't skip or simplify specified behavior to avoid a hard problem
+- **No silent downgrades** — don't weaken types, remove nullability constraints, or broaden error handling to make things compile
+
+---
+
+### When to Escalate Technical Blockers
+
+If implementing a task as specified would require something you're unsure about (platform support, library compatibility, API availability), stop and present the user using the REQUIRES_APPROVAL format:
+
+1. **The problem** — what you're trying to do, what's blocking it, and why it's not straightforward
+2. **Options** (2-4), each with:
+   - What it involves
+   - Pros and cons
+   - Long-term implications
+   - Your confidence it will work
+3. **Recommended option** — biased toward correctness and long-term maintenance over speed
+4. **Why** — your reasoning
+
+Wait for the user to choose before proceeding.
+
+---
+
+### 3-Strike Error Protocol
+
+Before escalating a technical failure, make up to 3 attempts with distinct approaches. Track every attempt in FINDINGS.md under "Issues Encountered" and in PROGRESS.md.
+
+- **Attempt 1 — Diagnose:** Try the obvious fix. If it fails, read the error carefully and diagnose the root cause before attempting again.
+- **Attempt 2 — Different approach:** Change strategy based on what you learned. Do not retry the same thing. Consult docs, check related files, try an alternative implementation path.
+- **Attempt 3 — Rethink:** Step back and question your assumptions about the problem. Re-read the relevant plan section and FINDINGS.md. Try a fundamentally different approach.
+- **After 3 failures — Escalate:** Present the user with all three attempts, what failed in each, and your current best hypothesis. Never attempt a 4th variation silently.
+
+The goal of 3 strikes is to avoid both giving up too early and spinning indefinitely. Each attempt must represent a materially different approach — not a minor variation.
+
+**PROGRESS.md format:**
+
+```
+- [~] Task 3.2: Wire expect/actual for PlatformLogger
+  - Attempt 1: Used typealias — failed, typealias not allowed for expect class with function bodies
+  - Attempt 2: Used abstract expect class — failed, iOS actual requires open, not abstract
+  - Attempt 3: Refactored to interface + platform impl — SUCCEEDED
+```
+
+---
+
+### KMM-Specific Escalation Triggers
+
+#### Dependency Not in dependency-map.md
+
+If a dependency needed for migration is not listed in `dependency-map.md` (or the equivalent FINDINGS.md Dependency Map), do not guess at a replacement. Either:
+
+- **Search docs first** — check the library's official KMM/CMP compatibility page and record findings in FINDINGS.md under "Research"
+- **Escalate to user** — if the compatibility status is unclear or no KMM alternative is documented, stop and present options
+
+Never assume a library is KMM-compatible without verification.
+
+#### expect/actual Unclear
+
+If the correct shape of an `expect`/`actual` declaration is ambiguous (e.g., should it be a class, interface, typealias, or object; what belongs in common vs. platform), do not guess. Present the user with:
+
+- The specific declaration in question
+- 2-3 concrete options for how to structure it
+- Trade-offs for each (e.g., testability, iOS interop, API surface)
+- Your recommendation
+
+Wait for the user to decide before writing any expect/actual code.
+
+#### SKIE Interop Issue
+
+If an interop issue arises related to Swift/Kotlin interface exposure (e.g., generics not visible in Swift, suspend functions not bridged, flows not exposed):
+
+1. **Check `skie-interop.md` first** — the reference may already document the correct SKIE annotation or configuration for this pattern
+2. If the answer is there, apply it and record in FINDINGS.md
+3. If `skie-interop.md` does not cover the case, escalate to the user with the specific interop failure, what you've tried, and what SKIE docs say (record the docs excerpt in FINDINGS.md before escalating)
+
+Never suppress an interop issue by changing the API shape without user approval.
+
+#### Tests Fail After Migration and Cause Is Unclear
+
+If tests fail after a migration step and the cause is not immediately obvious:
+
+- **STOP.** Do not continue to the next task.
+- Do not suppress, skip, or comment out the failing tests.
+- Do not mark the task `[x]` in PROGRESS.md.
+- Record the failure in FINDINGS.md under "Issues Encountered."
+- Apply the 3-Strike Error Protocol to diagnose the root cause.
+- If all 3 attempts fail to resolve the failure, escalate with full context: which test, what error, what you tried, your current hypothesis.
+
+Test failures are signal. Suppressing them destroys the value of the test suite and violates the non-negotiable rule: **the codebase is always in a verified, buildable, passing state at every checkpoint.**
+
+---
+
+## 3. Audit Checklist by Severity
+
+Use this checklist when auditing a KMM migration. Items are ordered by severity within each tier.
 
 ---
 
@@ -213,9 +376,7 @@ class UserViewModel : ViewModel() {
 
 **What to look for:** The `as!` operator in Swift interop code or bridging layers.
 
-**Why it's a problem:** Crashes at runtime if the cast fails. No recovery.
-
-This is the iOS-specific manifestation of the CRITICAL type-casting rule. In Swift KMM bridge code, force unwraps on framework types are especially dangerous because Kotlin types may be bridged as optionals.
+**Why it's a problem:** Crashes at runtime if the cast fails. No recovery. This is the iOS-specific manifestation of the CRITICAL type-casting rule — in Swift KMM bridge code, force unwraps on framework types are especially dangerous because Kotlin types may be bridged as optionals.
 
 **How to fix:** Use `guard let` with a safe cast and a meaningful fallback or early return.
 

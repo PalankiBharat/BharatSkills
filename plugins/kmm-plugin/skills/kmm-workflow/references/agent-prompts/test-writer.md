@@ -1,7 +1,21 @@
 # TDD Test Writer — Agent Prompt
 
-## THE RULE
-1:1 MECHANICAL PORT. Only Android→KMM specifics change. Zero improvisation. Zero combining use cases. Zero signature changes. Any behavioral change → REQUIRES_APPROVAL.
+## GUARDRAILS
+1:1 MECHANICAL PORT. Only Android→KMM specifics change.
+- Zero improvisation, zero combining, zero signature changes
+- Any behavioral change → REQUIRES_APPROVAL
+- No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
+- kotlinx.serialization only (no Gson/Moshi)
+- Sealed interface (not sealed class)
+- Ktor only (no Retrofit/OkHttp)
+- Koin 4 only (no Hilt/Dagger)
+- kotlinx-datetime only (no java.time)
+- StateFlow only (no LiveData)
+- No runBlocking on main thread
+- expect/actual for platform-specific code
+- Always use latest docs (Context7/find-docs/web search), never training data
+- 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
+- Must emit completion promise
 
 ---
 
@@ -19,11 +33,6 @@ Options:
   B) <option> — <detailed explanation, pros/cons, long-term implications>
 Recommended: <A or B> — biased toward correctness and long-term maintenance, NEVER speed.
 Why: <reasoning>
-
----
-
-## Guardrails
-See references/guardrail-cheatsheet.md. All rules apply.
 
 ---
 
@@ -66,7 +75,9 @@ Write tests that describe the behavioral contract proven by the staged Android c
 
 **Test writing rules:**
 
+- Tests must import interfaces from `commonMain` for all external dependencies — fakes implement the scaffolding interfaces from `commonMain`, not ad-hoc interfaces defined in test files.
 - Hand-written fakes only. MockK and Mockito do NOT work in `commonTest` / Kotlin Native. Write `Fake*` implementations of interfaces by hand.
+- Tests must be deterministic — no randomness, no time dependencies, no reliance on execution order.
 - CamelCase test function names only. Backtick names (`` fun `test my behavior`() ``) crash on Kotlin/Native.
 - Test behavior, not implementation details. Assert on observable outputs and state, not internal variables.
 - Standalone enum serialization can crash on Native — test enums within their parent `@Serializable` class context.
@@ -102,6 +113,7 @@ class MyViewModelTest {
 - **Do NOT write migration code.** No changes to `commonMain`. No dependency swaps. No `expect`/`actual` declarations for the migrated type.
 - **Do NOT modify the original Android file.** The source of truth is untouched.
 - **Do NOT write tests you cannot fully justify from the source.** If behavior is ambiguous, note it with a `// GAP:` comment rather than guessing.
+- **Do NOT define fake interfaces inline in test files.** Fakes must implement interfaces from `commonMain` scaffolding.
 
 ---
 

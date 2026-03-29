@@ -1,17 +1,18 @@
-# Android-to-KMM Dependency Replacement Reference
+# KMM Dependency Replacement Map
 
-A project-agnostic reference for every common Android library and its KMM replacement.
-Each entry includes: library, replacement, rationale, and before/after code examples.
+Project-agnostic reference for every common Android library and its KMM replacement. Each entry includes: library, replacement, rationale, and before/after code examples.
+
+> **Version note:** Always verify library versions via Context7, find-docs, or web search. Version numbers in this file may be outdated.
+
+---
 
 ## Table of Contents
 
 - [Networking: Retrofit + OkHttp → Ktor Client](#networking-retrofit--okhttp--ktor-client)
 - [Serialization: Gson / Moshi → kotlinx.serialization](#serialization-gson--moshi--kotlinxserialization)
 - [Dependency Injection: Hilt / Dagger → Koin 4](#dependency-injection-hilt--dagger--koin-4)
-- [Preferences: SharedPreferences → Multiplatform-Settings (russhwolf)](#preferences-sharedpreferences--multiplatform-settings-russhwolf)
+- [Preferences: SharedPreferences → Multiplatform-Settings](#preferences-sharedpreferences--multiplatform-settings-russhwolf)
 - [Database: Room → Room 2.7+ KMP or SQLDelight](#database-room--room-27-kmp-or-sqldelight)
-  - [Option A: Room 2.7+ KMP (easiest migration from existing Room)](#option-a-room-27-kmp-easiest-migration-from-existing-room)
-  - [Option B: SQLDelight (KMP-first, mature tooling)](#option-b-sqldelight-kmp-first-mature-tooling)
 - [Storage: DataStore → DataStore KMP](#storage-datastore--datastore-kmp)
 - [Reactive: RxJava → kotlinx-coroutines + Flow](#reactive-rxjava--kotlinx-coroutines--flow)
 - [Date/Time: java.time → kotlinx-datetime](#datetime-javatime--kotlinx-datetime)
@@ -227,8 +228,9 @@ prefs.edit { remove("username") }
 
 ```kotlin
 // commonMain
+// Note: Settings() no-arg constructor is only available in platform source sets.
+// In commonMain, use an expect/actual factory or inject via DI.
 val settings: Settings = Settings()
-// **Note:** `Settings()` no-arg constructor is only available in platform source sets. In commonMain, use an expect/actual factory or inject via DI.
 
 val username = settings.getString("username", defaultValue = "")
 settings.putString("username", "alice")
@@ -550,6 +552,7 @@ class UserRepositoryTest {
 
     @Test
     fun returnsUsersFromApi() {
+        // Note: backtick test names crash Kotlin/Native — use camelCase
         val users = repo.getUsers()
         assertEquals(2, users.size)
         assertTrue(users.first().active)
@@ -680,7 +683,7 @@ val imageLoader = ImageLoader.Builder(platformContext)
 | `LiveData<T>` | `StateFlow<T>` |
 | `liveData.observe(owner) { }` | `lifecycleScope.launch { stateFlow.collect { } }` |
 | `liveData.value = x` | `stateFlow.value = x` |
-| `liveData.postValue(x)` | Use `update { }` for atomic modifications when multiple coroutines may write concurrently. Direct `.value =` assignment is safe for single-writer scenarios. |
+| `liveData.postValue(x)` | Use `update { }` for atomic modifications when multiple coroutines may write concurrently. Direct `.value =` is safe for single-writer scenarios. |
 | `MediatorLiveData` | `combine(flow1, flow2) { ... }` |
 
 **Before (LiveData):**
@@ -755,10 +758,7 @@ Log.e("UserRepo", "Failed to fetch user", exception)
 
 ```kotlin
 // Initialization (once, in platform entry point)
-// Android Application
-Napier.base(DebugAntilog())
-
-// iOS (AppDelegate or similar)
+// Android Application or iOS AppDelegate:
 Napier.base(DebugAntilog())
 
 // commonMain usage — identical API everywhere

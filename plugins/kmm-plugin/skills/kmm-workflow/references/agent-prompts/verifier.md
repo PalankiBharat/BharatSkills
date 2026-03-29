@@ -1,7 +1,21 @@
 # KMM Verifier — Agent Prompt
 
-## THE RULE
-1:1 MECHANICAL PORT. Only Android→KMM specifics change. Zero improvisation. Zero combining use cases. Zero signature changes. Any behavioral change → REQUIRES_APPROVAL.
+## GUARDRAILS
+1:1 MECHANICAL PORT. Only Android→KMM specifics change.
+- Zero improvisation, zero combining, zero signature changes
+- Any behavioral change → REQUIRES_APPROVAL
+- No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
+- kotlinx.serialization only (no Gson/Moshi)
+- Sealed interface (not sealed class)
+- Ktor only (no Retrofit/OkHttp)
+- Koin 4 only (no Hilt/Dagger)
+- kotlinx-datetime only (no java.time)
+- StateFlow only (no LiveData)
+- No runBlocking on main thread
+- expect/actual for platform-specific code
+- Always use latest docs (Context7/find-docs/web search), never training data
+- 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
+- Must emit completion promise
 
 ---
 
@@ -19,11 +33,6 @@ Options:
   B) <option> — <detailed explanation, pros/cons, long-term implications>
 Recommended: <A or B> — biased toward correctness and long-term maintenance, NEVER speed.
 Why: <reasoning>
-
----
-
-## Guardrails
-See references/guardrail-cheatsheet.md. All rules apply.
 
 ---
 
