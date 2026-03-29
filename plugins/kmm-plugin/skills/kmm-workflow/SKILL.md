@@ -82,7 +82,7 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 - For each: create interface in commonMain + androidMain actual delegating to original
 - Build check: `./gradlew :shared:compileDebugKotlin`
 - CHECKPOINT COMMIT "scaffold: interfaces for <module>"
-- Read `references/migration-reference.md` before this phase
+- Read `references/kmm-architecture.md` before this phase
 
 ### Phase 3: SHARED CODE MIGRATION (dependency-level parallelism)
 
@@ -96,13 +96,13 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
     5. Migrate androidMain → commonMain (library swaps, expect/actual)
     6. Run same tests against commonMain → must PASS
     7. If FAIL → debug loop (3-strike)
-    8. Dispatch Haiku verifier (background) — verifier writes VERIFY_PASS/FAIL to PROGRESS.md before exiting
+    8. Dispatch Haiku verifier (background) — orchestrator records VERIFY_PASS/FAIL in PROGRESS.md after verifier returns
     9. Delete staged androidMain copy
     → FILE_COMPLETE or FILE_BLOCKED
   - Gate: ALL files at this level complete before next level
 - After all levels: `./gradlew :shared:testDebugUnitTest`
 - CHECKPOINT COMMIT, update PROGRESS.md
-- Read `references/migration-reference.md` and `references/rules-and-guardrails.md` before this phase
+- Read `references/dependency-replacements.md`, `references/kmm-architecture.md`, and `references/rules-and-guardrails.md` before this phase
 - After all levels complete: dispatch auditor (sonnet) for code quality sweep → AUDIT_COMPLETE required before wiring
 
 ### Phase 4: WIRE ANDROID
@@ -152,11 +152,42 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 ## References (read ONLY when entering relevant phase)
 
 - `references/planning-and-execution.md` — Phase 1 (PLAN)
-- `references/migration-reference.md` — Phases 2, 3 (SCAFFOLD, SHARED CODE MIGRATION)
+- `references/kmm-architecture.md` — Phase 2 (SCAFFOLD): expect/actual patterns, source set structure, ViewModel/DI/coroutine patterns, gotchas
+- `references/dependency-replacements.md` — Phase 3 (SHARED CODE MIGRATION): library swap tables and before/after code examples
+- `references/kmm-architecture.md` — Phase 3 (SHARED CODE MIGRATION): architecture patterns and battle-tested gotchas
 - `references/rules-and-guardrails.md` — Phase 3 (SHARED CODE MIGRATION)
 - `references/android-wiring.md` — Phase 4 (WIRE ANDROID)
 - `references/ios-wiring.md` — Phase 6 (WIRE iOS)
 - `references/automated-testing.md` — Phases 5, 7 (APPIUM ANDROID, APPIUM iOS)
+
+## Recovery Protocols
+
+### Orphaned Agent
+If a parallel subagent goes silent (no completion promise after reasonable time):
+1. Check PROGRESS.md — was the file partially processed?
+2. Check if staged androidMain copy still exists
+3. If staged copy exists → re-dispatch fresh migrator for that file
+4. If staged copy missing → dispatch test-writer first, then migrator
+5. Mark the orphaned agent's file as re-queued in PROGRESS.md
+
+### Failed Checkpoint
+If a phase's build/test fails after migrations are complete:
+1. Do NOT proceed to next phase
+2. Read build/test output, identify failing files
+3. Dispatch debugger agent per failing file (3-strike applies)
+4. If 3-strike exhausted → REQUIRES_APPROVAL with full error context
+5. Rollback option: `git reset --hard <last-checkpoint-commit>` (user must approve)
+
+### Wrong Branch
+On Continue, before reading PLAN.md, verify:
+1. Current branch matches the base branch recorded in PLAN.md header
+2. If mismatch → STOP, report to user, do not proceed
+
+### Stale Sessions
+On Continue, when listing gameplans:
+1. For each `.sessions/*.active` file, check if the session is still alive
+2. If session file is older than 24 hours → mark as "(stale)" in the listing
+3. User can choose to clean up stale markers or resume them
 
 ## Rules
 

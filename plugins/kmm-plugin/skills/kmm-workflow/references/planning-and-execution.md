@@ -12,7 +12,7 @@ This file is the combined reference for both plan structure and iterative execut
 6. [PLAN.md: Build Verification Template](#planmd-build-verification-template)
 7. [PLAN.md: Plan Presentation](#planmd-plan-presentation)
 8. [Workflow Phases Overview](#workflow-phases-overview)
-9. [Phase 0: Setup (BLOCKING)](#phase-0-setup-blocking)
+9. [Phase 1: PLAN (BLOCKING)](#phase-1-plan-blocking)
 10. [Phase Template: Shared Migration](#phase-template-shared-migration)
 11. [Per-File Migration Loop](#per-file-migration-loop)
 12. [Wire Android Phase](#wire-android-phase)
@@ -144,7 +144,7 @@ After writing PLAN.md, present a **concise summary** in chat — not the full fi
 - Total phases and tasks
 - Key risks or open items (if any)
 
-Tell the user where the full PLAN.md is if they want to review details. Wait for approval before proceeding to Phase 0.
+Tell the user where the full PLAN.md is if they want to review details. Wait for approval before proceeding to Phase 1.
 
 ---
 
@@ -153,14 +153,13 @@ Tell the user where the full PLAN.md is if they want to review details. Wait for
 The canonical phase sequence for every migration:
 
 ```
-Phase 0: Setup (BLOCKING)
-Phase 1: Scaffold                     — create KMM module skeleton, expect/actual stubs
-Phase 2–N: Shared Migration (TDD)     — per-file, bottom-up dependency order
-Phase N+1: Wire Android               — update imports, DI, delete originals, Android build + test
-Phase N+2: Appium Android             — automated flow tests against fake server on Android
-Phase N+3: Wire iOS                   — UI screens, navigation, Koin iOS, SKIE, iOS build + test
-Phase N+4: Appium iOS                 — automated flow tests against fake server on iOS
-Phase N+5: Final verify               — summary table, manual test, regression suite commit
+Phase 1: PLAN (BLOCKING)
+Phase 2: SCAFFOLD                     — create KMM module skeleton, expect/actual stubs
+Phase 3: SHARED CODE MIGRATION (TDD)  — per-file, bottom-up dependency order
+Phase 4: WIRE ANDROID                 — update imports, DI, delete originals, Android build + test
+Phase 5: APPIUM ANDROID               — automated flow tests against fake server on Android
+Phase 6: WIRE iOS                     — UI screens, navigation, Koin iOS, SKIE, iOS build + test
+Phase 7: APPIUM iOS                   — automated flow tests against fake server on iOS
 ```
 
 Wire Android and Wire iOS are always distinct named phases, always in that order. Appium phases follow their respective Wire phase immediately.
@@ -169,17 +168,17 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 
 ---
 
-## Phase 0: Setup (BLOCKING — executed before migration begins)
+## Phase 1: PLAN (BLOCKING — executed before migration begins)
 
-- **Task 0.1:** Create `~/dev/gameplans/<module-name>/` directory.
-- **Task 0.2:** Write PLAN.md (with self-documenting header) to that directory.
-- **Task 0.3:** Write PROGRESS.md to that directory with empty checkboxes for every task — filled during execution.
-- **Task 0.4:** Write migration-guide.md using the template in `references/migration-guide-template.md` — one entry per file.
-- **Task 0.5:** Write findings.md with assessment data (see findings.md Structure below).
-- **Task 0.6:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Dispatch **Sonnet agent** to write Appium test specs for every critical flow (`e2e-tests/<flow>.test.js`). Commit `e2e-tests/` — this becomes the regression suite.
-- **Task 0.7:** Dispatch **Sonnet agent** (`plan-analyzer.md`) to find remaining ambiguity → resolve → user approves.
-- **Task 0.8:** Verify the current repo builds clean. If already broken → STOP and escalate.
-- **Checkpoint 0** committed immediately. Commit message: `chore: begin KMM migration for [module-name]`
+- **Task 1.1:** Create `~/dev/gameplans/<module-name>/` directory.
+- **Task 1.2:** Write PLAN.md (with self-documenting header) to that directory.
+- **Task 1.3:** Write PROGRESS.md to that directory with empty checkboxes for every task — filled during execution.
+- **Task 1.4:** Write migration-guide.md using the template in `references/agent-prompts/migration-guide-template.md` — one entry per file.
+- **Task 1.5:** Write findings.md with assessment data (see findings.md Structure below).
+- **Task 1.6:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Dispatch **Sonnet agent** to write Appium test specs for every critical flow (`e2e-tests/<flow>.test.js`). Commit `e2e-tests/` — this becomes the regression suite.
+- **Task 1.7:** Dispatch **Sonnet agent** (`plan-analyzer.md`) to find remaining ambiguity → resolve → user approves.
+- **Task 1.8:** Verify the current repo builds clean. If already broken → STOP and escalate.
+- **Checkpoint 1** committed immediately. Commit message: `chore: begin KMM migration for [module-name]`
 
 ---
 
@@ -238,7 +237,7 @@ Batch any REQUIRES_APPROVAL items → present to user at phase boundary (not one
 
 Runs after all shared migration phases are complete.
 
-**Step 1: Wire Android** — read `wire-android.md`
+**Step 1: Wire Android** — read `android-wiring.md`
 
 **Step 2: Android build + test**
 ```
@@ -279,7 +278,7 @@ Runs after Wire Android is committed.
 
 **Step 1: UI Migration** — per screen per migration-guide.md (CMP / SwiftUI / Hybrid per spec)
 
-**Step 2: Wire iOS** — read `wire-ios.md`
+**Step 2: Wire iOS** — read `ios-wiring.md`
 
 **Step 3: iOS build**
 ```
@@ -325,7 +324,7 @@ Run Appium tests for every critical flow (e2e-tests/)
   → all pass → COMMIT (Appium Android complete)
 ```
 
-Same fake server config written during Phase 0 (`e2e-tests/fake-server-config.json`).
+Same fake server config written during Phase 1 (`e2e-tests/fake-server-config.json`).
 
 PROGRESS.md committed at end of this phase.
 
@@ -362,81 +361,81 @@ Include this table in PLAN.md so agents know their roles.
 
 | Phase | Work Type | Agent | Parallelism |
 |-------|-----------|-------|-------------|
-| 0 | Setup: PLAN.md, PROGRESS.md, migration-guide.md, findings.md, Appium specs | Sonnet | Sequential |
-| Scaffold | Create KMM module skeleton, expect/actual stubs | Sonnet | Sequential |
-| Shared Migration | Migrate → verify (Haiku) → Gradle test, per layer | Sonnet + Haiku verifier | Parallel per file at same dependency level, then sequential test |
-| Wire Android | Update imports, DI, delete originals, Android build, runtime verify, Summary Table, manual test | Sonnet | Sequential |
-| Appium Android | Automated flow tests against fake server | Sonnet | Sequential |
-| Wire iOS | iOS screens, navigation, Koin iOS, iOS build, runtime verify, Summary Table, manual test | Sonnet | Sequential |
-| Appium iOS | Automated flow tests against fake server (iOS selectors) | Sonnet | Sequential |
+| 1: PLAN | Setup: PLAN.md, PROGRESS.md, migration-guide.md, findings.md, Appium specs | Sonnet | Sequential |
+| 2: SCAFFOLD | Create KMM module skeleton, expect/actual stubs | Sonnet | Sequential |
+| 3: SHARED CODE MIGRATION | Migrate → verify (Haiku) → Gradle test, per layer | Sonnet + Haiku verifier | Parallel per file at same dependency level, then sequential test |
+| 4: WIRE ANDROID | Update imports, DI, delete originals, Android build, runtime verify, Summary Table, manual test | Sonnet | Sequential |
+| 5: APPIUM ANDROID | Automated flow tests against fake server | Sonnet | Sequential |
+| 6: WIRE iOS | iOS screens, navigation, Koin iOS, iOS build, runtime verify, Summary Table, manual test | Sonnet | Sequential |
+| 7: APPIUM iOS | Automated flow tests against fake server (iOS selectors) | Sonnet | Sequential |
 
 ---
 
 ## PROGRESS.md Template
 
-Created during Phase 0 with empty checkboxes. Filled during execution. PROGRESS.md is committed after each phase completes — not all at once at the end.
+Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.md is committed after each phase completes — not all at once at the end.
 
 ```markdown
 # Progress: <module-name>
 
-## Phase 0: Setup
-- [ ] 0.1 Create gameplan directory
-- [ ] 0.2 Write PLAN.md
-- [ ] 0.3 Write PROGRESS.md
-- [ ] 0.4 Write migration-guide.md
-- [ ] 0.5 Write findings.md
-- [ ] 0.6 Write fake server config + Appium specs, commit e2e-tests/
-- [ ] 0.7 Plan ambiguity analysis (plan-analyzer.md)
-- [ ] 0.8 Verify clean build baseline
-- [ ] Checkpoint 0 committed
-
-## Phase 1: Scaffold
-- [ ] 1.1 Create KMM module skeleton (build.gradle.kts, source sets)
-- [ ] 1.2 Write expect/actual stubs for platform APIs
-- [ ] 1.N ...
+## Phase 1: PLAN
+- [ ] 1.1 Create gameplan directory
+- [ ] 1.2 Write PLAN.md
+- [ ] 1.3 Write PROGRESS.md
+- [ ] 1.4 Write migration-guide.md
+- [ ] 1.5 Write findings.md
+- [ ] 1.6 Write fake server config + Appium specs, commit e2e-tests/
+- [ ] 1.7 Plan ambiguity analysis (plan-analyzer.md)
+- [ ] 1.8 Verify clean build baseline
 - [ ] Checkpoint 1 committed
 
-## Phase 2–N: Shared Migration
-<!-- One checkbox per file per loop step, grouped by phase -->
-- [ ] N.1 <FileName>.kt — stage
-- [ ] N.1 <FileName>.kt — compile original
-- [ ] N.1 <FileName>.kt — write tests
-- [ ] N.1 <FileName>.kt — run on original
-- [ ] N.1 <FileName>.kt — migrate
-- [ ] N.1 <FileName>.kt — run on migrated
-- [ ] N.1 <FileName>.kt — verify (Haiku)
-- [ ] N.1 <FileName>.kt — delete staged
-- [ ] ...
-- [ ] Checkpoint N committed
+## Phase 2: SCAFFOLD
+- [ ] 2.1 Create KMM module skeleton (build.gradle.kts, source sets)
+- [ ] 2.2 Write expect/actual stubs for platform APIs
+- [ ] 2.N ...
+- [ ] Checkpoint 2 committed
 
-## Wire Android
+## Phase 3: SHARED CODE MIGRATION
+<!-- One checkbox per file per loop step, grouped by phase -->
+- [ ] 3.1 <FileName>.kt — stage
+- [ ] 3.1 <FileName>.kt — compile original
+- [ ] 3.1 <FileName>.kt — write tests
+- [ ] 3.1 <FileName>.kt — run on original
+- [ ] 3.1 <FileName>.kt — migrate
+- [ ] 3.1 <FileName>.kt — run on migrated
+- [ ] 3.1 <FileName>.kt — verify (Haiku)
+- [ ] 3.1 <FileName>.kt — delete staged
+- [ ] ...
+- [ ] Checkpoint 3 committed
+
+## Phase 4: WIRE ANDROID
 - [ ] Wire Android: update imports, DI, delete originals
 - [ ] Android build + unit test
 - [ ] Runtime verify (mobile-mcp)
 - [ ] Summary Table
 - [ ] Manual test
-- [ ] Checkpoint: Wire Android committed
+- [ ] Checkpoint: Phase 4 Wire Android committed
 - [ ] PROGRESS.md committed
 
-## Appium Android
+## Phase 5: APPIUM ANDROID
 - [ ] Start fake server
 - [ ] Run Appium tests (Android)
-- [ ] Checkpoint: Appium Android committed
+- [ ] Checkpoint: Phase 5 Appium Android committed
 - [ ] PROGRESS.md committed
 
-## Wire iOS
+## Phase 6: WIRE iOS
 - [ ] UI migration (per screen)
 - [ ] Wire iOS: imports, DI, SKIE, Koin iOS
 - [ ] iOS build
 - [ ] Runtime verify (mobile-mcp on simulator)
 - [ ] Summary Table
 - [ ] Manual test
-- [ ] Checkpoint: Wire iOS committed
+- [ ] Checkpoint: Phase 6 Wire iOS committed
 - [ ] PROGRESS.md committed
 
-## Appium iOS
+## Phase 7: APPIUM iOS
 - [ ] Run Appium tests (iOS selectors)
-- [ ] Checkpoint: Appium iOS committed
+- [ ] Checkpoint: Phase 7 Appium iOS committed
 - [ ] PROGRESS.md committed
 
 ## Final Verify
@@ -487,7 +486,7 @@ One entry per file. Agents consume this during execution — they do not re-read
 - **Rules:** keep `login(email)` and `login(phone)` as SEPARATE methods — DO NOT combine
 ```
 
-See `references/migration-guide-template.md` for the full template.
+See `references/agent-prompts/migration-guide-template.md` for the full template.
 
 ---
 

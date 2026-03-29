@@ -13,7 +13,7 @@ PLAN_DIR="$HOME/dev/gameplans/$(cat "$ACTIVE_FILE")"
 
 mkdir -p "$PLAN_DIR/backups"
 TS=$(date +%s)
-for f in PLAN.md PROGRESS.md FINDINGS.md migration-guide.md; do
+for f in PLAN.md PROGRESS.md findings.md migration-guide.md; do
   [ -f "$PLAN_DIR/$f" ] && cp "$PLAN_DIR/$f" "$PLAN_DIR/backups/${f%.md}_$TS.md"
 done
 echo "[kmm-workflow] Plan files backed up. Re-read PLAN.md + PROGRESS.md now."

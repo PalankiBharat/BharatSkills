@@ -1,4 +1,4 @@
-# kmm-workflow v3.0
+# kmm-workflow v4.0
 
 A self-contained KMM migration orchestrator built around one rule: **1:1 MECHANICAL PORT**. Only Android-to-KMM specifics change. Any behavioral change requires explicit user approval.
 
@@ -364,7 +364,7 @@ install(ContentNegotiation) { json() }
 
 **Step 8 — Record in findings.md:**
 ```
-| Ktor POST returns status 0 | Content-Type not auto-set in Ktor 3.1.0 | Add ContentNegotiation { json() } to client | ktor |
+| Ktor POST returns status 0 | Content-Type not auto-set in Ktor 4.0.0 | Add ContentNegotiation { json() } to client | ktor |
 ```
 
 Remove Napier instrumentation. PROGRESS.md updated.
