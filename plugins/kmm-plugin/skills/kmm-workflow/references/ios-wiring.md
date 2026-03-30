@@ -374,6 +374,32 @@ plugins {
 - Gradle 8.8+ is required. Check with `./gradlew --version` before adding SKIE. Older Gradle versions will fail silently or with cryptic errors.
 - No additional dependencies are needed. SKIE automatically instruments all exported Kotlin code.
 
+**Pre-flight SKIE compatibility check:** Before Phase 6, verify SKIE configuration against all `api()` + `export()` dependencies. Third-party KMM artifacts that were NOT built with SKIE may generate broken `Companion` wrappers (e.g., `SuspendInterop` on pre-compiled SDK types). For each such artifact, disable SKIE processing:
+
+```kotlin
+// build.gradle.kts
+skie {
+    analytics { enabled.set(false) }
+    // Disable SuspendInterop for pre-compiled third-party KMM SDKs
+    features {
+        coroutinesInterop.set(false) // per-package override below
+    }
+}
+```
+
+Or use per-package exclusion in `skie.config.json`:
+```json
+{
+  "packages": {
+    "com.thirdparty.sdk": {
+      "SuspendInterop": { "Enabled": false }
+    }
+  }
+}
+```
+
+Check this BEFORE the iOS build — SKIE failures at link time are hard to diagnose.
+
 **Optional: per-function annotations**
 
 ```kotlin
@@ -708,7 +734,16 @@ Missing any step causes silent failures: the destination exists but is never rea
 
 ### pbxproj Registration
 
-Every new `.swift` file MUST be manually registered in `project.pbxproj`. Xcode does this automatically when you use the GUI, but since files are created via code or terminal, they are not registered automatically.
+**Project format detection:** Before registering files, check if the Xcode project uses `PBXFileSystemSynchronizedRootGroup` (Xcode 16+ modern format). If present, Xcode auto-discovers all files in the group directory — skip manual pbxproj registration entirely. Only proceed with manual registration for legacy `PBXGroup`-based projects.
+
+```bash
+# Check project format
+grep -c "PBXFileSystemSynchronizedRootGroup" iosApp/iosApp.xcodeproj/project.pbxproj
+# If > 0 → modern format, skip manual registration
+# If 0 → legacy format, register manually below
+```
+
+For legacy projects, every new `.swift` file MUST be manually registered in `project.pbxproj`. Xcode does this automatically when you use the GUI, but since files are created via code or terminal, they are not registered automatically.
 
 A missing registration means the file exists on disk and can be imported but is never compiled. Errors will appear as "use of unresolved identifier" elsewhere — not as a missing-file error on the new file itself.
 
@@ -789,6 +824,10 @@ For each screen:
 ## 8. iOS Gotchas
 
 **pbxproj registration** — New `.swift` files not added to the Xcode project are silently ignored at edit time but fail at build time. Always verify after adding files.
+
+**Mandatory `pod install` after shared module changes** — After ANY shared module dependency change (new `api()` or `implementation()` dependency, framework rebuild, Compose resource addition), re-run `pod install` in the `iosApp/` directory. CocoaPods does not regenerate the framework copy script automatically — the `spec.resources` line may be correct but the actual copy script in the generated Xcode project won't update until `pod install` runs again. Missing this causes Compose resources to not be bundled in the iOS app (blank images, missing strings) with no build error.
+
+**Compose resources verification** — After iOS build, verify CMP resources exist at the expected path in the app bundle: `<App>.app/compose-resources/`. If the directory is missing or empty, re-run `pod install` and rebuild.
 
 **SKIE build time** — First build after adding SKIE declarations is slow (2–5 min). Do not cancel. Subsequent incremental builds are fast. SKIE adds approximately 20–50% to the Kotlin/Native link step. This is expected and not a bug. CI pipelines should account for this in timeout budgets.
 
