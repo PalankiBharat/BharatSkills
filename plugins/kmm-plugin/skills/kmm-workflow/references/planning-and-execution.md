@@ -154,15 +154,20 @@ The canonical phase sequence for every migration:
 
 ```
 Phase 1: PLAN (BLOCKING)
+  ── /clear ──
 Phase 2: SCAFFOLD                     — create KMM module skeleton, expect/actual stubs
 Phase 3: SHARED CODE MIGRATION (TDD)  — per-file, bottom-up dependency order
+  ── /clear ──
 Phase 4: WIRE ANDROID                 — update imports, DI, delete originals, Android build + test
 Phase 5: APPIUM ANDROID               — automated flow tests against fake server on Android
+  ── /clear ──
 Phase 6: WIRE iOS                     — UI screens, navigation, Koin iOS, SKIE, iOS build + test
 Phase 7: APPIUM iOS                   — automated flow tests against fake server on iOS
 ```
 
 Wire Android and Wire iOS are always distinct named phases, always in that order. Appium phases follow their respective Wire phase immediately.
+
+**Recommended /clear points** are shown above. The skill is file-based (PLAN.md, PROGRESS.md, migration-guide.md, findings.md) — nothing is lost on `/clear`. Clearing at these boundaries keeps the context window fresh for the next group of phases. After each `/clear`, run `/kmm-workflow` → Continue to resume from the last checkpoint.
 
 Phase boundaries are drawn **by architectural layer** — not by arbitrary task count. If a single layer is very large, split into sub-phases (e.g., 3A, 3B) by sub-component.
 
@@ -180,8 +185,9 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases.
 - **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md.
 - **Task 1.10:** Verify build task names — run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names for Android compilation, iOS arm64 compilation, and app assembly. Record verified task names in PLAN.md build verification section. Never write build commands based on assumptions.
-- **Task 1.11:** Dispatch **Sonnet agent** (`plan-analyzer.md`) to find remaining ambiguity → resolve → user approves.
-- **Task 1.12:** Verify the current repo builds clean (in the worktree). If already broken → STOP and escalate.
+- **Task 1.11:** Generate `build-verify.sh` in the gameplan directory using the verified build commands from Task 1.10. This project-specific script is the single source of truth for build checks throughout all phases — zero LLM tokens on mechanical builds. See [Build Verification Script](#build-verification-script) for the template and usage.
+- **Task 1.12:** Dispatch **Sonnet agent** (`plan-analyzer.md`) to find remaining ambiguity → resolve → user approves.
+- **Task 1.13:** Verify the current repo builds clean (in the worktree) by running `<gameplan-dir>/build-verify.sh <worktree-dir>`. If already broken → STOP and escalate.
 - **Checkpoint 1** committed in the worktree. Commit message: `chore: begin KMM migration for [module-name]`
 
 ---
@@ -246,9 +252,12 @@ Runs after all shared migration phases are complete.
 **Step 1B: Cross-platform Koin audit** — For each VM registered in the shared Koin module (`sesameModule` or equivalent), verify ALL constructor parameter types have bindings in BOTH `androidBridgeModule` AND `iosBridgeModule`. If a type is only bound on one platform, add the missing binding before proceeding. Missing bindings crash Koin startup and block ALL VM resolution, not just the missing one.
 
 **Step 2: Android build + test**
-```
-./gradlew :app:testDebugUnitTest
-  → if fail → check findings.md → DEBUG LOOP → FIX → retest
+
+Run the project-specific build script (zero LLM tokens):
+```bash
+<gameplan-dir>/build-verify.sh <worktree-dir>
+  → BUILD_VERIFY_PASS → proceed
+  → BUILD_VERIFY_FAIL → check findings.md → DEBUG LOOP → FIX → rerun script
 ```
 
 **Step 3: Runtime Verify (mobile-mcp, fallback: adb)**
@@ -287,9 +296,12 @@ Runs after Wire Android is committed.
 **Step 2: Wire iOS** — read `ios-wiring.md`
 
 **Step 3: iOS build**
-```
-xcodebuild -workspace <name>.xcworkspace -scheme <name> -destination 'platform=iOS Simulator,...'
-  → if fail → DEBUG LOOP (iOS) → fix → rebuild
+
+Run the project-specific build script (zero LLM tokens):
+```bash
+<gameplan-dir>/build-verify.sh <worktree-dir>
+  → BUILD_VERIFY_PASS → proceed
+  → BUILD_VERIFY_FAIL → DEBUG LOOP (iOS) → fix → rerun script
 ```
 
 **Step 4: Runtime Verify (mobile-mcp on simulator, fallback: xcrun)**
@@ -395,8 +407,9 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.8 Verify platform navigation architecture
 - [ ] 1.9 Verify SDK availability
 - [ ] 1.10 Verify build task names
-- [ ] 1.11 Plan ambiguity analysis (plan-analyzer.md)
-- [ ] 1.12 Verify clean build baseline
+- [ ] 1.11 Generate build-verify.sh
+- [ ] 1.12 Plan ambiguity analysis (plan-analyzer.md)
+- [ ] 1.13 Verify clean build baseline
 - [ ] Checkpoint 1 committed
 
 ## Phase 2: SCAFFOLD
@@ -611,3 +624,61 @@ Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHEC
 - Appium tests in `e2e-tests/` committed — CI-ready regression suite
 - `findings.md` saved for next migration (Known Fixes, Gotchas, Library Versions)
 - `migration-guide.md` and `PLAN.md` kept for reference or deleted per user preference
+
+---
+
+## Build Verification Script
+
+During Phase 1 (Task 1.11), generate a project-specific `build-verify.sh` in the gameplan directory. This script is tailored to the actual project — using the exact Gradle task names and xcodebuild commands verified in Task 1.10. The skill stays project-agnostic; the script is project-specific.
+
+**Template** (adapt to the project's verified build commands):
+
+```bash
+#!/usr/bin/env bash
+# build-verify.sh — Project-specific build verification
+# Generated during Phase 1 planning. Uses verified task names.
+# Usage: ./build-verify.sh [worktree-dir]
+set -euo pipefail
+
+WORKTREE="${1:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$WORKTREE"
+
+PASS=0; FAIL=0; FAILURES=""
+
+run_check() {
+  local cmd="$1"
+  echo "--- Running: $cmd"
+  local start=$(date +%s)
+  local out=$(mktemp)
+  if eval "$cmd" > "$out" 2>&1; then
+    echo "    PASS ($(($(date +%s) - start))s)"
+    PASS=$((PASS + 1))
+  else
+    local rc=$?
+    echo "    FAIL (exit $rc, $(($(date +%s) - start))s)"
+    tail -20 "$out" | sed 's/^/    /'
+    FAIL=$((FAIL + 1))
+    FAILURES="$FAILURES\n  - $cmd (exit $rc)"
+  fi
+  rm -f "$out"
+}
+
+# ── Verified build commands (from Task 1.10) ──
+# Replace these with the actual verified commands for this project:
+run_check "./gradlew :shared:compileDebugKotlin"
+run_check "./gradlew :shared:compileKotlinIosArm64"
+run_check "./gradlew :app:assembleDebug"
+# run_check "xcodebuild -workspace iosApp/iosApp.xcworkspace -scheme iosApp -destination '...' build"
+
+echo ""
+echo "=== Results: PASS=$PASS FAIL=$FAIL ==="
+[ "$FAIL" -gt 0 ] && { echo -e "Failed:$FAILURES"; echo "BUILD_VERIFY_FAIL"; exit 1; }
+echo "BUILD_VERIFY_PASS"
+```
+
+**Usage throughout all phases:**
+```bash
+<gameplan-dir>/build-verify.sh <worktree-dir>
+```
+
+The orchestrator calls this at every checkpoint. Only on `BUILD_VERIFY_FAIL` does it engage an LLM agent (debugger) to diagnose. This saves significant tokens on the happy path — builds are purely mechanical.
