@@ -231,6 +231,14 @@ Run the same test suite again (no changes to tests):
 - Do not change any other logic in consumer files — import path updates only
 - If a consumer's DI module needs updating (e.g., Hilt → Koin module), update that too
 
+### Step 11: Verify Koin bindings (cross-platform)
+
+- For each constructor parameter of the migrated class, grep the shared Koin module and both platform DI modules (`androidBridgeModule`, `iosBridgeModule`) to confirm a binding exists
+- Check: `grep -r "single.*<TypeName>" shared/src/` and `grep -r "factory.*<TypeName>" shared/src/` for each dependency type
+- If a dependency is only bound on one platform (commonly: Android has it, iOS doesn't), report it as: `MISSING_BINDING: <TypeName> not registered in <platform>BridgeModule`
+- Missing bindings crash Koin startup on that platform and block ALL VM resolution — not just the one with the missing dep
+- Do NOT proceed to completion output if any binding is missing — fix it or output FILE_BLOCKED
+
 ---
 
 ## What You MUST NOT Do

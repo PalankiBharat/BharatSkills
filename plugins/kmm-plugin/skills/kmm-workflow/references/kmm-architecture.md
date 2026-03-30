@@ -588,6 +588,12 @@ coroutineScope {
 - Android: do existing callers pass the new field?
 - iOS: Swift positional constructors — does the new field break existing call sites?
 
+### Cross-Platform Koin Binding Verification
+- After registering a VM in the shared Koin module, verify ALL its constructor dependencies have bindings in BOTH platform modules (`androidBridgeModule` AND `iosBridgeModule`)
+- Missing bindings on one platform cascade — one missing dep crashes ALL VM resolution on that platform via Koin startup failure
+- Pattern: Android builds/runs first, so Android Koin bindings get verified implicitly. iOS Koin is only tested at the very end. Missing iOS-side bindings are the #1 source of iOS runtime crashes after migration.
+- Post-migration check: for each constructor parameter of a newly registered VM, grep `di.kt` + platform DI modules to confirm a binding exists on both platforms. Report any MISSING bindings immediately.
+
 ### Pre-Existing Test Failures Are Not Your Problem
 - If tests were failing BEFORE your changes, they are not your responsibility
 - Use `:shared:assemble` instead of `:shared:build` to bypass pre-existing test failures

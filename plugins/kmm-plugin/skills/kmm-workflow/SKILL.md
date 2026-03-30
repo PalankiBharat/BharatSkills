@@ -57,7 +57,9 @@ On ANY invocation, always ask: Create / Continue. Never auto-resume. Never assum
   - Do NOT use plan mode — write PLAN.md, PROGRESS.md, migration-guide.md, findings.md directly
   - After approval: tell user /clear then /kmm-workflow → Continue
 - **Continue** → scan ~/dev/gameplans/, list ALL with status, user picks
-  - Write session marker (`~/dev/gameplans/.sessions/<session_id>.active`) → read PLAN.md + PROGRESS.md → report state → continue
+  - Write session marker (`~/dev/gameplans/.sessions/<session_id>.active`) → read PLAN.md + PROGRESS.md → report state
+  - If PLAN.md specifies a worktree path, verify it exists or create it (`git worktree add <path> <base-branch> -b feature/<name>`). Copy `local.properties` to the worktree. All subsequent file edits happen in the worktree path.
+  - Continue execution from last checkpoint
 - On completion (all phases done + committed): delete session marker
 
 ## Workflow
@@ -70,9 +72,13 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 
 ### Phase 1: PLAN
 
+- Create worktree: `git worktree add .claire/worktrees/<name> <base-branch> -b feature/<name>`, copy `local.properties`. All subsequent file creation happens in the worktree path. Record the worktree path in PLAN.md header.
 - Research codebase, identify files, dependencies, API endpoints
 - Write migration-guide.md (per-file specs with "Migrate after" for DAG)
 - PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [Appium scenarios + fake-server-config]
+- Verify platform navigation architecture: read the actual Android Router/Navigator and iOS AppRouter/Coordinator code before writing Wire phases. Record the verified architecture in findings.md.
+- Verify build task names: run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names. Record verified names in PLAN.md build verification section.
+- Verify SDK availability: for every external SDK class referenced by migration targets, grep the KMM SDK source sets to confirm the class exists in commonMain. Record availability in findings.md. If unavailable, add to scaffold list.
 - Dispatch plan-analyzer → present gaps → user approval
 - Read `references/planning-and-execution.md` before this phase
 
@@ -101,6 +107,7 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
     → FILE_COMPLETE or FILE_BLOCKED
   - Gate: ALL files at this level complete before next level
 - After all levels: `./gradlew :shared:testDebugUnitTest`
+- Cross-platform Koin audit: for each VM registered in the shared Koin module, verify ALL constructor parameter types have bindings in BOTH `androidBridgeModule` AND `iosBridgeModule`. If a type is only bound on one platform, add the missing binding before proceeding.
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/dependency-replacements.md`, `references/kmm-architecture.md`, and `references/rules-and-guardrails.md` before this phase
 - After all levels complete: dispatch auditor (sonnet) for code quality sweep → AUDIT_COMPLETE required before wiring
@@ -191,6 +198,7 @@ On Continue, when listing gameplans:
 
 ## Rules
 
+- When a worktree exists, ALL agent prompts must include the worktree path as the target directory for file creation and edits
 - Orchestrator NEVER writes migration code — only agents do
 - Tests MUST pass on original BEFORE migration proceeds
 - Tests MUST pass on migrated code BEFORE file marked complete

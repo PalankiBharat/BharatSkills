@@ -215,6 +215,17 @@ fun UserScreen(viewModel: UserViewModel = koinViewModel()) { ... }
 
 **Why:** SharedPreferences is Android-only. Multiplatform-Settings wraps NSUserDefaults (iOS) and SharedPreferences (Android) behind a common `Settings` interface in commonMain.
 
+**Decision matrix — which persistence library to use:**
+
+| Data shape | Recommended library | Rationale |
+|---|---|---|
+| Simple key-value prefs (booleans, strings, ints) | **Multiplatform-Settings** | Lightweight, zero setup, direct API. No serialization overhead. |
+| Typed/structured data, proto-based schemas | **DataStore KMP** | Type safety via proto or preferences DSL. Better for complex config objects. |
+| Already using DataStore in the Android source | **DataStore KMP** | Lowest friction — same API surface, only construction changes. |
+| Relational data, complex queries | **Room 2.7+ KMP** or **SQLDelight** | Full database, not a preference store. |
+
+When migrating `SharedPreferences` with only simple key-value pairs (e.g., boolean toggles, theme settings, feature flags), default to **Multiplatform-Settings** — not DataStore — even if DataStore is already in the project for other purposes. Use the simplest tool that fits the data shape.
+
 **Before (SharedPreferences):**
 
 ```kotlin

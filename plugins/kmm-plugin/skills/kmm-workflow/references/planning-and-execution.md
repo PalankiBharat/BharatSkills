@@ -171,14 +171,18 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 ## Phase 1: PLAN (BLOCKING — executed before migration begins)
 
 - **Task 1.1:** Create `~/dev/gameplans/<module-name>/` directory.
-- **Task 1.2:** Write PLAN.md (with self-documenting header) to that directory.
-- **Task 1.3:** Write PROGRESS.md to that directory with empty checkboxes for every task — filled during execution.
-- **Task 1.4:** Write migration-guide.md using the template in `references/agent-prompts/migration-guide-template.md` — one entry per file.
-- **Task 1.5:** Write findings.md with assessment data (see findings.md Structure below).
-- **Task 1.6:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Dispatch **Sonnet agent** to write Appium test specs for every critical flow (`e2e-tests/<flow>.test.js`). Commit `e2e-tests/` — this becomes the regression suite.
-- **Task 1.7:** Dispatch **Sonnet agent** (`plan-analyzer.md`) to find remaining ambiguity → resolve → user approves.
-- **Task 1.8:** Verify the current repo builds clean. If already broken → STOP and escalate.
-- **Checkpoint 1** committed immediately. Commit message: `chore: begin KMM migration for [module-name]`
+- **Task 1.2:** Create worktree: `git worktree add .claire/worktrees/<module-name> <base-branch> -b feature/<module-name>`. Copy `local.properties` to the worktree. Record the worktree path in PLAN.md. All subsequent file creation and edits happen in the worktree.
+- **Task 1.3:** Write PLAN.md (with self-documenting header) to the gameplan directory.
+- **Task 1.4:** Write PROGRESS.md to the gameplan directory with empty checkboxes for every task — filled during execution.
+- **Task 1.5:** Write migration-guide.md using the template in `references/agent-prompts/migration-guide-template.md` — one entry per file.
+- **Task 1.6:** Write findings.md with assessment data (see findings.md Structure below).
+- **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Dispatch **Sonnet agent** to write Appium test specs for every critical flow (`e2e-tests/<flow>.test.js`). Commit `e2e-tests/` to the worktree — this becomes the regression suite.
+- **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases.
+- **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md.
+- **Task 1.10:** Verify build task names — run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names for Android compilation, iOS arm64 compilation, and app assembly. Record verified task names in PLAN.md build verification section. Never write build commands based on assumptions.
+- **Task 1.11:** Dispatch **Sonnet agent** (`plan-analyzer.md`) to find remaining ambiguity → resolve → user approves.
+- **Task 1.12:** Verify the current repo builds clean (in the worktree). If already broken → STOP and escalate.
+- **Checkpoint 1** committed in the worktree. Commit message: `chore: begin KMM migration for [module-name]`
 
 ---
 
@@ -238,6 +242,8 @@ Batch any REQUIRES_APPROVAL items → present to user at phase boundary (not one
 Runs after all shared migration phases are complete.
 
 **Step 1: Wire Android** — read `android-wiring.md`
+
+**Step 1B: Cross-platform Koin audit** — For each VM registered in the shared Koin module (`sesameModule` or equivalent), verify ALL constructor parameter types have bindings in BOTH `androidBridgeModule` AND `iosBridgeModule`. If a type is only bound on one platform, add the missing binding before proceeding. Missing bindings crash Koin startup and block ALL VM resolution, not just the missing one.
 
 **Step 2: Android build + test**
 ```
@@ -380,13 +386,17 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 
 ## Phase 1: PLAN
 - [ ] 1.1 Create gameplan directory
-- [ ] 1.2 Write PLAN.md
-- [ ] 1.3 Write PROGRESS.md
-- [ ] 1.4 Write migration-guide.md
-- [ ] 1.5 Write findings.md
-- [ ] 1.6 Write fake server config + Appium specs, commit e2e-tests/
-- [ ] 1.7 Plan ambiguity analysis (plan-analyzer.md)
-- [ ] 1.8 Verify clean build baseline
+- [ ] 1.2 Create worktree + copy local.properties
+- [ ] 1.3 Write PLAN.md
+- [ ] 1.4 Write PROGRESS.md
+- [ ] 1.5 Write migration-guide.md
+- [ ] 1.6 Write findings.md
+- [ ] 1.7 Write fake server config + Appium specs, commit e2e-tests/
+- [ ] 1.8 Verify platform navigation architecture
+- [ ] 1.9 Verify SDK availability
+- [ ] 1.10 Verify build task names
+- [ ] 1.11 Plan ambiguity analysis (plan-analyzer.md)
+- [ ] 1.12 Verify clean build baseline
 - [ ] Checkpoint 1 committed
 
 ## Phase 2: SCAFFOLD
