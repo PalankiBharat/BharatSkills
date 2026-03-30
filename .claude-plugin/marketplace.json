@@ -76,8 +76,8 @@
     {
       "name": "kmm-plugin",
       "source": "./plugins/kmm-plugin",
-      "description": "Battle-tested KMM migration toolkit — TDD-driven file migration, module-level orchestration, SwiftUI screen generation, SKIE interop, auditing, and dependency mapping. Bundles /kmm and /kmm-workflow skills.",
-      "version": "1.0.0",
+      "description": "Battle-tested KMM migration toolkit v4.1 — TDD-driven migration, worktree auto-creation, cross-platform Koin audit, planning-phase validation, project-specific build-verify script, mandatory /clear points, auto-continue between phases.",
+      "version": "4.1.0",
       "category": "migration",
       "tags": ["kmm", "kotlin-multiplatform", "migration", "tdd", "swiftui", "skie", "ios", "android"],
       "keywords": ["kmm", "migrate", "kotlin", "multiplatform", "swift", "skie", "kmp", "ios"]
