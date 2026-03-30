@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "4.0.0",
-  "description": "KMM migration orchestrator v4 — 1:1 mechanical port, session-scoped gameplans (parallel migrations), dependency-level fan-out (parallel subagents per file), TDD parity verification (tests pass on original then migrated), scaffolding phase for external deps, per-phase checkpoint commits, consolidated references with conditional loading, extracted hook scripts.",
+  "version": "4.1.0",
+  "description": "KMM migration orchestrator v4.1 — 1:1 mechanical port, session-scoped gameplans, dependency-level fan-out, TDD parity, worktree auto-creation, cross-platform Koin audit, planning-phase validation (nav architecture, SDK availability, build task names), project-specific build-verify script, mandatory /clear at phase boundaries, auto-continue between phases.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"
