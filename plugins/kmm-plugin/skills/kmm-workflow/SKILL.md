@@ -65,20 +65,19 @@ On ANY invocation, always ask: Create / Continue. Never auto-resume. Never assum
 ## Workflow
 
 ```
-CREATE → user /clear → Phases 2-3 (scaffold + migrate) → user /clear → Phases 4-5 (Wire+Appium Android) → user /clear → Phases 6-7 (Wire+Appium iOS) → DONE
+CREATE → user /clear → Phases 2-3 (scaffold + migrate) → /clear → Phases 4-7 (wiring + Appium) → DONE
 ```
 
-### Recommended /clear Points
+### Mandatory /clear Points
 
-Clear context at these natural boundaries to keep the context window fresh. The skill is file-based — nothing is lost on /clear.
+The skill is file-based (PLAN.md, PROGRESS.md, migration-guide.md, findings.md) — nothing is lost on `/clear`.
 
 | When | Why | What to do |
 |------|-----|------------|
 | After Phase 1 (PLAN) | Planning fills context with research, file reads, Q&A | `/clear` → `/kmm-workflow` → Continue |
-| After Phase 3 (SHARED CODE MIGRATION) | Heaviest phase — per-file TDD loops, agent outputs, debug traces | `/clear` → `/kmm-workflow` → Continue |
-| After Phase 5 (APPIUM ANDROID) | Before switching to iOS, start fresh — no stale Android context | `/clear` → `/kmm-workflow` → Continue |
+| After Phase 3 (SHARED CODE MIGRATION) | Heaviest phase — per-file TDD loops, agent outputs, debug traces bloat context 300K+ tokens. Fresh start prevents stale-reference errors in wiring phases. | `/clear` → `/kmm-workflow` → Continue |
 
-Phases 2+3 share context naturally (scaffold feeds migration). Phases 4+5 share context (Android wiring feeds Android Appium). Phases 6+7 share context (iOS wiring feeds iOS Appium).
+The orchestrator MUST stop after these phases and instruct the user to `/clear`. Do not continue into the next phase group without clearing.
 
 ## Phases
 

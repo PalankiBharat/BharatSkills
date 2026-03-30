@@ -154,20 +154,19 @@ The canonical phase sequence for every migration:
 
 ```
 Phase 1: PLAN (BLOCKING)
-  ── /clear ──
+  ── /clear (mandatory) ──
 Phase 2: SCAFFOLD                     — create KMM module skeleton, expect/actual stubs
 Phase 3: SHARED CODE MIGRATION (TDD)  — per-file, bottom-up dependency order
-  ── /clear ──
+  ── /clear (mandatory) ──
 Phase 4: WIRE ANDROID                 — update imports, DI, delete originals, Android build + test
 Phase 5: APPIUM ANDROID               — automated flow tests against fake server on Android
-  ── /clear ──
 Phase 6: WIRE iOS                     — UI screens, navigation, Koin iOS, SKIE, iOS build + test
 Phase 7: APPIUM iOS                   — automated flow tests against fake server on iOS
 ```
 
 Wire Android and Wire iOS are always distinct named phases, always in that order. Appium phases follow their respective Wire phase immediately.
 
-**Recommended /clear points** are shown above. The skill is file-based (PLAN.md, PROGRESS.md, migration-guide.md, findings.md) — nothing is lost on `/clear`. Clearing at these boundaries keeps the context window fresh for the next group of phases. After each `/clear`, run `/kmm-workflow` → Continue to resume from the last checkpoint.
+**Mandatory /clear points** are shown above. Phase 3 (shared code migration) is the heaviest phase — per-file TDD loops, agent outputs, and debug traces can bloat context by 300K+ tokens. Clearing before wiring prevents stale-reference errors. After each `/clear`, run `/kmm-workflow` → Continue to resume from the last checkpoint. The orchestrator MUST stop after these phases — do not continue without clearing.
 
 Phase boundaries are drawn **by architectural layer** — not by arbitrary task count. If a single layer is very large, split into sub-phases (e.g., 3A, 3B) by sub-component.
 
