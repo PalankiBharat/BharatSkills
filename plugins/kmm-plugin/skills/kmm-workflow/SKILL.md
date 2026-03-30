@@ -65,8 +65,19 @@ On ANY invocation, always ask: Create / Continue. Never auto-resume. Never assum
 ## Workflow
 
 ```
-CREATE (research + write plan files) → user /clear → CONTINUE (fresh context)
+CREATE → user /clear → Phases 2-3 (scaffold + migrate) → /clear → Phases 4-7 (wiring + Appium) → DONE
 ```
+
+### Mandatory /clear Points
+
+The skill is file-based (PLAN.md, PROGRESS.md, migration-guide.md, findings.md) — nothing is lost on `/clear`.
+
+| When | Why | What to do |
+|------|-----|------------|
+| After Phase 1 (PLAN) | Planning fills context with research, file reads, Q&A | `/clear` → `/kmm-workflow` → Continue |
+| After Phase 3 (SHARED CODE MIGRATION) | Heaviest phase — per-file TDD loops, agent outputs, debug traces bloat context 300K+ tokens. Fresh start prevents stale-reference errors in wiring phases. | `/clear` → `/kmm-workflow` → Continue |
+
+The orchestrator MUST stop after these phases and instruct the user to `/clear`. Do not continue into the next phase group without clearing.
 
 ## Phases
 
@@ -78,6 +89,7 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 - PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [Appium scenarios + fake-server-config]
 - Verify platform navigation architecture: read the actual Android Router/Navigator and iOS AppRouter/Coordinator code before writing Wire phases. Record the verified architecture in findings.md.
 - Verify build task names: run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names. Record verified names in PLAN.md build verification section.
+- Generate `build-verify.sh` in the gameplan directory using the verified build commands. This project-specific script runs all build checks with zero LLM tokens. Commit it with the gameplan files.
 - Verify SDK availability: for every external SDK class referenced by migration targets, grep the KMM SDK source sets to confirm the class exists in commonMain. Record availability in findings.md. If unavailable, add to scaffold list.
 - Dispatch plan-analyzer → present gaps → user approval
 - Read `references/planning-and-execution.md` before this phase
@@ -86,7 +98,7 @@ CREATE (research + write plan files) → user /clear → CONTINUE (fresh context
 
 - From migration-guide.md, identify ALL external dependencies (classes not being migrated)
 - For each: create interface in commonMain + androidMain actual delegating to original
-- Build check: `./gradlew :shared:compileDebugKotlin`
+- Build check: run `<gameplan-dir>/build-verify.sh` (project-specific, zero LLM tokens)
 - CHECKPOINT COMMIT "scaffold: interfaces for <module>"
 - Read `references/kmm-architecture.md` before this phase
 
@@ -198,6 +210,7 @@ On Continue, when listing gameplans:
 
 ## Rules
 
+- Auto-continue between phases — do NOT pause to ask "should I continue?" or "Phase X complete, proceed?". Continue automatically to the next phase unless: (a) a mandatory `/clear` point is reached, (b) REQUIRES_APPROVAL items need user decision, or (c) a build/test failure blocks progress. Status updates are fine ("Starting Phase N"), confirmation prompts are not.
 - When a worktree exists, ALL agent prompts must include the worktree path as the target directory for file creation and edits
 - Orchestrator NEVER writes migration code — only agents do
 - Tests MUST pass on original BEFORE migration proceeds
@@ -207,5 +220,6 @@ On Continue, when listing gameplans:
 - Every decision in files — /clear erases chat, only files survive
 - PROGRESS.md updated and committed after each phase
 - Each phase gets its own checkpoint commit
+- Build verification uses `<gameplan-dir>/build-verify.sh` (generated during Phase 1) — never waste LLM tokens on mechanical build checks
 - No type casting
 - After EVERY migration agent: dispatch Haiku verifier
