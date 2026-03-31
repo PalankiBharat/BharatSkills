@@ -374,7 +374,7 @@ plugins {
 - Gradle 8.8+ is required. Check with `./gradlew --version` before adding SKIE. Older Gradle versions will fail silently or with cryptic errors.
 - No additional dependencies are needed. SKIE automatically instruments all exported Kotlin code.
 
-**Pre-flight SKIE compatibility check:** Before Phase 6, verify SKIE configuration against all `api()` + `export()` dependencies. Third-party KMM artifacts that were NOT built with SKIE may generate broken `Companion` wrappers (e.g., `SuspendInterop` on pre-compiled SDK types). For each such artifact, disable SKIE processing:
+**Pre-flight SKIE compatibility check:** Before Phase 5, verify SKIE configuration against all `api()` + `export()` dependencies. Third-party KMM artifacts that were NOT built with SKIE may generate broken `Companion` wrappers (e.g., `SuspendInterop` on pre-compiled SDK types). For each such artifact, disable SKIE processing:
 
 ```kotlin
 // build.gradle.kts

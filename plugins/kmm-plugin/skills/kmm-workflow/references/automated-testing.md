@@ -229,7 +229,7 @@ Unit tests (`./gradlew :shared:testDebugUnitTest`) must be run and pass:
 - After every file migration (Phase 3, step 8)
 - After Phase 3 completion (all files)
 - After Phase 4 wiring (Android unit tests)
-- After Phase 6 wiring (iOS unit tests where applicable)
+- After Phase 5 wiring (iOS unit tests where applicable)
 
 A checkpoint with failing unit tests is invalid. If tests fail after wiring, the wiring introduced a regression — fix it before committing.
 
@@ -287,7 +287,7 @@ The orchestrator does NOT attempt to bypass or automate blockers. It pauses, ask
 
 Beyond automated flows, mobile-mcp is also used for:
 
-**Runtime verification (Phase 4/6):**
+**Runtime verification (Phase 4/5):**
 ```
 # Install and launch
 mobile_install_app → mobile_launch_app
