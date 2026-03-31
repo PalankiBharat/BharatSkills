@@ -151,6 +151,27 @@ val user = json.decodeFromString<User>(jsonString)
 val encoded = json.encodeToString(user)
 ```
 
+**Nullability audit (mandatory):**
+
+Gson silently assigns `null` to non-nullable Kotlin properties when the JSON field is missing or `null`. kotlinx.serialization throws `SerializationException` in the same scenario. When migrating model classes:
+
+1. For every field, check if the API could ever return `null` or omit the field
+2. Fields that could be absent or null → `val field: Type? = null`
+3. Fields with known defaults → `val field: Type = defaultValue`
+
+```kotlin
+// Gson was lenient — this worked even if "reason" was null in JSON
+data class Response(@SerializedName("reason") val reason: String)
+
+// kotlinx.serialization is strict — this CRASHES if "reason" is null
+@Serializable
+data class Response(@SerialName("reason") val reason: String)
+
+// Fix: make nullable fields explicit
+@Serializable
+data class Response(@SerialName("reason") val reason: String? = null)
+```
+
 ---
 
 ## Dependency Injection: Hilt / Dagger → Koin 4

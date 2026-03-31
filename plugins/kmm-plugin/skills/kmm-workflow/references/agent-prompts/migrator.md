@@ -197,6 +197,17 @@ data class User(val id: String, val name: String)
 val user = Json { ignoreUnknownKeys = true }.decodeFromString<User>(json)
 ```
 
+**Kotlinx nullability audit (mandatory for Gson/Moshi → kotlinx.serialization):**
+
+Gson is lenient by default — missing or null JSON fields silently become `null` even for non-nullable Kotlin types. kotlinx.serialization is strict — a missing field for a non-nullable property throws `SerializationException` at runtime.
+
+For every `@SerializedName` / `@Json` field being migrated:
+1. Check if the field could ever be `null` or absent in the actual API response
+2. If yes → make it nullable with a default: `val reason: String? = null`
+3. If the field has a `@SerializedName` with a different JSON key, use `@SerialName` with the same key
+
+A non-nullable field that receives `null` from the API will crash at runtime — this compiles fine but fails on real data. When in doubt, make the field nullable with a default rather than risking a runtime crash.
+
 **Apply expect/actual only for genuine platform differences:**
 - Platform-specific APIs with no KMM equivalent (e.g., crypto, biometrics, sensors)
 - HTTP client engines (OkHttp vs Darwin)
