@@ -334,6 +334,33 @@ fun handle(event: AppEvent) {
 
 ---
 
+### Kotlinx Serialization Nullability Mismatch
+
+**What to look for:** Model classes migrated from Gson/Moshi to `kotlinx.serialization` where fields that could be `null` or absent in the API response are declared as non-nullable without defaults.
+
+**Why it's a problem:** Gson silently assigns `null` to non-nullable Kotlin properties when the JSON field is missing or `null`. `kotlinx.serialization` throws `SerializationException` at runtime in the same scenario — guaranteed crash on real API responses that omit optional fields.
+
+**Where to look:**
+- Every `@Serializable` data class that was previously a Gson `@SerializedName` or Moshi `@Json` model
+- Fields like `reason`, `message`, `description`, `metadata` that are commonly optional in API responses
+- Response wrapper classes where nested objects may be absent
+
+**How to fix:** For every field in a migrated model class, check if the API could ever return `null` or omit the field. If yes, make it nullable with a default:
+
+```kotlin
+// Bad — crashes if "reason" is null or missing in JSON
+@Serializable
+data class WithdrawalResponse(@SerialName("reason") val reason: String)
+
+// Good — handles null/missing gracefully
+@Serializable
+data class WithdrawalResponse(@SerialName("reason") val reason: String? = null)
+```
+
+When in doubt, make the field nullable with a default rather than risking a runtime crash. A `String?` that is never `null` is harmless; a non-nullable `String` that receives `null` is a crash.
+
+---
+
 ## HIGH — Should fix (memory leaks, logic errors, architecture violations)
 
 ---

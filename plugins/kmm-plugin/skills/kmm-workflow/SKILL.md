@@ -86,6 +86,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - Create worktree: `git worktree add .claire/worktrees/<name> <base-branch> -b feature/<name>`, copy `local.properties`. All subsequent file creation happens in the worktree path. Record the worktree path in PLAN.md header.
 - Research codebase, identify files, dependencies, API endpoints
 - Write migration-guide.md (per-file specs with "Migrate after" for DAG)
+- **Library KMP availability audit:** for every library in migration-guide.md "Swaps", web search to verify KMP availability before planning manual alternatives. Record in findings.md. Never claim "no KMP alternative" without live research.
 - PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [fake-server-config + screen-map.json]
 - Generate fake server infrastructure: `e2e-tests/fake-server.js` and `e2e-tests/fake-server-config.json`. See `references/automated-testing.md`.
 - **Allocate dedicated device + ports** for this gameplan (prevents collisions when multiple gameplans test concurrently). Auto-allocate by scanning for free ports and existing devices. Record in PLAN.md header. See `references/automated-testing.md` § Device & Port Isolation.
@@ -132,7 +133,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 
 - PARALLEL: [Haiku per consumer for import updates] ‖ [Sonnet for DI (Hilt→Koin)]
 - Delete originals (grep-before-delete)
-- **Stub audit:** scan all migrated files for `error("…")`, `TODO()`, `TODO("…")`, and `stub` markers. Any unresolved stubs BLOCK the checkpoint or must be explicitly deferred with rationale in PROGRESS.md.
+- **Stub audit:** scan all migrated files for `error("…")`, `TODO()`, `TODO("…")`, `stub` markers, and `= {}` default lambdas on callback parameters. Empty lambdas are functional stubs — buttons compile but do nothing at runtime. Any unresolved stubs BLOCK the checkpoint or must be explicitly deferred with rationale in PROGRESS.md.
 - **Koin binding completeness check:** for each VM registered in the shared Koin module, verify ALL constructor parameter types AND all types used by child composables/screens have Koin bindings. Missing bindings crash at runtime — check transitively, not just direct constructor params.
 - Build + test
 - **Mandatory runtime verification** (mobile-mcp/adb) — "app launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates (see `references/automated-testing.md`). For each migrated screen listed in migration-guide.md:
@@ -235,4 +236,5 @@ On Continue, when listing gameplans:
 - No type casting
 - After EVERY migration agent: dispatch Haiku verifier
 - TDD is non-negotiable: every migrated file MUST have characterization tests that pass against BOTH the staged original AND the migrated commonMain code. `FILE_COMPLETE` with `tests: 0` is rejected — re-dispatch the agent with explicit test-writing instructions. Migration without tests is the root cause of runtime bugs surfacing during manual testing.
-- Stub audit at phase boundaries: before any checkpoint commit in Phases 4-5, scan for `error("…")`, `TODO()`, `TODO("…")`, and `stub` in migrated files. Unresolved stubs block the checkpoint.
+- Stub audit at phase boundaries: before any checkpoint commit in Phases 4-5, scan for `error("…")`, `TODO()`, `TODO("…")`, `stub`, and `= {}` default lambdas on callback parameters in migrated files. Empty lambdas are functional stubs that pass compilation but produce dead buttons at runtime. Unresolved stubs block the checkpoint.
+- onClick audit: in Phase 3G (CMP screens) and Phase 5 (Wire iOS), every `clickable {}`, `onClick`, `onTapGesture`, and callback lambda must trace to a real action. Empty lambdas `= {}` must be flagged for orchestrator review.

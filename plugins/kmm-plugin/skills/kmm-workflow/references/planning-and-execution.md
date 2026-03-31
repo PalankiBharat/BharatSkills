@@ -179,6 +179,7 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.3:** Write PLAN.md (with self-documenting header) to the gameplan directory.
 - **Task 1.4:** Write PROGRESS.md to the gameplan directory with empty checkboxes for every task — filled during execution.
 - **Task 1.5:** Write migration-guide.md using the template in `references/agent-prompts/migration-guide-template.md` — one entry per file.
+- **Task 1.5b:** Library KMP availability audit — for every Android-only library listed in migration-guide.md "Swaps" (Paging3, Room, DataStore, Navigation, etc.), web search or use Context7/`/find-docs` to verify whether an official KMP-compatible version exists. Record findings in findings.md under "Library Versions" with columns: `Library | KMP Available | Version | Source`. Never claim "no KMP alternative" without live research — training data is outdated. If an official KMP version exists, use it instead of building a manual alternative.
 - **Task 1.6:** Write findings.md with assessment data (see findings.md Structure below).
 - **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Generate `e2e-tests/screen-map.json` — record every screen in scope with navigation steps, key elements to verify, CTA targets, and known blockers (OTP, login, personal details). Define user journey flows in the screen map for mobile-mcp automated testing.
 - **Task 1.7b:** Generate fake server: `e2e-tests/fake-server.js`. See `references/automated-testing.md` for template. Commit `e2e-tests/` to the worktree.
@@ -252,7 +253,7 @@ Runs after all shared migration phases are complete.
 
 **Step 2: Stub audit**
 
-Scan all migrated files for `error("…")`, `TODO()`, `TODO("…")`, and `stub` markers. Any unresolved stubs BLOCK the checkpoint or must be explicitly deferred with rationale in PROGRESS.md.
+Scan all migrated files for `error("…")`, `TODO()`, `TODO("…")`, `stub` markers, and `= {}` default lambdas on callback parameters. Empty lambdas are functional stubs — buttons compile but do nothing at runtime. Any unresolved stubs BLOCK the checkpoint or must be explicitly deferred with rationale in PROGRESS.md.
 
 **Step 3: Koin binding completeness check**
 
@@ -406,6 +407,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.3 Write PLAN.md
 - [ ] 1.4 Write PROGRESS.md
 - [ ] 1.5 Write migration-guide.md
+- [ ] 1.5b Library KMP availability audit (web search, record in findings.md)
 - [ ] 1.6 Write findings.md
 - [ ] 1.7 Write fake server config + screen-map.json
 - [ ] 1.7b Generate fake server (fake-server.js), commit e2e-tests/
@@ -439,7 +441,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 
 ## Phase 4: WIRE ANDROID
 - [ ] 4.1 Wire Android: update imports, DI, delete originals
-- [ ] 4.2 Stub audit (scan for error(), TODO(), stub markers)
+- [ ] 4.2 Stub audit (scan for error(), TODO(), stub, = {} empty lambdas)
 - [ ] 4.3 Koin binding completeness check (transitive, both platforms)
 - [ ] 4.4 Android build + unit test — ALL tests pass
 - [ ] 4.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot
@@ -502,6 +504,7 @@ One entry per file. Agents consume this during execution — they do not re-read
 - **Library swaps:**
   - `retrofit2.Call<T>` → `suspend fun` (Ktor 3.1.0)
   - `SharedPreferences` → `MultiplatformSettings 1.3.0`
+- **Base URL:** vault (uses buildVaultApiService)
 - **API endpoints:** POST /api/auth/login, DELETE /api/auth/session
 - **expect/actual:** none
 - **Migrate after:** AuthCredentials.kt, TokenManager.kt
