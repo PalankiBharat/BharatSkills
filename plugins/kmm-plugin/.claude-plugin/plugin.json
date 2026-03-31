@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "4.4.0",
-  "description": "KMM migration orchestrator v4.4 — onClick audit (trace every callback to real action), Kotlinx nullability audit (Gson→kotlinx.serialization crash prevention), library KMP availability check (web search before manual alternatives), baseUrl per remote store in migration-guide, expanded stub audit (= {} empty lambdas), two-layer testing, screen-map caching, device/port isolation, TDD enforcement, SharedFlow audit, transitive Koin check, 5-phase workflow, 1:1 mechanical port, worktree auto-creation, mandatory /clear points, auto-continue.",
+  "version": "4.5.0",
+  "description": "KMM migration orchestrator v4.5 — visual parity verification (pre-migration baseline screenshots + LLM visual-diff agent), onClick audit, Kotlinx nullability audit, library KMP availability check, baseUrl tracking, expanded stub audit (= {} lambdas), two-layer testing, screen-map caching, device/port isolation, TDD enforcement, SharedFlow audit, transitive Koin check, 5-phase workflow, 1:1 mechanical port, worktree auto-creation, mandatory /clear points, auto-continue.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"

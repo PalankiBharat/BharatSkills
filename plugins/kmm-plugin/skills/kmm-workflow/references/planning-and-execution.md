@@ -184,6 +184,7 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Generate `e2e-tests/screen-map.json` — record every screen in scope with navigation steps, key elements to verify, CTA targets, and known blockers (OTP, login, personal details). Define user journey flows in the screen map for mobile-mcp automated testing.
 - **Task 1.7b:** Generate fake server: `e2e-tests/fake-server.js`. See `references/automated-testing.md` for template. Commit `e2e-tests/` to the worktree.
 - **Task 1.7c:** Allocate dedicated device and ports for this gameplan (prevents collisions with concurrent gameplans). See `references/automated-testing.md` § Device & Port Isolation. Auto-allocate by scanning for free ports and existing emulators/simulators. Record allocated device serials and FAKE_PORT in PLAN.md header (`<!-- DEVICE: ... -->`, `<!-- PORTS: ... -->`).
+- **Task 1.7d:** Capture pre-migration baseline screenshots — using the allocated device and `e2e-tests/screen-map.json`, navigate to every in-scope screen and capture screenshots BEFORE any code changes. Save to `e2e-tests/screenshots/baseline/`. On `blocker` steps (OTP, login, payment, personal details): STOP and ask the user to complete the action on the device, wait for confirmation, then continue capturing. These baselines are the ground truth for visual parity checks in Phases 4-5 (compared via the visual-diff agent).
 - **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases.
 - **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md.
 - **Task 1.10:** Verify build task names — run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names for Android compilation, iOS arm64 compilation, and app assembly. Record verified task names in PLAN.md build verification section. Never write build commands based on assumptions.
@@ -280,6 +281,7 @@ Run the project-specific build script (zero LLM tokens):
 2. Verify data loads — not stuck on spinner (screenshot, NOT `mobile_list_elements_on_screen` on cached screens)
 3. Verify primary CTA works (tap using cached coordinates, confirm expected result)
 4. `mobile_take_screenshot` → save to `e2e-tests/screenshots/android/`
+5. **Visual parity check:** dispatch Haiku visual-diff agent (`agent-prompts/visual-diff.md`) with baseline (`e2e-tests/screenshots/baseline/<screen>.png`) and current (`e2e-tests/screenshots/android/<screen>.png`). If `VISUAL_FAIL` → fix the regression before proceeding to the next screen. If `VISUAL_PASS` → continue.
 
 If cached tap fails (element moved) → re-discover with `mobile_list_elements_on_screen`, update screen-map, retry.
 
@@ -341,7 +343,8 @@ Run the project-specific build script (zero LLM tokens):
 1. Navigate to the screen using cached coordinates from screen-map (first time: call `mobile_list_elements_on_screen` and populate cache)
 2. Verify data loads — not stuck on spinner (screenshot, NOT `mobile_list_elements_on_screen` on cached screens)
 3. Verify primary CTA works (tap using cached coordinates, confirm expected result)
-4. `mobile_take_screenshot` → save to `e2e-tests/screenshots/ios/`, compare with Android screenshot (visual parity check)
+4. `mobile_take_screenshot` → save to `e2e-tests/screenshots/ios/`, compare with Android screenshot (cross-platform parity)
+5. **Visual parity check:** dispatch Haiku visual-diff agent with baseline (`e2e-tests/screenshots/baseline/<screen>.png`) and current iOS screenshot (`e2e-tests/screenshots/ios/<screen>.png`). If `VISUAL_FAIL` → fix the regression. If `VISUAL_PASS` → continue.
 
 If cached tap fails OR screen source file was modified in this phase → re-discover with `mobile_list_elements_on_screen`, update screen-map, retry.
 
@@ -412,6 +415,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.7 Write fake server config + screen-map.json
 - [ ] 1.7b Generate fake server (fake-server.js), commit e2e-tests/
 - [ ] 1.7c Allocate dedicated device + FAKE_PORT (auto), record in PLAN.md header
+- [ ] 1.7d Capture pre-migration baseline screenshots (all in-scope screens, handle blockers)
 - [ ] 1.8 Verify platform navigation architecture
 - [ ] 1.9 Verify SDK availability
 - [ ] 1.10 Verify build task names
@@ -445,6 +449,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 4.3 Koin binding completeness check (transitive, both platforms)
 - [ ] 4.4 Android build + unit test — ALL tests pass
 - [ ] 4.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot
+- [ ] 4.5b Visual parity check — dispatch visual-diff agent per screen (baseline vs current)
 - [ ] 4.6 Summary Table
 - [ ] 4.7 mobile-mcp automated flows (real app, screen-map cached, blocker→ask user)
 - [ ] 4.8 Manual test (remaining edge cases only)
@@ -457,6 +462,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 5.3 Stub audit + Koin completeness check (iOS bindings)
 - [ ] 5.4 iOS build + unit test — ALL tests pass
 - [ ] 5.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot + Android parity
+- [ ] 5.5b Visual parity check — dispatch visual-diff agent per screen (baseline vs current)
 - [ ] 5.6 Summary Table
 - [ ] 5.7 mobile-mcp automated flows (iOS, screen-map cached, blocker→ask user, Android parity)
 - [ ] 5.8 Manual test (remaining edge cases only)

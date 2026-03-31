@@ -90,6 +90,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [fake-server-config + screen-map.json]
 - Generate fake server infrastructure: `e2e-tests/fake-server.js` and `e2e-tests/fake-server-config.json`. See `references/automated-testing.md`.
 - **Allocate dedicated device + ports** for this gameplan (prevents collisions when multiple gameplans test concurrently). Auto-allocate by scanning for free ports and existing devices. Record in PLAN.md header. See `references/automated-testing.md` § Device & Port Isolation.
+- **Capture pre-migration baseline screenshots:** using the allocated device and screen-map.json, navigate to every in-scope screen and capture screenshots to `e2e-tests/screenshots/baseline/`. On blocker steps (OTP, login, payment, personal details): STOP, ask user to complete on device, wait, then resume. These baselines are compared against post-migration screenshots in Phases 4-5 via the visual-diff agent.
 - Verify platform navigation architecture: read the actual Android Router/Navigator and iOS AppRouter/Coordinator code before writing Wire phases. Record the verified architecture in findings.md.
 - Verify build task names: run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names. Record verified names in PLAN.md build verification section.
 - Generate `build-verify.sh` in the gameplan directory using the verified build commands. This project-specific script runs all build checks with zero LLM tokens. Commit it with the gameplan files.
@@ -141,6 +142,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
   2. Verify data loads (not stuck on spinner)
   3. Verify primary CTA works
   4. Take screenshot as evidence
+  5. **Visual parity check:** dispatch Haiku visual-diff agent with baseline screenshot (`e2e-tests/screenshots/baseline/<screen>.png`) and current screenshot (`e2e-tests/screenshots/android/<screen>.png`). VISUAL_FAIL → fix regression before proceeding. VISUAL_PASS → continue.
   Stubs that throw `error()` must be resolved or explicitly flagged as BLOCKED before checkpoint.
 - **mobile-mcp automated flows** — execute every flow defined in `e2e-tests/screen-map.json` against the real app:
   - Uses cached screen-map coordinates — does NOT re-discover elements on unchanged screens
@@ -156,7 +158,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - PARALLEL: [Sonnet ui-migrator per screen] ‖ [Sonnet Koin iOS]
 - Wire navigation + pbxproj
 - **Stub audit + Koin completeness check** (same as Phase 4, for iOS bindings)
-- Build + runtime verify (mobile-mcp/simulator) — same mandatory per-screen checklist as Phase 4
+- Build + runtime verify (mobile-mcp/simulator) — same mandatory per-screen checklist as Phase 4 (including visual parity check against baseline screenshots)
 - **mobile-mcp automated flows** — execute every flow defined in `e2e-tests/screen-map.json` against the real app (iOS), comparing with Android parity:
   - Uses cached screen-map coordinates — does NOT re-discover elements on unchanged screens
   - On `blocker` steps (OTP, payment, personal details): STOP, ask user to complete the action on device, wait for confirmation, then resume
@@ -177,6 +179,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 | UI migration (per screen) | agent-prompts/ui-migrator.md | sonnet | UI_COMPLETE / UI_BLOCKED |
 | Audit code | agent-prompts/auditor.md | sonnet | AUDIT_COMPLETE / AUDIT_BLOCKED |
 | Analyze plan | agent-prompts/plan-analyzer.md | sonnet | PLAN_ANALYSIS |
+| Visual parity diff (per screen) | agent-prompts/visual-diff.md | haiku | VISUAL_PASS / VISUAL_FAIL |
 
 ## References (read ONLY when entering relevant phase)
 
