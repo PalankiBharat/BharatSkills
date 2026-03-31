@@ -86,7 +86,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - Create worktree: `git worktree add .claire/worktrees/<name> <base-branch> -b feature/<name>`, copy `local.properties`. All subsequent file creation happens in the worktree path. Record the worktree path in PLAN.md header.
 - Research codebase, identify files, dependencies, API endpoints
 - Write migration-guide.md (per-file specs with "Migrate after" for DAG)
-- PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [Appium scenarios + fake-server-config]
+- PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [Appium scenarios + fake-server-config + screen-map.json]
 - Verify platform navigation architecture: read the actual Android Router/Navigator and iOS AppRouter/Coordinator code before writing Wire phases. Record the verified architecture in findings.md.
 - Verify build task names: run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names. Record verified names in PLAN.md build verification section.
 - Generate `build-verify.sh` in the gameplan directory using the verified build commands. This project-specific script runs all build checks with zero LLM tokens. Commit it with the gameplan files.
@@ -133,8 +133,8 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - **Stub audit:** scan all migrated files for `error("…")`, `TODO()`, `TODO("…")`, and `stub` markers. Any unresolved stubs BLOCK the checkpoint or must be explicitly deferred with rationale in PROGRESS.md.
 - **Koin binding completeness check:** for each VM registered in the shared Koin module, verify ALL constructor parameter types AND all types used by child composables/screens have Koin bindings. Missing bindings crash at runtime — check transitively, not just direct constructor params.
 - Build + test
-- **Mandatory runtime verification** (mobile-mcp/adb) — "app launches cleanly" is NOT sufficient. For each migrated screen listed in migration-guide.md:
-  1. Navigate to the screen via mobile-mcp
+- **Mandatory runtime verification** (mobile-mcp/adb) — "app launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates (see `references/automated-testing.md`). For each migrated screen listed in migration-guide.md:
+  1. Navigate to the screen using cached coordinates from screen-map (first time: call `mobile_list_elements_on_screen` and populate cache)
   2. Verify data loads (not stuck on spinner)
   3. Verify primary CTA works
   4. Take screenshot as evidence
@@ -151,7 +151,12 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/automated-testing.md` before this phase
 
-**After Phase 5:** Manual test against REAL backend (not fake server). Bug → DEBUG LOOP → fix → retest. All flows pass → COMMIT.
+**After Phase 5 — mobile-mcp automated flows (real app, real device):**
+- Execute every flow defined in `e2e-tests/screen-map.json` against the real app using mobile-mcp
+- Uses cached screen-map coordinates — does NOT re-discover elements on unchanged screens
+- On `blocker` steps (OTP, payment, personal details): STOP, ask user to complete the action on device, wait for confirmation, then resume
+- On failure: screenshot + re-discover elements + DEBUG LOOP
+- All flows pass → Manual test (user verifies remaining edge cases only)
 
 ### Phase 6: WIRE iOS
 
@@ -171,7 +176,10 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/automated-testing.md` before this phase
 
-**After Phase 7:** Manual test against REAL backend on iOS. Bug → DEBUG LOOP → fix → retest. All flows pass → COMMIT.
+**After Phase 7 — mobile-mcp automated flows (iOS, real device):**
+- Same as after Phase 5, but on iOS simulator
+- Execute every flow from `screen-map.json`, handle blockers, compare screenshots with Android parity
+- All flows pass → Manual test (user verifies remaining edge cases only)
 
 ## Agent Dispatch Table
 

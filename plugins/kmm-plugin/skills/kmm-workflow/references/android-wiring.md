@@ -116,12 +116,18 @@ For debugging failures found during verification, follow the structured debug lo
 
 ### 4.1 mobile-mcp (primary)
 
+Uses `e2e-tests/screen-map.json` for cached element coordinates. See `references/automated-testing.md` for screen-map format and cache rules.
+
 ```
 mobile_install_app → mobile_launch_app
 For each screen in migration-guide.md:
+  IF screen not in screen-map cache OR screen source file was modified:
+    mobile_list_elements_on_screen → update screen-map.json with coordinates
+  ELSE:
+    use cached coordinates (skip mobile_list_elements_on_screen — saves tokens)
   mobile_take_screenshot → verify layout matches expected
-  mobile_list_elements_on_screen → verify data present
-  mobile_click_on_screen_at_coordinates → navigate to next screen
+  mobile_click_on_screen_at_coordinates → navigate (using cached coordinates)
+  IF cached tap fails → re-discover with mobile_list_elements_on_screen, update cache, retry
 Save screenshots to e2e-tests/screenshots/android/
 ```
 
@@ -168,7 +174,7 @@ adb logcat -s "DebugLoginScreen"
    - Incremental rebuild only — `./gradlew :app:assembleProductionDebug`
    - Re-launch and re-capture logs
    - Repeat until clean launch (**max 3 iterations via debug loop**, then escalate to user)
-6. **If clean launch** → proceed to per-screen verification (navigate, verify data loads, verify CTA, screenshot), then Summary Table, then Phase 5 Appium (MANDATORY), then manual test
+6. **If clean launch** → proceed to per-screen verification (navigate, verify data loads, verify CTA, screenshot — use cached screen-map), then Summary Table, then Phase 5 Appium (MANDATORY), then mobile-mcp automated flows (real app, handle blockers), then manual test
 
 If still crashing after 3 debug loop iterations, **STOP** and escalate: provide full stacktraces
 (not just filtered lines), all fixes attempted, and your recommendation. Do not attempt a 4th fix.
