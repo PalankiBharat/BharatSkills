@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "4.1.0",
-  "description": "KMM migration orchestrator v4.1 — 1:1 mechanical port, session-scoped gameplans, dependency-level fan-out, TDD parity, worktree auto-creation, cross-platform Koin audit, planning-phase validation (nav architecture, SDK availability, build task names), project-specific build-verify script, mandatory /clear at phase boundaries, auto-continue between phases.",
+  "version": "4.2.0",
+  "description": "KMM migration orchestrator v4.2 — three-layer testing (Appium+fake server, mobile-mcp automated flows, manual), screen-map caching, auto-run Appium via run-tests.sh, TDD enforcement (tests:0 rejected), stub audit at checkpoints, blocker handling (OTP/login pause-and-ask), SharedFlow collector audit, transitive Koin completeness check, 1:1 mechanical port, session-scoped gameplans, dependency-level fan-out, worktree auto-creation, mandatory /clear at phase boundaries, auto-continue between phases.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"
