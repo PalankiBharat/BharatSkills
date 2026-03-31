@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "4.5.0",
-  "description": "KMM migration orchestrator v4.5 — visual parity verification (pre-migration baseline screenshots + LLM visual-diff agent), onClick audit, Kotlinx nullability audit, library KMP availability check, baseUrl tracking, expanded stub audit (= {} lambdas), two-layer testing, screen-map caching, device/port isolation, TDD enforcement, SharedFlow audit, transitive Koin check, 5-phase workflow, 1:1 mechanical port, worktree auto-creation, mandatory /clear points, auto-continue.",
+  "version": "4.3.0",
+  "description": "KMM migration orchestrator v4.3 — two-layer testing (unit/characterization tests + mobile-mcp automated flows), screen-map caching, device/port isolation for concurrent gameplans, TDD enforcement (tests:0 rejected), stub audit at checkpoints, blocker handling (OTP/login pause-and-ask), SharedFlow collector audit, transitive Koin completeness check, 5-phase workflow (Plan, Scaffold, Shared Code, Wire Android, Wire iOS), 1:1 mechanical port, session-scoped gameplans, dependency-level fan-out, worktree auto-creation, mandatory /clear at phase boundaries, auto-continue between phases.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"

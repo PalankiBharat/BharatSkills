@@ -54,8 +54,7 @@ The orchestrator decides the strategy during Phase A/B and tells you which one t
 3. Replace Android-only APIs with CMP equivalents — look up current CMP docs via Context7 or `/find-docs` before substituting
 4. Move screen to `shared/commonMain/kotlin/.../ui/`
 5. Wire navigation for both platforms (e.g., `expect/actual` or a shared nav abstraction)
-6. **onClick audit:** trace every `clickable {}`, `onClick`, and callback parameter to verify it reaches a real action. Flag empty lambdas `= {}` for orchestrator review.
-7. Verify both platforms compile and render the screen
+6. Verify both platforms compile and render the screen
 
 **Example substitutions (verify versions before use):**
 - `LocalContext.current` → pass platform context via `expect/actual`
@@ -79,8 +78,7 @@ The orchestrator decides the strategy during Phase A/B and tells you which one t
 4. Apply SKIE interop rules (see below)
 5. Match layout precisely: `16.dp` → `16` (pt), `sp` → `pt`, padding/margins exact — never round or normalize
 6. Register the new `.swift` file in `pbxproj` following existing file reference and build phase patterns
-7. **onClick audit:** trace every `clickable {}`, `onClick`, `onTapGesture`, and callback parameter (e.g., `onSubmitClick: () -> Unit = {}`) to verify it reaches a real action. Empty lambdas `= {}` that compile but do nothing at runtime are the most common form of silent unwiring. Flag any unresolved empty lambda for orchestrator review.
-8. Run `xcodebuild -scheme <scheme> build` and fix any compiler errors before reporting completion
+7. Run `xcodebuild -scheme <scheme> build` and fix any compiler errors before reporting completion
 
 **Screen template:**
 
@@ -154,7 +152,6 @@ struct <ScreenName>: View {
 - Combine multiple `.task {}` blocks for separate `StateFlow` observations
 - Add effect collectors in child views when a parent view already collects from the same `SharedFlow`/`Channel` — this silently swallows effects at runtime
 - Change default values of state variables (e.g., `showTopBar = false` → `true`) — a default value flip is a behavioral change requiring REQUIRES_APPROVAL
-- Leave callback parameters with default empty lambdas `= {}` without verifying the caller passes a real action — empty lambdas produce buttons that compile but do nothing at runtime
 - Rely on training data for library APIs — always check current docs first
 
 ---
