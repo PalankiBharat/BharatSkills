@@ -58,6 +58,9 @@ Fix without asking if the fix is mechanical and does not change observable behav
 - **ViewModels in `iosMain`** — ViewModel logic placed in platform-specific source sets instead of `commonMain`. Fix: move to `commonMain`, use `expect`/`actual` only for platform-specific hooks.
 - **`koin single` scope for ViewModels** — ViewModels registered as `single {}` instead of `factory {}` or a scoped definition. Causes stale state to survive screen destruction. Fix: change to `factory {}` or the appropriate Koin scope.
 - **Disconnected UI state (iOS)** — SwiftUI screen not observing the ViewModel's `StateFlow` via `.task {}`, resulting in the UI never updating. Fix: add the state observation `.task {}` block following the standard screen template.
+- **Empty lambda callbacks** — Callback parameters (onClick, onSubmit, onDismiss, etc.) with default `= {}` that are never overridden by parent composables. These compile fine but produce dead buttons — the user taps and nothing happens. Fix: trace the callback chain and wire the missing action from the parent composable to the ViewModel.
+- **Multiple SharedFlow collectors** — More than one composable/view collecting from the same `SharedFlow(replay=0)` or `Channel`. Multiple concurrent collectors silently swallow effects — only one collector receives each emission. Fix: ensure only ONE composable collects from each SharedFlow/Channel; child composables should receive effects via parameters, not their own collectors.
+- **Default value flips** — `remember { mutableStateOf(X) }` or `@State var x = X` where the default value `X` differs from the original Android source (e.g., `false` → `true`). Silent behavioral change. Fix: match the original default value exactly.
 
 ### MEDIUM — Escalate via REQUIRES_APPROVAL (code quality, consistency, maintainability)
 
@@ -82,11 +85,12 @@ Do not fix. Include in the audit report for awareness.
 
 1. **Scan all files** in the target path. Identify every instance of each CRITICAL, HIGH, MEDIUM, and LOW pattern listed above. Build a findings list grouped by severity before making any changes.
 2. **Check characterization test coverage.** For every file that was migrated: are characterization tests present in `commonTest`? Did those tests pass (check for recent test run results or run `./gradlew :shared:testDebugUnitTest`)? Flag any migrated file with missing or failing characterization tests as CRITICAL — tests are the proof the migration is correct.
-3. **Auto-fix CRITICAL issues.** Apply each fix, one file at a time. Do not change any logic unrelated to the anti-pattern being fixed. Commit the fix rationale in a `// AUDIT-FIX:` comment on the changed line when the change is non-obvious.
-4. **Fix HIGH issues — straightforward ones only.** Apply each fix using the same discipline: targeted change only, no incidental modifications, no business logic alterations. If a HIGH fix is non-trivial or would change observable behavior, escalate via REQUIRES_APPROVAL with the recommended fix included — do not auto-apply it.
-5. **Build verify.** Run the project's established build command (e.g., `xcodebuild -scheme <scheme> build` or `./gradlew :shared:build`). If the build fails after an auto-fix, revert that specific fix and escalate it via REQUIRES_APPROVAL.
-6. **Escalate MEDIUM decisions.** For each MEDIUM finding, output REQUIRES_APPROVAL (see format above) and halt. Do not proceed until the orchestrator responds with a decision.
-7. **Report LOW findings.** Include them in the completion summary. No action required.
+3. **onClick/callback audit.** For every migrated screen (Compose or SwiftUI): scan for callback parameters with default `= {}`. Trace each callback from declaration to call site — verify the parent passes a real ViewModel action, not an empty lambda. Flag any unwired callbacks as HIGH (empty lambda callbacks). This catches the most common class of "compiles but does nothing" bugs.
+4. **Auto-fix CRITICAL issues.** Apply each fix, one file at a time. Do not change any logic unrelated to the anti-pattern being fixed. Commit the fix rationale in a `// AUDIT-FIX:` comment on the changed line when the change is non-obvious.
+5. **Fix HIGH issues — straightforward ones only.** Apply each fix using the same discipline: targeted change only, no incidental modifications, no business logic alterations. If a HIGH fix is non-trivial or would change observable behavior, escalate via REQUIRES_APPROVAL with the recommended fix included — do not auto-apply it.
+6. **Build verify.** Run the project's established build command (e.g., `xcodebuild -scheme <scheme> build` or `./gradlew :shared:build`). If the build fails after an auto-fix, revert that specific fix and escalate it via REQUIRES_APPROVAL.
+7. **Escalate MEDIUM decisions.** For each MEDIUM finding, output REQUIRES_APPROVAL (see format above) and halt. Do not proceed until the orchestrator responds with a decision.
+8. **Report LOW findings.** Include them in the completion summary. No action required.
 
 ---
 

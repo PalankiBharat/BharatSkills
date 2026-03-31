@@ -94,6 +94,11 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - Generate `build-verify.sh` in the gameplan directory using the verified build commands. This project-specific script runs all build checks with zero LLM tokens. Commit it with the gameplan files.
 - Verify SDK availability: for every external SDK class referenced by migration targets, grep the KMM SDK source sets to confirm the class exists in commonMain. Record availability in findings.md. If unavailable, add to scaffold list.
 - Dispatch plan-analyzer → present gaps → user approval
+- **Dependency decision framework:** Read `references/dependency-decision-framework.md`. For each Android-only dependency in the module: (1) look up the recommended decision (Replace/Port/Abstract), (2) present recommendation WITH rationale — do not ask open-ended questions, (3) only ask if framework has no recommendation. Record all decisions in findings.md.
+- **Android API audit:** Before writing migration-guide.md per-file specs, grep all files planned for commonMain migration for Android-only APIs (android.util.Log, System.currentTimeMillis, java.util.Date, org.joda.time, org.json, com.google.gson, @Synchronized, java.util.concurrent, Dispatchers.IO, GlobalScope, @VisibleForTesting, android.content.Context, android.content.SharedPreferences). Record EVERY occurrence per file. The per-file spec MUST list the specific replacement for each occurrence.
+- **Library KMP audit:** For every Android-only library being replaced, web search for official KMP support before planning a manual alternative. AndroidX libraries are rapidly adding KMP support — training data is outdated, always research first. Record findings in findings.md.
+- **Gap analysis is mandatory** before presenting plan for approval. The orchestrator MUST run the plan-analyzer agent and fix all BLOCKER/HIGH issues BEFORE asking the user to approve. Do NOT present a plan with known gaps.
+- **Interface completeness check:** When creating abstraction interfaces, read the FULL implementation class AND all consumers. Include all public methods and all direct field access by consumers. Never estimate the method count — read the code and list every method.
 - Read `references/planning-and-execution.md` before this phase
 
 ### Phase 2: SCAFFOLD
@@ -133,6 +138,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - PARALLEL: [Haiku per consumer for import updates] ‖ [Sonnet for DI (Hilt→Koin)]
 - Delete originals (grep-before-delete)
 - **Stub audit:** scan all migrated files for `error("…")`, `TODO()`, `TODO("…")`, and `stub` markers. Any unresolved stubs BLOCK the checkpoint or must be explicitly deferred with rationale in PROGRESS.md.
+- **Empty lambda audit:** Scan all migrated composables for callback parameters with default `= {}` (e.g., `onClick: () -> Unit = {}`). Trace each one to verify it reaches a real action from the parent composable. Empty lambdas on onClick/callback params are functional stubs that pass compilation but produce dead buttons.
 - **Koin binding completeness check:** for each VM registered in the shared Koin module, verify ALL constructor parameter types AND all types used by child composables/screens have Koin bindings. Missing bindings crash at runtime — check transitively, not just direct constructor params.
 - Build + test
 - **Mandatory runtime verification** (mobile-mcp/adb) — "app launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates (see `references/automated-testing.md`). For each migrated screen listed in migration-guide.md:
@@ -155,6 +161,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - PARALLEL: [Sonnet ui-migrator per screen] ‖ [Sonnet Koin iOS]
 - Wire navigation + pbxproj
 - **Stub audit + Koin completeness check** (same as Phase 4, for iOS bindings)
+- **Empty lambda audit** (same as Phase 4 — for any CMP screens shared with iOS)
 - Build + runtime verify (mobile-mcp/simulator) — same mandatory per-screen checklist as Phase 4
 - **mobile-mcp automated flows** — execute every flow defined in `e2e-tests/screen-map.json` against the real app (iOS), comparing with Android parity:
   - Uses cached screen-map coordinates — does NOT re-discover elements on unchanged screens
@@ -164,6 +171,18 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - **Manual test** — user tests remaining edge cases that automation couldn't cover. Bug → DEBUG LOOP → fix → retest. All flows pass → COMMIT.
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/ios-wiring.md` before this phase
+
+### Migration Retrospective (auto-triggers)
+
+After Phase 1 approval and after final phase completion:
+1. Read `references/self-improvement.md`
+2. Scan conversation for learnings (Categories A-E)
+3. Cross-reference against existing skill files to avoid duplicates
+4. Present summary to user with specific file changes
+5. On approval: create GitHub issue with copy-pasteable content
+6. Label: `skill:kmm-workflow`, `type:self-improvement`, `session:<date>`
+
+The retrospective is NOT optional — it runs automatically. The user can skip individual findings but the scan always happens.
 
 ## Agent Dispatch Table
 
@@ -187,6 +206,8 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - `references/android-wiring.md` — Phase 4 (WIRE ANDROID)
 - `references/ios-wiring.md` — Phase 5 (WIRE iOS)
 - `references/automated-testing.md` — Phases 4, 5 (testing)
+- `references/dependency-decision-framework.md` — Phase 1 (PLAN): dependency Replace/Port/Abstract decisions
+- `references/self-improvement.md` — Migration retrospective (post-Phase 1 and post-completion)
 
 ## Recovery Protocols
 
@@ -236,3 +257,8 @@ On Continue, when listing gameplans:
 - After EVERY migration agent: dispatch Haiku verifier
 - TDD is non-negotiable: every migrated file MUST have characterization tests that pass against BOTH the staged original AND the migrated commonMain code. `FILE_COMPLETE` with `tests: 0` is rejected — re-dispatch the agent with explicit test-writing instructions. Migration without tests is the root cause of runtime bugs surfacing during manual testing.
 - Stub audit at phase boundaries: before any checkpoint commit in Phases 4-5, scan for `error("…")`, `TODO()`, `TODO("…")`, and `stub` in migrated files. Unresolved stubs block the checkpoint.
+- When migrating a library SDK consumed by a host app with its own DI framework: **keep the host app's DI untouched**. Add Koin alongside for the SDK's types only. Bridge via a small module that pulls host-provided deps into Koin. Do NOT propose removing the host app's DI framework unless the user explicitly asks.
+- **No "Shared" prefix** on class/file names in commonMain. Keep names natural (e.g., `LoginViewModel` not `SharedLoginViewModel`).
+- When using a reference branch for patterns, **copy specific files** — never merge or pull the branch.
+- After Phase 1 approval and after final phase completion, ALWAYS run the migration retrospective (`references/self-improvement.md`). This is the skill's learning mechanism — skipping it means the same mistakes repeat in the next migration.
+- **Empty lambda audit at phase boundaries:** Before any checkpoint commit in Phases 4-5, scan all migrated composables for callback parameters with default `= {}`. Trace each to verify it reaches a real action. Dead buttons from empty lambdas are the most common form of silent unwiring.

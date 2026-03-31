@@ -156,6 +156,21 @@ struct <ScreenName>: View {
 
 ---
 
+## onClick Audit (mandatory before completion)
+
+Before reporting UI_COMPLETE, you MUST verify every interactive element is wired:
+
+1. **Scan all callback parameters** — find every `onClick`, `onTap`, `onSubmit`, `onDismiss`, and any `() -> Unit` / `() -> Void` parameter in the screen
+2. **Trace each callback** — follow from the composable/view declaration up to where it's called from the parent. Verify the parent passes a real action (ViewModel call, navigation, etc.) — not an empty lambda `= {}`
+3. **Flag empty defaults** — any callback parameter with default `= {}` that is never overridden by the parent is a dead button. Report it as a finding.
+4. **Verify clickable modifiers** — check `.clickable {}`, `.onTapGesture {}`, and `Button(action:)` blocks. Each must contain a real action, not an empty closure.
+
+If ANY interactive element is unwired, do NOT report UI_COMPLETE. Instead either:
+- Fix the wiring by passing the correct callback from the parent (if the ViewModel action is obvious)
+- Report UI_BLOCKED with the list of unwired elements
+
+---
+
 ## Completion Output
 
 **On success:**
