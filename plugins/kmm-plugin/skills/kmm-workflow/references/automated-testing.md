@@ -63,6 +63,13 @@ Each test covers:
 
 Tests are committed alongside the fake server config. They run on CI as a regression suite after the migration is complete.
 
+**Checkpoint commit requirements:** The Appium phase checkpoint MUST include:
+1. Any test file fixes from debugging
+2. `e2e-tests/` directory if not yet committed (test files created during Phase 1 may still be uncommitted)
+3. Test results and screenshots in `e2e-tests/screenshots/`
+
+Before marking an Appium phase complete, verify `e2e-tests/` is committed — `git status e2e-tests/` should show no untracked files.
+
 ---
 
 ## mobile-mcp

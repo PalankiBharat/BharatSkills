@@ -74,7 +74,7 @@ The orchestrator decides the strategy during Phase A/B and tells you which one t
 2. Map every component to its SwiftUI equivalent:
    - Compose: `Column` → `VStack`, `Row` → `HStack`, `Box` → `ZStack`, `LazyColumn` → `List`, `LazyRow` → `ScrollView(.horizontal)`, `Text` → `Text`, `Image` → `Image`
    - XML: `LinearLayout` (vertical) → `VStack`, `LinearLayout` (horizontal) → `HStack`, `RecyclerView` → `List`, `ConstraintLayout` → `GeometryReader` / `ZStack`, `ScrollView` → `ScrollView`
-3. Map state management: `StateFlow` → `@Published` via SKIE observed in `.task {}`, `SharedFlow`/`Channel` effects → separate `.task {}`
+3. Map state management: `StateFlow` → `@Published` via SKIE observed in `.task {}`, `SharedFlow`/`Channel` effects → separate `.task {}`. **CRITICAL:** ensure only ONE view collects from each `SharedFlow`/`Channel`. If a parent already collects, child composables/views MUST NOT add their own collectors — multiple concurrent collectors on `SharedFlow(replay=0)` silently swallow effects.
 4. Apply SKIE interop rules (see below)
 5. Match layout precisely: `16.dp` → `16` (pt), `sp` → `pt`, padding/margins exact — never round or normalize
 6. Register the new `.swift` file in `pbxproj` following existing file reference and build phase patterns
@@ -150,6 +150,8 @@ struct <ScreenName>: View {
 - Rename components — match Android naming conventions exactly (`onSubmitClick` stays `onSubmitClick`)
 - Modify files outside the assigned screen, its navigation wiring, and `pbxproj`
 - Combine multiple `.task {}` blocks for separate `StateFlow` observations
+- Add effect collectors in child views when a parent view already collects from the same `SharedFlow`/`Channel` — this silently swallows effects at runtime
+- Change default values of state variables (e.g., `showTopBar = false` → `true`) — a default value flip is a behavioral change requiring REQUIRES_APPROVAL
 - Rely on training data for library APIs — always check current docs first
 
 ---

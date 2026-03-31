@@ -89,25 +89,15 @@ Failures:
 - 3-strike rule: max 3 distinct approaches → escalate if still failing
 - Never repeat the same failed fix
 
-After a clean build, run Appium flow tests:
-
-Start fake server → run e2e-tests/ → all pass required before proceeding to runtime verification.
-
-**Summary Table** (fill before manual test):
+**Summary Table** (fill before Appium phase):
 
 | File | Promised API | Actual API | Verify | Tests |
 |------|-------------|------------|--------|-------|
 | LoginRepository.kt | login(email,pwd):Result | ... | PASS | PASS |
 
-Present to user before manual test.
+Present to user before proceeding to Appium.
 
-**Manual Test → Commit:**
-
-User tests against real backend. Bug → DEBUG LOOP. All flows pass → commit:
-```bash
-git add -p
-git commit -m "Wire Android: <module> migrated to shared"
-```
+**After Wire Android checkpoint:** proceed to Phase 5 (Appium Android) — MANDATORY. Then manual test. See SKILL.md for phase ordering.
 
 Update PROGRESS.md checkpoint. PLAN.md status block updated.
 
@@ -178,7 +168,7 @@ adb logcat -s "DebugLoginScreen"
    - Incremental rebuild only — `./gradlew :app:assembleProductionDebug`
    - Re-launch and re-capture logs
    - Repeat until clean launch (**max 3 iterations via debug loop**, then escalate to user)
-6. **If clean launch** → proceed to Appium automated tests, then Summary Table, then manual test
+6. **If clean launch** → proceed to per-screen verification (navigate, verify data loads, verify CTA, screenshot), then Summary Table, then Phase 5 Appium (MANDATORY), then manual test
 
 If still crashing after 3 debug loop iterations, **STOP** and escalate: provide full stacktraces
 (not just filtered lines), all fixes attempted, and your recommendation. Do not attempt a 4th fix.

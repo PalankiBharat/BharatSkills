@@ -39,6 +39,8 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
 - **`StateFlow` only.** Never use `LiveData` in shared/KMM code.
 - **No `runBlocking` on the main thread.** Use structured concurrency; `runBlocking` only in tests or background entry points.
 - **`expect`/`actual` for platform-specific code.** Never use `#ifdef`, runtime platform checks, or conditional imports as a substitute.
+- **One collector per SharedFlow/Channel.** When migrating NavHost-based screens to state-machine navigation, ensure only ONE composable collects from each `SharedFlow`/`Channel`. Child composables must NOT have their own effect collectors if a parent already collects. Multiple concurrent collectors on `SharedFlow(replay=0)` silently swallow effects — this compiles fine but breaks at runtime.
+- **Preserve original default values.** When porting `remember { mutableStateOf(X) }` calls (or equivalent state initialization), verify the default value `X` matches the original exactly. A `true`↔`false` flip is a behavioral change that REQUIRES_APPROVAL.
 - **Context-first.** Before modifying any file, read the target, all its dependencies (imports, interfaces, base classes), and all its consumers. Never modify with partial context.
 - **Escalate unclear failures — never suppress.** If a build fails and the cause is unclear: stop, present the problem, list options with pros/cons, give a recommendation, wait for the user. Never add no-op stubs or use `--no-verify` / `@Suppress` to force a pass.
 - **Completion promise required.** Every agent must emit a completion promise string as its last output. No promise = work not accepted.
