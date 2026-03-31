@@ -86,7 +86,8 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - Create worktree: `git worktree add .claire/worktrees/<name> <base-branch> -b feature/<name>`, copy `local.properties`. All subsequent file creation happens in the worktree path. Record the worktree path in PLAN.md header.
 - Research codebase, identify files, dependencies, API endpoints
 - Write migration-guide.md (per-file specs with "Migrate after" for DAG)
-- PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [Appium scenarios + fake-server-config + screen-map.json]
+- PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [Appium scenarios + fake-server-config + screen-map.json + Appium infra]
+- Generate Appium test infrastructure in `e2e-tests/`: `package.json` (appium, webdriverio, fake-server deps), `wdio.conf.js` (device capabilities, specs path), `run-tests.sh` (starts fake server, starts Appium, runs tests, collects results, cleans up). See `references/automated-testing.md` for templates.
 - Verify platform navigation architecture: read the actual Android Router/Navigator and iOS AppRouter/Coordinator code before writing Wire phases. Record the verified architecture in findings.md.
 - Verify build task names: run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names. Record verified names in PLAN.md build verification section.
 - Generate `build-verify.sh` in the gameplan directory using the verified build commands. This project-specific script runs all build checks with zero LLM tokens. Commit it with the gameplan files.
@@ -144,10 +145,17 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 
 ### Phase 5: APPIUM ANDROID ⚠️ MANDATORY — NEVER SKIP
 
-- Write Appium tests from planned scenarios
-- Run against Android app
-- Debug failures if any
-- Commit `e2e-tests/` directory if not yet committed (test files + results + screenshots)
+- Run `cd e2e-tests && npm install` (first time only — installs Appium, WebDriverIO, fake-server deps)
+- Execute: `e2e-tests/run-tests.sh android` — this script automatically:
+  1. Starts the fake server with `fake-server-config.json`
+  2. Starts Appium server (`npx appium`)
+  3. Runs all `*.test.js` specs via WebDriverIO
+  4. Collects results + screenshots
+  5. Stops fake server and Appium
+  6. Exits with 0 (all pass) or 1 (failures)
+- If `run-tests.sh` exits non-zero → read output, identify failing tests, DEBUG LOOP (3-strike), fix migration code (NOT test code), re-run
+- **ALL tests must pass.** No skipping, no commenting out, no `xit()`. Failing tests mean the migration has bugs.
+- Commit `e2e-tests/` directory (test files + results + screenshots)
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/automated-testing.md` before this phase
 
@@ -169,10 +177,12 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 
 ### Phase 7: APPIUM iOS ⚠️ MANDATORY — NEVER SKIP
 
-- Adapt Appium tests for iOS selectors
-- Run against iOS simulator
-- Screenshot parity with Android
-- Commit any test file fixes and updated `e2e-tests/` screenshots
+- Adapt Appium test selectors for iOS (accessibility IDs, XCUITest locators)
+- Execute: `e2e-tests/run-tests.sh ios` — same script, iOS capabilities
+- If failures → DEBUG LOOP (3-strike), fix migration code, re-run
+- **ALL tests must pass.** Same rule as Phase 5 — no skipping, no commenting out.
+- Screenshot parity with Android (`e2e-tests/screenshots/android/` vs `ios/`)
+- Commit test file fixes and updated `e2e-tests/` screenshots
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/automated-testing.md` before this phase
 
@@ -247,6 +257,7 @@ On Continue, when listing gameplans:
 - PROGRESS.md updated and committed after each phase
 - Each phase gets its own checkpoint commit
 - Build verification uses `<gameplan-dir>/build-verify.sh` (generated during Phase 1) — never waste LLM tokens on mechanical build checks
+- Tests must PASS at every checkpoint — both unit tests (`./gradlew :shared:testDebugUnitTest`) and Appium tests (`e2e-tests/run-tests.sh <platform>`). A checkpoint with failing tests is invalid. If tests fail, fix the migration code (NOT the tests), then re-run. Tests are the safety net — never weaken them to get a green build.
 - No type casting
 - After EVERY migration agent: dispatch Haiku verifier
 - TDD is non-negotiable: every migrated file MUST have characterization tests that pass against BOTH the staged original AND the migrated commonMain code. `FILE_COMPLETE` with `tests: 0` is rejected — re-dispatch the agent with explicit test-writing instructions. Migration without tests is the root cause of runtime bugs surfacing during manual testing.

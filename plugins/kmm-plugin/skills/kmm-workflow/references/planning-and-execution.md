@@ -180,7 +180,8 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.4:** Write PROGRESS.md to the gameplan directory with empty checkboxes for every task — filled during execution.
 - **Task 1.5:** Write migration-guide.md using the template in `references/agent-prompts/migration-guide-template.md` — one entry per file.
 - **Task 1.6:** Write findings.md with assessment data (see findings.md Structure below).
-- **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Dispatch **Sonnet agent** to write Appium test specs for every critical flow (`e2e-tests/<flow>.test.js`). Generate `e2e-tests/screen-map.json` — record every screen in scope with navigation steps, key elements to verify, CTA targets, and known blockers (OTP, login, personal details). Define user journey flows in the screen map for mobile-mcp automated testing. Commit `e2e-tests/` to the worktree — this becomes the regression suite.
+- **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Dispatch **Sonnet agent** to write Appium test specs for every critical flow (`e2e-tests/<flow>.test.js`). Generate `e2e-tests/screen-map.json` — record every screen in scope with navigation steps, key elements to verify, CTA targets, and known blockers (OTP, login, personal details). Define user journey flows in the screen map for mobile-mcp automated testing.
+- **Task 1.7b:** Generate Appium test infrastructure: `e2e-tests/package.json`, `e2e-tests/wdio.conf.js`, `e2e-tests/fake-server.js`, `e2e-tests/run-tests.sh`. See `references/automated-testing.md` for templates. Adapt `wdio.conf.js` capabilities to the actual project (app path, device, platform version). Make `run-tests.sh` executable. Run `cd e2e-tests && npm install` to verify deps resolve. Commit `e2e-tests/` to the worktree — this becomes the regression suite.
 - **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases.
 - **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md.
 - **Task 1.10:** Verify build task names — run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names for Android compilation, iOS arm64 compilation, and app assembly. Record verified task names in PLAN.md build verification section. Never write build commands based on assumptions.
@@ -288,13 +289,14 @@ If crash → DEBUG LOOP (Android): instrument with Napier `[DebugScreenName]` �
 
 **Step 5: Appium Android** ⚠️ MANDATORY — NEVER SKIP
 
+```bash
+# Run all Appium tests — script handles fake server, Appium server, cleanup
+e2e-tests/run-tests.sh android
+  → exit 0 → ALL PASS → commit e2e-tests/ directory
+  → exit 1 → read test-results-android.log → DEBUG LOOP → fix migration code → re-run
 ```
-Start fake server (deterministic responses from planning)
-Run Appium tests for every critical flow (e2e-tests/)
-  → if fail → DEBUG LOOP → fix → rerun
-  → all pass → commit e2e-tests/ directory (test files + results + screenshots)
-  → CHECKPOINT COMMIT (Appium Android complete)
-```
+
+ALL tests must pass. No `xit()`, no `.skip()`. Fix migration code, not tests.
 
 Appium catches mechanical bugs automatically against deterministic fake server responses.
 
@@ -362,15 +364,13 @@ If crash → DEBUG LOOP (iOS): `xcrun simctl launch --console-pty booted <bundle
 
 **Step 6: Appium iOS** ⚠️ MANDATORY — NEVER SKIP
 
-```
-Same fake server config as Android (same deterministic responses)
-Run Appium tests adapted for iOS (same flows, iOS selectors)
-  → if fail → DEBUG LOOP (iOS) → fix → rerun
-  → all pass → commit test file fixes and updated e2e-tests/ screenshots
-  → CHECKPOINT COMMIT (Appium iOS complete)
+```bash
+e2e-tests/run-tests.sh ios
+  → exit 0 → ALL PASS → commit test fixes + screenshots
+  → exit 1 → read test-results-ios.log → DEBUG LOOP → fix migration code → re-run
 ```
 
-Appium runs BEFORE mobile-mcp flows and manual testing.
+ALL tests must pass. Same rule as Android. Appium runs BEFORE mobile-mcp flows and manual testing.
 
 **Step 7: mobile-mcp Automated Flows (iOS, real device)**
 
@@ -395,19 +395,28 @@ PROGRESS.md committed at end of this phase.
 
 ## Appium Android Phase ⚠️ MANDATORY — NEVER SKIP
 
-Runs after Wire Android is committed. Appium catches mechanical bugs automatically and runs BEFORE manual testing.
+Runs after Wire Android is committed. Appium catches mechanical bugs automatically and runs BEFORE mobile-mcp flows and manual testing.
 
+**Execution:**
+```bash
+# Install deps (first time only)
+cd e2e-tests && npm install
+
+# Run all tests against Android app with fake server
+e2e-tests/run-tests.sh android
 ```
-Start fake server (deterministic responses from planning)
-Run Appium tests for every critical flow (e2e-tests/)
-  → if fail → DEBUG LOOP → fix → rerun
-  → all pass → commit e2e-tests/ directory (test files + results + screenshots)
-  → CHECKPOINT COMMIT (Appium Android complete)
-```
 
-Same fake server config written during Phase 1 (`e2e-tests/fake-server-config.json`).
+The script handles everything: starts fake server, starts Appium, runs all `*.test.js` specs, collects results, cleans up.
 
-**Checkpoint must include:** (1) any test file fixes from debugging, (2) `e2e-tests/` directory if not yet committed, (3) test results/screenshots. Verify with `git status e2e-tests/` — no untracked files.
+**On failure:**
+1. Read `e2e-tests/test-results-android.log`
+2. Identify failing test and broken assertion
+3. Fix the migration code (NOT the test) — DEBUG LOOP, 3-strike
+4. Re-run `run-tests.sh android`
+
+**ALL tests must pass.** No `xit()`, no `.skip()`, no commenting out. Failing tests = migration bugs.
+
+**Checkpoint must include:** (1) any migration code fixes from debugging, (2) `e2e-tests/` directory if not yet committed, (3) `test-results-android.log` + screenshots. Verify with `git status e2e-tests/` — no untracked files.
 
 After Appium passes → mobile-mcp automated flows (real app, cached screen-map, ask user for blockers) → Manual test (remaining edge cases only). All flows pass → COMMIT.
 
@@ -419,15 +428,18 @@ PROGRESS.md committed at end of this phase.
 
 Runs after Wire iOS is committed. Same rule: Appium BEFORE mobile-mcp flows BEFORE manual testing.
 
-```
-Same fake server config as Android (same deterministic responses)
-Run Appium tests adapted for iOS (same flows, iOS selectors)
-  → if fail → DEBUG LOOP (iOS) → fix → rerun
-  → all pass → commit test file fixes and updated e2e-tests/ screenshots
-  → CHECKPOINT COMMIT (Appium iOS complete)
+**Execution:**
+```bash
+e2e-tests/run-tests.sh ios
 ```
 
-**Checkpoint must include:** test file fixes + updated `e2e-tests/screenshots/ios/`. Verify with `git status e2e-tests/`.
+Same script, iOS capabilities. Tests adapted for iOS selectors (accessibility IDs, XCUITest locators).
+
+**On failure:** same protocol as Android — read log, fix migration code, re-run, 3-strike.
+
+**ALL tests must pass.** Same rule — no skipping, no commenting out.
+
+**Checkpoint must include:** test file fixes + `test-results-ios.log` + updated `e2e-tests/screenshots/ios/`. Verify with `git status e2e-tests/`.
 
 After Appium passes → mobile-mcp automated flows (iOS, cached screen-map, ask user for blockers, compare with Android parity) → Manual test (remaining edge cases only). All flows pass → COMMIT.
 
@@ -475,7 +487,8 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.4 Write PROGRESS.md
 - [ ] 1.5 Write migration-guide.md
 - [ ] 1.6 Write findings.md
-- [ ] 1.7 Write fake server config + Appium specs + screen-map.json, commit e2e-tests/
+- [ ] 1.7 Write fake server config + Appium specs + screen-map.json
+- [ ] 1.7b Generate Appium infra (package.json, wdio.conf.js, fake-server.js, run-tests.sh), npm install, commit e2e-tests/
 - [ ] 1.8 Verify platform navigation architecture
 - [ ] 1.9 Verify SDK availability
 - [ ] 1.10 Verify build task names
@@ -514,9 +527,8 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] PROGRESS.md committed
 
 ## Phase 5: APPIUM ANDROID ⚠️ MANDATORY
-- [ ] Start fake server
-- [ ] Run Appium tests (Android)
-- [ ] Commit e2e-tests/ directory (test files + results + screenshots)
+- [ ] Run `e2e-tests/run-tests.sh android` — ALL tests must pass
+- [ ] Commit e2e-tests/ directory (test files + results + test-results-android.log + screenshots)
 - [ ] Checkpoint: Phase 5 Appium Android committed
 - [ ] mobile-mcp automated flows (real app, screen-map cached, blocker→ask user)
 - [ ] Manual test (remaining edge cases only)
@@ -533,8 +545,8 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] PROGRESS.md committed
 
 ## Phase 7: APPIUM iOS ⚠️ MANDATORY
-- [ ] Run Appium tests (iOS selectors)
-- [ ] Commit test file fixes + updated e2e-tests/ screenshots
+- [ ] Run `e2e-tests/run-tests.sh ios` — ALL tests must pass
+- [ ] Commit test file fixes + test-results-ios.log + updated e2e-tests/ screenshots
 - [ ] Checkpoint: Phase 7 Appium iOS committed
 - [ ] mobile-mcp automated flows (iOS, screen-map cached, blocker→ask user, Android parity)
 - [ ] Manual test (remaining edge cases only)
@@ -675,7 +687,7 @@ Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHEC
 - **Tasks must be atomic** — a single file or single logical change, retryable independently
 - **Every task specifies exact file paths** — Create/Modify/Delete with full paths, no vague references
 - **Every phase ends with a checkpoint commit** — the codebase is always in a buildable state
-- **Checkpoint commits are MANDATORY** — but ONLY after build verification passes. Never commit with failing builds.
+- **Checkpoint commits are MANDATORY** — but ONLY after build verification AND all tests pass. Never commit with failing builds or failing tests. Unit tests (`./gradlew :shared:testDebugUnitTest`) and Appium tests (`e2e-tests/run-tests.sh`) must both be green before a checkpoint is valid.
 - **PROGRESS.md committed after each phase** — not all at once at the end
 - **A task is only marked `[x]` in PROGRESS.md after its verification step passes** — not before
 - **Pre-check gates** — phases depending on unknowns get a Task X.0 PRE-CHECK that researches and updates PLAN.md with concrete paths before continuing (no approval pause)

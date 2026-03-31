@@ -147,12 +147,193 @@ Each test covers:
 - Deterministic reproduction — same test, same result, every time
 - CI-ready — runs without agent tokens
 
-Tests are committed alongside the fake server config. They run on CI as a regression suite after the migration is complete.
+### Appium Infrastructure (generated during Phase 1)
+
+Phase 1 generates the full test infrastructure so Appium tests run automatically — no manual setup needed.
+
+**`e2e-tests/package.json`:**
+```json
+{
+  "name": "e2e-tests",
+  "private": true,
+  "scripts": {
+    "test:android": "./run-tests.sh android",
+    "test:ios": "./run-tests.sh ios",
+    "fake-server": "node fake-server.js"
+  },
+  "devDependencies": {
+    "@wdio/cli": "^9.0.0",
+    "@wdio/local-runner": "^9.0.0",
+    "@wdio/mocha-framework": "^9.0.0",
+    "@wdio/spec-reporter": "^9.0.0",
+    "@wdio/appium-service": "^9.0.0",
+    "appium": "^2.0.0",
+    "appium-uiautomator2-driver": "^3.0.0",
+    "appium-xcuitest-driver": "^7.0.0",
+    "express": "^4.18.0"
+  }
+}
+```
+
+**`e2e-tests/fake-server.js`:**
+```javascript
+const express = require('express');
+const config = require('./fake-server-config.json');
+const app = express();
+app.use(express.json());
+
+const requests = []; // Record all requests for assertion
+
+config.routes.forEach(route => {
+  app[route.method.toLowerCase()](route.path, (req, res) => {
+    requests.push({ method: route.method, path: route.path, body: req.body });
+    if (route.matchBody) {
+      const matches = Object.entries(route.matchBody).every(
+        ([k, v]) => req.body[k] === v
+      );
+      if (!matches) return; // Fall through to next matching route
+    }
+    res.status(route.status).json(route.response);
+  });
+});
+
+app.get('/__requests', (req, res) => res.json(requests));
+app.delete('/__requests', (req, res) => { requests.length = 0; res.sendStatus(204); });
+
+const server = app.listen(process.env.FAKE_PORT || 8089, () => {
+  console.log(`Fake server on port ${server.address().port}`);
+});
+module.exports = server;
+```
+
+**`e2e-tests/wdio.conf.js`** (template — adapt capabilities to project):
+```javascript
+const path = require('path');
+const platform = process.env.TEST_PLATFORM || 'android';
+
+const androidCaps = {
+  platformName: 'Android',
+  'appium:automationName': 'UiAutomator2',
+  'appium:app': process.env.ANDROID_APK || path.resolve(__dirname, '../app/build/outputs/apk/debug/app-debug.apk'),
+  'appium:noReset': false,
+};
+
+const iosCaps = {
+  platformName: 'iOS',
+  'appium:automationName': 'XCUITest',
+  'appium:app': process.env.IOS_APP || path.resolve(__dirname, '../iosApp/build/Build/Products/Debug-iphonesimulator/iosApp.app'),
+  'appium:deviceName': 'iPhone 16',
+  'appium:platformVersion': '18.0',
+  'appium:noReset': false,
+};
+
+exports.config = {
+  runner: 'local',
+  specs: ['./*.test.js'],
+  capabilities: [platform === 'ios' ? iosCaps : androidCaps],
+  services: ['appium'],
+  framework: 'mocha',
+  reporters: ['spec'],
+  mochaOpts: { timeout: 120000 },
+};
+```
+
+**`e2e-tests/run-tests.sh`:**
+```bash
+#!/usr/bin/env bash
+# run-tests.sh — Runs Appium tests with fake server, zero manual setup
+# Usage: ./run-tests.sh <android|ios> [--apk path] [--app path]
+set -euo pipefail
+
+PLATFORM="${1:?Usage: ./run-tests.sh <android|ios>}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Parse optional args
+APK_PATH="" ; APP_PATH=""
+shift
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --apk) APK_PATH="$2"; shift 2 ;;
+    --app) APP_PATH="$2"; shift 2 ;;
+    *) echo "Unknown arg: $1"; exit 1 ;;
+  esac
+done
+
+cleanup() {
+  echo "--- Cleaning up..."
+  [ -n "${FAKE_PID:-}" ] && kill "$FAKE_PID" 2>/dev/null || true
+  wait "$FAKE_PID" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# Install deps if needed
+[ -d node_modules ] || npm install
+
+# Start fake server
+echo "--- Starting fake server..."
+node fake-server.js &
+FAKE_PID=$!
+sleep 2
+
+# Verify fake server is running
+curl -sf http://localhost:8089/__requests > /dev/null || { echo "FAIL: Fake server not responding"; exit 1; }
+
+# Set platform and optional paths
+export TEST_PLATFORM="$PLATFORM"
+[ -n "$APK_PATH" ] && export ANDROID_APK="$APK_PATH"
+[ -n "$APP_PATH" ] && export IOS_APP="$APP_PATH"
+
+# Run tests
+echo "--- Running Appium tests ($PLATFORM)..."
+npx wdio run wdio.conf.js 2>&1 | tee test-results-${PLATFORM}.log
+RESULT=${PIPESTATUS[0]}
+
+echo ""
+if [ "$RESULT" -eq 0 ]; then
+  echo "=== ALL TESTS PASSED ($PLATFORM) ==="
+else
+  echo "=== TESTS FAILED ($PLATFORM) — see test-results-${PLATFORM}.log ==="
+  exit 1
+fi
+```
+
+### Running Appium Tests
+
+The agent runs Appium tests via Bash — zero LLM tokens on execution, only on failure diagnosis:
+
+**Phase 5 (Android):**
+```bash
+e2e-tests/run-tests.sh android
+```
+
+**Phase 7 (iOS):**
+```bash
+e2e-tests/run-tests.sh ios
+```
+
+**On failure:**
+1. Read `e2e-tests/test-results-<platform>.log`
+2. Identify which test failed and what assertion broke
+3. Fix the migration code (NOT the test) — the test describes expected behavior
+4. Re-run `run-tests.sh` — max 3 attempts (3-strike), then escalate
+
+**ALL tests must pass.** No skipping (`xit`), no commenting out, no `.skip()`. Failing tests mean the migration has bugs — fix the migration, not the tests.
+
+### Unit Tests — Run and Pass at Every Checkpoint
+
+Unit tests (`./gradlew :shared:testDebugUnitTest`) must be run and pass:
+- After every file migration (Phase 3, step 8)
+- After Phase 3 completion (all files)
+- After Phase 4 wiring (Android unit tests)
+- After Phase 6 wiring (iOS unit tests where applicable)
+
+A checkpoint with failing unit tests is invalid. If tests fail after wiring, the wiring introduced a regression — fix it before committing.
 
 **Checkpoint commit requirements:** The Appium phase checkpoint MUST include:
 1. Any test file fixes from debugging
 2. `e2e-tests/` directory if not yet committed (test files created during Phase 1 may still be uncommitted)
-3. Test results and screenshots in `e2e-tests/screenshots/`
+3. Test results log (`test-results-<platform>.log`) and screenshots in `e2e-tests/screenshots/`
 
 Before marking an Appium phase complete, verify `e2e-tests/` is committed — `git status e2e-tests/` should show no untracked files.
 
