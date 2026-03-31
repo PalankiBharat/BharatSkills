@@ -249,17 +249,15 @@ Runs after all shared migration phases are complete.
 
 **Step 1: Wire Android** — read `android-wiring.md`
 
-**Step 1B: Cross-platform Koin audit** — For each VM registered in the shared Koin module (`sesameModule` or equivalent), verify ALL constructor parameter types have bindings in BOTH `androidBridgeModule` AND `iosBridgeModule`. If a type is only bound on one platform, add the missing binding before proceeding. Missing bindings crash Koin startup and block ALL VM resolution, not just the missing one.
-
-**Step 1B: Stub audit**
+**Step 2: Stub audit**
 
 Scan all migrated files for `error("…")`, `TODO()`, `TODO("…")`, and `stub` markers. Any unresolved stubs BLOCK the checkpoint or must be explicitly deferred with rationale in PROGRESS.md.
 
-**Step 1C: Koin binding completeness check**
+**Step 3: Koin binding completeness check**
 
-For each VM registered in the shared Koin module, verify ALL constructor parameter types AND all types used by child composables/screens (e.g., `CustomerSupportUseCase` used by `WithdrawalsTopBar`) have Koin bindings. Check transitively — not just direct constructor params. Missing bindings crash Koin startup at runtime.
+For each VM registered in the shared Koin module, verify ALL constructor parameter types AND all types used by child composables/screens (e.g., `CustomerSupportUseCase` used by `WithdrawalsTopBar`) have Koin bindings. Check transitively — not just direct constructor params. Verify bindings exist in BOTH `androidBridgeModule` AND `iosBridgeModule`. Missing bindings crash Koin startup at runtime and block ALL VM resolution, not just the missing one.
 
-**Step 2: Android build + test**
+**Step 4: Android build + test**
 
 Run the project-specific build script (zero LLM tokens):
 ```bash
@@ -268,7 +266,7 @@ Run the project-specific build script (zero LLM tokens):
   → BUILD_VERIFY_FAIL → check findings.md → DEBUG LOOP → FIX → rerun script
 ```
 
-**Step 3: Runtime Verify (mobile-mcp, fallback: adb)**
+**Step 5: Runtime Verify (mobile-mcp, fallback: adb)**
 
 | Tool | Commands |
 |------|----------|
@@ -285,9 +283,9 @@ If cached tap fails (element moved) → re-discover with `mobile_list_elements_o
 
 If crash → DEBUG LOOP (Android): instrument with Napier `[DebugScreenName]` → `adb logcat -s DebugScreenName`
 
-**Step 4: Summary Table** (promised vs achieved per file — see Summary Table Step)
+**Step 6: Summary Table** (promised vs achieved per file — see Summary Table Step)
 
-**Step 5: Appium Android** ⚠️ MANDATORY — NEVER SKIP
+**Step 7: Appium Android** ⚠️ MANDATORY — NEVER SKIP
 
 ```bash
 # Run all Appium tests — script handles fake server, Appium server, cleanup
@@ -300,7 +298,7 @@ ALL tests must pass. No `xit()`, no `.skip()`. Fix migration code, not tests.
 
 Appium catches mechanical bugs automatically against deterministic fake server responses.
 
-**Step 6: mobile-mcp Automated Flows (real app, real device)**
+**Step 8: mobile-mcp Automated Flows (real app, real device)**
 
 Drive full user journeys against the real app using `e2e-tests/screen-map.json`:
 
@@ -313,7 +311,7 @@ Drive full user journeys against the real app using `e2e-tests/screen-map.json`:
 3. On failure: screenshot + re-discover + DEBUG LOOP
 4. All flows pass → proceed to manual test
 
-**Step 7: Manual Test**
+**Step 9: Manual Test**
 ```
 User tests remaining edge cases that automation couldn't cover
 Bug → DEBUG LOOP → mobile-mcp smoke after each fix
@@ -332,7 +330,9 @@ Runs after Wire Android is committed.
 
 **Step 2: Wire iOS** — read `ios-wiring.md`
 
-**Step 3: iOS build**
+**Step 3: Stub audit + Koin completeness check** (same as Wire Android Steps 2-3, for iOS bindings)
+
+**Step 4: iOS build**
 
 Run the project-specific build script (zero LLM tokens):
 ```bash
@@ -341,9 +341,7 @@ Run the project-specific build script (zero LLM tokens):
   → BUILD_VERIFY_FAIL → DEBUG LOOP (iOS) → fix → rerun script
 ```
 
-**Step 3B: Stub audit + Koin completeness check** (same as Wire Android Step 1B/1C, for iOS bindings)
-
-**Step 4: Runtime Verify (mobile-mcp on simulator, fallback: xcrun)**
+**Step 5: Runtime Verify (mobile-mcp on simulator, fallback: xcrun)**
 
 | Tool | Commands |
 |------|----------|
@@ -356,13 +354,13 @@ Run the project-specific build script (zero LLM tokens):
 3. Verify primary CTA works (tap using cached coordinates, confirm expected result)
 4. `mobile_take_screenshot` → save to `e2e-tests/screenshots/ios/`, compare with Android screenshot (visual parity check)
 
-If cached tap fails → re-discover with `mobile_list_elements_on_screen`, update screen-map, retry.
+If cached tap fails OR screen source file was modified in this phase → re-discover with `mobile_list_elements_on_screen`, update screen-map, retry.
 
 If crash → DEBUG LOOP (iOS): `xcrun simctl launch --console-pty booted <bundle-id> 2>&1 | grep DebugScreenName`
 
-**Step 5: Summary Table** (promised vs achieved — compare Android vs iOS columns)
+**Step 6: Summary Table** (promised vs achieved — compare Android vs iOS columns)
 
-**Step 6: Appium iOS** ⚠️ MANDATORY — NEVER SKIP
+**Step 7: Appium iOS** ⚠️ MANDATORY — NEVER SKIP
 
 ```bash
 e2e-tests/run-tests.sh ios
@@ -372,9 +370,9 @@ e2e-tests/run-tests.sh ios
 
 ALL tests must pass. Same rule as Android. Appium runs BEFORE mobile-mcp flows and manual testing.
 
-**Step 7: mobile-mcp Automated Flows (iOS, real device)**
+**Step 8: mobile-mcp Automated Flows (iOS, real device)**
 
-Same protocol as Wire Android Step 6, but on iOS simulator:
+Same protocol as Wire Android Step 8, but on iOS simulator:
 
 1. Install and launch via mobile-mcp on iOS simulator
 2. Execute each flow from screen-map, handle blockers (ask user)
@@ -382,7 +380,7 @@ Same protocol as Wire Android Step 6, but on iOS simulator:
 4. On failure: screenshot + re-discover + DEBUG LOOP (iOS)
 5. All flows pass → proceed to manual test
 
-**Step 8: Manual Test**
+**Step 9: Manual Test**
 ```
 User tests remaining edge cases on iOS
 Bug → DEBUG LOOP (iOS) → fix → retest
@@ -517,39 +515,39 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] Checkpoint 3 committed
 
 ## Phase 4: WIRE ANDROID
-- [ ] Wire Android: update imports, DI, delete originals
-- [ ] Stub audit (scan for error(), TODO(), stub markers)
-- [ ] Koin binding completeness check (transitive)
-- [ ] Android build + unit test
-- [ ] Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot
-- [ ] Summary Table
+- [ ] 4.1 Wire Android: update imports, DI, delete originals
+- [ ] 4.2 Stub audit (scan for error(), TODO(), stub markers)
+- [ ] 4.3 Koin binding completeness check (transitive, both platforms)
+- [ ] 4.4 Android build + unit test — ALL tests pass
+- [ ] 4.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot
+- [ ] 4.6 Summary Table
 - [ ] Checkpoint: Phase 4 Wire Android committed
 - [ ] PROGRESS.md committed
 
 ## Phase 5: APPIUM ANDROID ⚠️ MANDATORY
-- [ ] Run `e2e-tests/run-tests.sh android` — ALL tests must pass
-- [ ] Commit e2e-tests/ directory (test files + results + test-results-android.log + screenshots)
+- [ ] 5.1 Run `e2e-tests/run-tests.sh android` — ALL tests must pass
+- [ ] 5.2 Commit e2e-tests/ (test files + results + test-results-android.log + screenshots)
 - [ ] Checkpoint: Phase 5 Appium Android committed
-- [ ] mobile-mcp automated flows (real app, screen-map cached, blocker→ask user)
-- [ ] Manual test (remaining edge cases only)
+- [ ] 5.3 mobile-mcp automated flows (real app, screen-map cached, blocker→ask user)
+- [ ] 5.4 Manual test (remaining edge cases only)
 - [ ] PROGRESS.md committed
 
 ## Phase 6: WIRE iOS
-- [ ] UI migration (per screen)
-- [ ] Wire iOS: imports, DI, SKIE, Koin iOS
-- [ ] Stub audit + Koin completeness check (iOS bindings)
-- [ ] iOS build
-- [ ] Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot + Android parity
-- [ ] Summary Table
+- [ ] 6.1 UI migration (per screen)
+- [ ] 6.2 Wire iOS: imports, DI, SKIE, Koin iOS
+- [ ] 6.3 Stub audit + Koin completeness check (iOS bindings)
+- [ ] 6.4 iOS build + unit test — ALL tests pass
+- [ ] 6.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot + Android parity
+- [ ] 6.6 Summary Table
 - [ ] Checkpoint: Phase 6 Wire iOS committed
 - [ ] PROGRESS.md committed
 
 ## Phase 7: APPIUM iOS ⚠️ MANDATORY
-- [ ] Run `e2e-tests/run-tests.sh ios` — ALL tests must pass
-- [ ] Commit test file fixes + test-results-ios.log + updated e2e-tests/ screenshots
+- [ ] 7.1 Run `e2e-tests/run-tests.sh ios` — ALL tests must pass
+- [ ] 7.2 Commit test file fixes + test-results-ios.log + updated e2e-tests/ screenshots
 - [ ] Checkpoint: Phase 7 Appium iOS committed
-- [ ] mobile-mcp automated flows (iOS, screen-map cached, blocker→ask user, Android parity)
-- [ ] Manual test (remaining edge cases only)
+- [ ] 7.3 mobile-mcp automated flows (iOS, screen-map cached, blocker→ask user, Android parity)
+- [ ] 7.4 Manual test (remaining edge cases only)
 - [ ] PROGRESS.md committed
 
 ## Final Verify

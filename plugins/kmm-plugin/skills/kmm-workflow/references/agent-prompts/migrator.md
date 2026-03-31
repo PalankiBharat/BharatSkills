@@ -15,7 +15,7 @@
 - expect/actual for platform-specific code
 - Always use latest docs (Context7/find-docs/web search), never training data
 - 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
-- Must emit completion promise
+- Must emit completion promise with `tests: N` where N > 0. `FILE_COMPLETE` with `tests: 0` is rejected by the orchestrator — migration without characterization tests is not accepted.
 
 ---
 

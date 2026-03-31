@@ -268,7 +268,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Install deps if needed
-[ -d node_modules ] || npm install
+[ -d node_modules ] || npm install || { echo "FAIL: npm install failed"; exit 1; }
 
 # Start fake server
 echo "--- Starting fake server..."
