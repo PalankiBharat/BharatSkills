@@ -86,7 +86,8 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - Create worktree: `git worktree add .claire/worktrees/<name> <base-branch> -b feature/<name>`, copy `local.properties`. All subsequent file creation happens in the worktree path. Record the worktree path in PLAN.md header.
 - Research codebase, identify files, dependencies, API endpoints
 - Write migration-guide.md (per-file specs with "Migrate after" for DAG)
-- PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [Appium scenarios + fake-server-config]
+- PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [Appium scenarios + fake-server-config + screen-map.json + Appium infra]
+- Generate Appium test infrastructure in `e2e-tests/`: `package.json` (appium, webdriverio, fake-server deps), `wdio.conf.js` (device capabilities, specs path), `run-tests.sh` (starts fake server, starts Appium, runs tests, collects results, cleans up). See `references/automated-testing.md` for templates.
 - Verify platform navigation architecture: read the actual Android Router/Navigator and iOS AppRouter/Coordinator code before writing Wire phases. Record the verified architecture in findings.md.
 - Verify build task names: run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names. Record verified names in PLAN.md build verification section.
 - Generate `build-verify.sh` in the gameplan directory using the verified build commands. This project-specific script runs all build checks with zero LLM tokens. Commit it with the gameplan files.
@@ -117,8 +118,10 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
     8. Dispatch Haiku verifier (background) — orchestrator records VERIFY_PASS/FAIL in PROGRESS.md after verifier returns
     9. Delete staged androidMain copy
     → FILE_COMPLETE or FILE_BLOCKED
+  - **TDD enforcement:** The orchestrator MUST verify that each FILE_COMPLETE includes `tests: N` where N > 0. If an agent returns `tests: 0`, reject the completion and re-dispatch with explicit instruction to write characterization tests. Migration without test coverage is not accepted.
   - Gate: ALL files at this level complete before next level
 - After all levels: `./gradlew :shared:testDebugUnitTest`
+- **SharedFlow collector audit:** scan all composables/screens for `effect.collectLatest` or `effect.collect` calls. Flag any `SharedFlow` that has multiple concurrent collectors as a potential race condition — multiple collectors on `SharedFlow(replay=0)` silently swallow effects.
 - Cross-platform Koin audit: for each VM registered in the shared Koin module, verify ALL constructor parameter types have bindings in BOTH `androidBridgeModule` AND `iosBridgeModule`. If a type is only bound on one platform, add the missing binding before proceeding.
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/dependency-replacements.md`, `references/kmm-architecture.md`, and `references/rules-and-guardrails.md` before this phase
@@ -128,33 +131,65 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 
 - PARALLEL: [Haiku per consumer for import updates] ‖ [Sonnet for DI (Hilt→Koin)]
 - Delete originals (grep-before-delete)
-- Build + test + runtime verify (mobile-mcp/adb)
+- **Stub audit:** scan all migrated files for `error("…")`, `TODO()`, `TODO("…")`, and `stub` markers. Any unresolved stubs BLOCK the checkpoint or must be explicitly deferred with rationale in PROGRESS.md.
+- **Koin binding completeness check:** for each VM registered in the shared Koin module, verify ALL constructor parameter types AND all types used by child composables/screens have Koin bindings. Missing bindings crash at runtime — check transitively, not just direct constructor params.
+- Build + test
+- **Mandatory runtime verification** (mobile-mcp/adb) — "app launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates (see `references/automated-testing.md`). For each migrated screen listed in migration-guide.md:
+  1. Navigate to the screen using cached coordinates from screen-map (first time: call `mobile_list_elements_on_screen` and populate cache)
+  2. Verify data loads (not stuck on spinner)
+  3. Verify primary CTA works
+  4. Take screenshot as evidence
+  Stubs that throw `error()` must be resolved or explicitly flagged as BLOCKED before checkpoint.
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/android-wiring.md` before this phase
 
-### Phase 5: APPIUM ANDROID
+### Phase 5: APPIUM ANDROID ⚠️ MANDATORY — NEVER SKIP
 
-- Write Appium tests from planned scenarios
-- Run against Android app
-- Debug failures if any
+- Run `cd e2e-tests && npm install` (first time only — installs Appium, WebDriverIO, fake-server deps)
+- Execute: `e2e-tests/run-tests.sh android` — this script automatically:
+  1. Starts the fake server with `fake-server-config.json`
+  2. Starts Appium server (`npx appium`)
+  3. Runs all `*.test.js` specs via WebDriverIO
+  4. Collects results + screenshots
+  5. Stops fake server and Appium
+  6. Exits with 0 (all pass) or 1 (failures)
+- If `run-tests.sh` exits non-zero → read output, identify failing tests, DEBUG LOOP (3-strike), fix migration code (NOT test code), re-run
+- **ALL tests must pass.** No skipping, no commenting out, no `xit()`. Failing tests mean the migration has bugs.
+- Commit `e2e-tests/` directory (test files + results + screenshots)
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/automated-testing.md` before this phase
+
+**After Phase 5 — mobile-mcp automated flows (real app, real device):**
+- Execute every flow defined in `e2e-tests/screen-map.json` against the real app using mobile-mcp
+- Uses cached screen-map coordinates — does NOT re-discover elements on unchanged screens
+- On `blocker` steps (OTP, payment, personal details): STOP, ask user to complete the action on device, wait for confirmation, then resume
+- On failure: screenshot + re-discover elements + DEBUG LOOP
+- All flows pass → Manual test (user verifies remaining edge cases only)
 
 ### Phase 6: WIRE iOS
 
 - PARALLEL: [Sonnet ui-migrator per screen] ‖ [Sonnet Koin iOS]
 - Wire navigation + pbxproj
-- Build + runtime verify (mobile-mcp/simulator)
+- **Stub audit + Koin completeness check** (same as Phase 4, for iOS bindings)
+- Build + runtime verify (mobile-mcp/simulator) — same mandatory per-screen checklist as Phase 4
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/ios-wiring.md` before this phase
 
-### Phase 7: APPIUM iOS
+### Phase 7: APPIUM iOS ⚠️ MANDATORY — NEVER SKIP
 
-- Adapt Appium tests for iOS selectors
-- Run against iOS simulator
-- Screenshot parity with Android
+- Adapt Appium test selectors for iOS (accessibility IDs, XCUITest locators)
+- Execute: `e2e-tests/run-tests.sh ios` — same script, iOS capabilities
+- If failures → DEBUG LOOP (3-strike), fix migration code, re-run
+- **ALL tests must pass.** Same rule as Phase 5 — no skipping, no commenting out.
+- Screenshot parity with Android (`e2e-tests/screenshots/android/` vs `ios/`)
+- Commit test file fixes and updated `e2e-tests/` screenshots
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/automated-testing.md` before this phase
+
+**After Phase 7 — mobile-mcp automated flows (iOS, real device):**
+- Same as after Phase 5, but on iOS simulator
+- Execute every flow from `screen-map.json`, handle blockers, compare screenshots with Android parity
+- All flows pass → Manual test (user verifies remaining edge cases only)
 
 ## Agent Dispatch Table
 
@@ -211,6 +246,7 @@ On Continue, when listing gameplans:
 ## Rules
 
 - Auto-continue between phases — do NOT pause to ask "should I continue?" or "Phase X complete, proceed?". Continue automatically to the next phase unless: (a) a mandatory `/clear` point is reached, (b) REQUIRES_APPROVAL items need user decision, or (c) a build/test failure blocks progress. Status updates are fine ("Starting Phase N"), confirmation prompts are not.
+- Appium phases (5, 7) are MANDATORY. The orchestrator MUST NEVER suggest skipping them or offer "Skip to Phase 6/Done" as an option. Phase order is: Wire → Appium → Manual Test. No exceptions.
 - When a worktree exists, ALL agent prompts must include the worktree path as the target directory for file creation and edits
 - Orchestrator NEVER writes migration code — only agents do
 - Tests MUST pass on original BEFORE migration proceeds
@@ -221,5 +257,8 @@ On Continue, when listing gameplans:
 - PROGRESS.md updated and committed after each phase
 - Each phase gets its own checkpoint commit
 - Build verification uses `<gameplan-dir>/build-verify.sh` (generated during Phase 1) — never waste LLM tokens on mechanical build checks
+- Tests must PASS at every checkpoint — both unit tests (`./gradlew :shared:testDebugUnitTest`) and Appium tests (`e2e-tests/run-tests.sh <platform>`). A checkpoint with failing tests is invalid. If tests fail, fix the migration code (NOT the tests), then re-run. Tests are the safety net — never weaken them to get a green build.
 - No type casting
 - After EVERY migration agent: dispatch Haiku verifier
+- TDD is non-negotiable: every migrated file MUST have characterization tests that pass against BOTH the staged original AND the migrated commonMain code. `FILE_COMPLETE` with `tests: 0` is rejected — re-dispatch the agent with explicit test-writing instructions. Migration without tests is the root cause of runtime bugs surfacing during manual testing.
+- Stub audit at phase boundaries: before any checkpoint commit in Phases 4-7, scan for `error("…")`, `TODO()`, `TODO("…")`, and `stub` in migrated files. Unresolved stubs block the checkpoint.

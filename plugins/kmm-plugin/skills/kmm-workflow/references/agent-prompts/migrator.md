@@ -15,7 +15,7 @@
 - expect/actual for platform-specific code
 - Always use latest docs (Context7/find-docs/web search), never training data
 - 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
-- Must emit completion promise
+- Must emit completion promise with `tests: N` where N > 0. `FILE_COMPLETE` with `tests: 0` is rejected by the orchestrator — migration without characterization tests is not accepted.
 
 ---
 
@@ -243,7 +243,7 @@ Run the same test suite again (no changes to tests):
 
 ## What You MUST NOT Do
 
-- **Do NOT skip Steps 6 or 8.** Tests must pass at both checkpoints — against staged androidMain AND against commonMain.
+- **Do NOT skip Steps 5, 6, or 8.** Step 5 (write tests) is NOT optional — migration without characterization tests is rejected by the orchestrator. Tests must pass at both checkpoints — against staged androidMain (Step 6) AND against commonMain (Step 8). A `FILE_COMPLETE` with `tests: 0` is invalid and will be rejected.
 - **Do NOT change test files to make a failing migration pass.** If tests fail after migration, fix the migration.
 - **Do NOT change API signatures.** Method names, parameter names, parameter order, and return types must match the Android source exactly. Android is in production — any signature drift breaks callers.
 - **Do NOT improve or refactor.** Zero behavioral changes. Zero "while we're here" edits. If Android has a bug, migrate the bug and note it with `// BUG:`.

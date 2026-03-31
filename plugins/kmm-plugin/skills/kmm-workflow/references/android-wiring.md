@@ -89,25 +89,15 @@ Failures:
 - 3-strike rule: max 3 distinct approaches → escalate if still failing
 - Never repeat the same failed fix
 
-After a clean build, run Appium flow tests:
-
-Start fake server → run e2e-tests/ → all pass required before proceeding to runtime verification.
-
-**Summary Table** (fill before manual test):
+**Summary Table** (fill before Appium phase):
 
 | File | Promised API | Actual API | Verify | Tests |
 |------|-------------|------------|--------|-------|
 | LoginRepository.kt | login(email,pwd):Result | ... | PASS | PASS |
 
-Present to user before manual test.
+Present to user before proceeding to Appium.
 
-**Manual Test → Commit:**
-
-User tests against real backend. Bug → DEBUG LOOP. All flows pass → commit:
-```bash
-git add -p
-git commit -m "Wire Android: <module> migrated to shared"
-```
+**After Wire Android checkpoint:** proceed to Phase 5 (Appium Android) — MANDATORY. Then manual test. See SKILL.md for phase ordering.
 
 Update PROGRESS.md checkpoint. PLAN.md status block updated.
 
@@ -126,12 +116,18 @@ For debugging failures found during verification, follow the structured debug lo
 
 ### 4.1 mobile-mcp (primary)
 
+Uses `e2e-tests/screen-map.json` for cached element coordinates. See `references/automated-testing.md` for screen-map format and cache rules.
+
 ```
 mobile_install_app → mobile_launch_app
 For each screen in migration-guide.md:
+  IF screen not in screen-map cache OR screen source file was modified:
+    mobile_list_elements_on_screen → update screen-map.json with coordinates
+  ELSE:
+    use cached coordinates (skip mobile_list_elements_on_screen — saves tokens)
   mobile_take_screenshot → verify layout matches expected
-  mobile_list_elements_on_screen → verify data present
-  mobile_click_on_screen_at_coordinates → navigate to next screen
+  mobile_click_on_screen_at_coordinates → navigate (using cached coordinates)
+  IF cached tap fails → re-discover with mobile_list_elements_on_screen, update cache, retry
 Save screenshots to e2e-tests/screenshots/android/
 ```
 
@@ -178,7 +174,7 @@ adb logcat -s "DebugLoginScreen"
    - Incremental rebuild only — `./gradlew :app:assembleProductionDebug`
    - Re-launch and re-capture logs
    - Repeat until clean launch (**max 3 iterations via debug loop**, then escalate to user)
-6. **If clean launch** → proceed to Appium automated tests, then Summary Table, then manual test
+6. **If clean launch** → proceed to per-screen verification (navigate, verify data loads, verify CTA, screenshot — use cached screen-map), then Summary Table, then Phase 5 Appium (MANDATORY), then mobile-mcp automated flows (real app, handle blockers), then manual test
 
 If still crashing after 3 debug loop iterations, **STOP** and escalate: provide full stacktraces
 (not just filtered lines), all fixes attempted, and your recommendation. Do not attempt a 4th fix.
