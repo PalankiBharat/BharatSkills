@@ -1,14 +1,14 @@
 # Automated Testing Reference
 
-Three-layer testing model for KMM migrations. Each layer catches different categories of bugs:
+Two-layer testing model for KMM migrations. Each layer catches different categories of bugs:
 
 | Layer | Tool | Backend | Catches | Token cost |
 |-------|------|---------|---------|------------|
-| 1. Appium + fake server | Appium test runner | Fake (deterministic) | Mechanical bugs, error paths, edge cases | Zero (runs externally) |
-| 2. mobile-mcp flows | mobile-mcp | Real app, real device | Integration bugs, real backend issues, OTP/login flows | Moderate (cached screen map) |
+| 1. Unit/characterization tests | Gradle | N/A | Logic bugs, API parity, regressions | Zero (runs via Gradle) |
+| 2. mobile-mcp automated flows | mobile-mcp | Real app + optional fake server | Runtime crashes, integration bugs, OTP/login flows | Moderate (cached screen map) |
 | 3. Manual test | User | Real backend | UX issues, edge cases automation can't cover | Zero |
 
-**Phase ordering per platform:** Appium → mobile-mcp flows → Manual test
+**Phase ordering:** Unit tests → mobile-mcp flows → Manual test
 
 ---
 
@@ -20,7 +20,7 @@ Before writing any migration code, the planning phase captures every API endpoin
 - Response shape: fields, types, error cases
 - Record in migration-guide.md under the file entry and in findings.md under Research
 
-This becomes the input for the fake server config, Appium test specs, and screen map.
+This becomes the input for the fake server config and screen map.
 
 ---
 
@@ -98,7 +98,7 @@ This saves ~500-1000 tokens per screen per re-run by skipping element discovery 
 
 ## Fake Server
 
-Generate a deterministic fake server config from the recorded endpoints:
+Generate a deterministic fake server config from the recorded endpoints. mobile-mcp flows can optionally point the app at the fake server for deterministic error-path and edge-case testing.
 
 **File location:** `e2e-tests/fake-server-config.json`
 
@@ -124,56 +124,6 @@ Generate a deterministic fake server config from the recorded endpoints:
 ```
 
 A Sonnet agent writes the fake server config during planning — dispatched after migration-guide.md is written. The config is committed to `e2e-tests/` and becomes part of the regression suite.
-
----
-
-## Layer 1: Appium Tests (fake server, deterministic)
-
-One test file per critical flow. Written during planning by the same Sonnet agent.
-
-**File location:** `e2e-tests/<flow-name>.test.js`
-
-Each test covers:
-1. Start fake server with deterministic config
-2. Install app (use `mobile_install_app` or `adb install`)
-3. Launch app
-4. Drive the flow (tap, type, navigate)
-5. Assert on screen state (element text, navigation destination)
-6. Assert fake server received expected requests
-
-**What Appium catches that mobile-mcp doesn't:**
-- Error path responses (404, 500, timeout) via fake server routing
-- Edge case data shapes (empty lists, large payloads, special characters)
-- Deterministic reproduction — same test, same result, every time
-- CI-ready — runs without agent tokens
-
-### Appium Infrastructure (generated during Phase 1)
-
-Phase 1 generates the full test infrastructure so Appium tests run automatically — no manual setup needed.
-
-**`e2e-tests/package.json`:**
-```json
-{
-  "name": "e2e-tests",
-  "private": true,
-  "scripts": {
-    "test:android": "./run-tests.sh android",
-    "test:ios": "./run-tests.sh ios",
-    "fake-server": "node fake-server.js"
-  },
-  "devDependencies": {
-    "@wdio/cli": "^9.0.0",
-    "@wdio/local-runner": "^9.0.0",
-    "@wdio/mocha-framework": "^9.0.0",
-    "@wdio/spec-reporter": "^9.0.0",
-    "@wdio/appium-service": "^9.0.0",
-    "appium": "^2.0.0",
-    "appium-uiautomator2-driver": "^3.0.0",
-    "appium-xcuitest-driver": "^7.0.0",
-    "express": "^4.18.0"
-  }
-}
-```
 
 **`e2e-tests/fake-server.js`:**
 ```javascript
@@ -206,119 +156,72 @@ const server = app.listen(process.env.FAKE_PORT || 8089, () => {
 module.exports = server;
 ```
 
-**`e2e-tests/wdio.conf.js`** (template — adapt capabilities to project):
-```javascript
-const path = require('path');
-const platform = process.env.TEST_PLATFORM || 'android';
-
-const androidCaps = {
-  platformName: 'Android',
-  'appium:automationName': 'UiAutomator2',
-  'appium:app': process.env.ANDROID_APK || path.resolve(__dirname, '../app/build/outputs/apk/debug/app-debug.apk'),
-  'appium:noReset': false,
-};
-
-const iosCaps = {
-  platformName: 'iOS',
-  'appium:automationName': 'XCUITest',
-  'appium:app': process.env.IOS_APP || path.resolve(__dirname, '../iosApp/build/Build/Products/Debug-iphonesimulator/iosApp.app'),
-  'appium:deviceName': 'iPhone 16',
-  'appium:platformVersion': '18.0',
-  'appium:noReset': false,
-};
-
-exports.config = {
-  runner: 'local',
-  specs: ['./*.test.js'],
-  capabilities: [platform === 'ios' ? iosCaps : androidCaps],
-  services: ['appium'],
-  framework: 'mocha',
-  reporters: ['spec'],
-  mochaOpts: { timeout: 120000 },
-};
-```
-
-**`e2e-tests/run-tests.sh`:**
+Start the fake server before running mobile-mcp flows against it:
 ```bash
-#!/usr/bin/env bash
-# run-tests.sh — Runs Appium tests with fake server, zero manual setup
-# Usage: ./run-tests.sh <android|ios> [--apk path] [--app path]
-set -euo pipefail
-
-PLATFORM="${1:?Usage: ./run-tests.sh <android|ios>}"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
-
-# Parse optional args
-APK_PATH="" ; APP_PATH=""
-shift
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --apk) APK_PATH="$2"; shift 2 ;;
-    --app) APP_PATH="$2"; shift 2 ;;
-    *) echo "Unknown arg: $1"; exit 1 ;;
-  esac
-done
-
-cleanup() {
-  echo "--- Cleaning up..."
-  [ -n "${FAKE_PID:-}" ] && kill "$FAKE_PID" 2>/dev/null || true
-  wait "$FAKE_PID" 2>/dev/null || true
-}
-trap cleanup EXIT
-
-# Install deps if needed
-[ -d node_modules ] || npm install || { echo "FAIL: npm install failed"; exit 1; }
-
-# Start fake server
-echo "--- Starting fake server..."
-node fake-server.js &
-FAKE_PID=$!
-sleep 2
-
-# Verify fake server is running
-curl -sf http://localhost:8089/__requests > /dev/null || { echo "FAIL: Fake server not responding"; exit 1; }
-
-# Set platform and optional paths
-export TEST_PLATFORM="$PLATFORM"
-[ -n "$APK_PATH" ] && export ANDROID_APK="$APK_PATH"
-[ -n "$APP_PATH" ] && export IOS_APP="$APP_PATH"
-
-# Run tests
-echo "--- Running Appium tests ($PLATFORM)..."
-npx wdio run wdio.conf.js 2>&1 | tee test-results-${PLATFORM}.log
-RESULT=${PIPESTATUS[0]}
-
-echo ""
-if [ "$RESULT" -eq 0 ]; then
-  echo "=== ALL TESTS PASSED ($PLATFORM) ==="
-else
-  echo "=== TESTS FAILED ($PLATFORM) — see test-results-${PLATFORM}.log ==="
-  exit 1
-fi
+FAKE_PORT=8089 node e2e-tests/fake-server.js &
 ```
 
-### Running Appium Tests
+---
 
-The agent runs Appium tests via Bash — zero LLM tokens on execution, only on failure diagnosis:
+## Device & Port Isolation
 
-**Phase 5 (Android):**
+When multiple gameplans run concurrently on the same machine, their test phases collide: same emulator, same ports, same app install. Each gameplan gets its own dedicated device and ports, allocated during Phase 1.
+
+**Auto-allocation protocol (Phase 1, Task 1.7c):**
+
+**1. Allocate fake server port:**
 ```bash
-e2e-tests/run-tests.sh android
+FAKE_PORT=$(python3 -c "
+import socket
+for p in range(8089, 8189):
+    try:
+        s = socket.socket(); s.bind(('', p)); s.close(); print(p); break
+    except: pass
+")
+echo "Allocated: FAKE_PORT=$FAKE_PORT"
 ```
 
-**Phase 7 (iOS):**
+**2. Allocate Android emulator:**
 ```bash
-e2e-tests/run-tests.sh ios
+# Create a dedicated AVD named after the gameplan
+AVD_NAME="kmm-<gameplan-name>"
+avdmanager create avd -n "$AVD_NAME" \
+  -k "system-images;android-34;google_apis;arm64-v8a" \
+  --force
+# Boot in background, headless
+emulator -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim &
+# Wait for boot, capture serial
+adb wait-for-device
+ANDROID_SERIAL=$(adb devices | grep emulator | head -1 | awk '{print $1}')
+echo "Allocated Android: $ANDROID_SERIAL"
 ```
 
-**On failure:**
-1. Read `e2e-tests/test-results-<platform>.log`
-2. Identify which test failed and what assertion broke
-3. Fix the migration code (NOT the test) — the test describes expected behavior
-4. Re-run `run-tests.sh` — max 3 attempts (3-strike), then escalate
+**3. Allocate iOS simulator:**
+```bash
+# Create a dedicated simulator named after the gameplan
+SIM_NAME="kmm-<gameplan-name>"
+IOS_UDID=$(xcrun simctl create "$SIM_NAME" "iPhone 16" "iOS-18-0")
+xcrun simctl boot "$IOS_UDID"
+echo "Allocated iOS: $IOS_UDID"
+```
 
-**ALL tests must pass.** No skipping (`xit`), no commenting out, no `.skip()`. Failing tests mean the migration has bugs — fix the migration, not the tests.
+**4. Record in PLAN.md header:**
+```
+<!-- DEVICE: android=emulator-5558 | ios=A1B2C3D4-E5F6-... -->
+<!-- PORTS: fake=8091 -->
+```
+
+**Cleanup on session completion:**
+```bash
+# Delete dedicated emulator
+avdmanager delete avd -n "kmm-<gameplan-name>"
+# Delete dedicated simulator
+xcrun simctl delete <IOS_UDID>
+```
+
+The orchestrator reads device/port values from PLAN.md header and exports them as env vars before running any test command.
+
+---
 
 ### Unit Tests — Run and Pass at Every Checkpoint
 
@@ -326,22 +229,15 @@ Unit tests (`./gradlew :shared:testDebugUnitTest`) must be run and pass:
 - After every file migration (Phase 3, step 8)
 - After Phase 3 completion (all files)
 - After Phase 4 wiring (Android unit tests)
-- After Phase 6 wiring (iOS unit tests where applicable)
+- After Phase 5 wiring (iOS unit tests where applicable)
 
 A checkpoint with failing unit tests is invalid. If tests fail after wiring, the wiring introduced a regression — fix it before committing.
-
-**Checkpoint commit requirements:** The Appium phase checkpoint MUST include:
-1. Any test file fixes from debugging
-2. `e2e-tests/` directory if not yet committed (test files created during Phase 1 may still be uncommitted)
-3. Test results log (`test-results-<platform>.log`) and screenshots in `e2e-tests/screenshots/`
-
-Before marking an Appium phase complete, verify `e2e-tests/` is committed — `git status e2e-tests/` should show no untracked files.
 
 ---
 
 ## Layer 2: mobile-mcp Automated Flows (real app, real device)
 
-After Appium passes, drive full user journeys against the real app using mobile-mcp. This catches integration issues that fake server tests miss: real backend responses, auth flows, OTP, payment gateways.
+Drive full user journeys against the real app using mobile-mcp. This catches integration issues that unit tests miss: real backend responses, auth flows, OTP, payment gateways. Optionally point the app at the fake server for deterministic error-path coverage.
 
 **Uses `e2e-tests/screen-map.json`** for cached element coordinates. Does NOT re-discover screen elements unless the screen changed.
 
@@ -363,7 +259,7 @@ For each flow defined in `screen-map.json`:
 When a flow step has `"action": "blocker"`:
 
 ```
-⏸️ BLOCKER: <message from screen-map>
+BLOCKER: <message from screen-map>
 Screen: <current screen name>
 Flow: <flow name>
 
@@ -378,12 +274,12 @@ Wait for user acknowledgment before proceeding to the next step. Common blockers
 
 The orchestrator does NOT attempt to bypass or automate blockers. It pauses, asks, and resumes.
 
-### What mobile-mcp flows catch that Appium doesn't
+### What mobile-mcp flows catch that unit tests don't
 
 - Real backend integration issues (actual API responses, auth token flows)
-- OTP and payment gateway flows that can't be faked
+- OTP and payment gateway flows that can't be unit-tested
 - Real-device behavior (biometrics, push notifications, deep links)
-- Backend data format mismatches that the fake server wouldn't expose
+- Backend data format mismatches that unit tests wouldn't expose
 
 ---
 
@@ -391,7 +287,7 @@ The orchestrator does NOT attempt to bypass or automate blockers. It pauses, ask
 
 Beyond automated flows, mobile-mcp is also used for:
 
-**Runtime verification (Phase 4/6):**
+**Runtime verification (Phase 4/5):**
 ```
 # Install and launch
 mobile_install_app → mobile_launch_app
@@ -447,9 +343,8 @@ During iOS runtime verification, compare each screen against its Android counter
 ## CI Integration
 
 After migration completes, `e2e-tests/` contains a ready CI regression suite:
-- `fake-server-config.json` — deterministic backend
-- `screen-map.json` — cached screen elements and flow definitions
-- `<flow>.test.js` files — Appium flow tests for Android and iOS
+- `fake-server-config.json` — deterministic backend for error-path coverage
+- `screen-map.json` — cached screen elements and flow definitions for mobile-mcp runs
 - `screenshots/` — baseline screenshots for visual diff
 
-Run on every PR that touches shared code.
+Unit tests (`./gradlew :shared:testDebugUnitTest`) run on every PR that touches shared code. mobile-mcp flows are run on-demand or as part of release verification.
