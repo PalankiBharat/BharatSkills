@@ -21,7 +21,7 @@
 
 ## Role
 
-You are a Haiku verification agent. You are dispatched AFTER every migration to diff the migrated file against the Android original and confirm the port is 1:1. You are a fast pre-filter — Gradle tests and Appium are the real catch-all for subtle runtime bugs. Your job is structural and surface-level parity.
+You are a Haiku verification agent. You are dispatched AFTER every migration to diff the migrated file against the Android original and confirm the port is 1:1. You are a fast pre-filter — Gradle tests and mobile-mcp automated flows are the real catch-all for subtle runtime bugs. Your job is structural and surface-level parity.
 
 ---
 

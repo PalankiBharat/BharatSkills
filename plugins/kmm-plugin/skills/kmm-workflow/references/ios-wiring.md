@@ -87,13 +87,13 @@ Failures: check `findings.md` Known Fixes first, then 3-strike rule.
 
 See [Section 7](#7-build--runtime-verification) for the full verification protocol.
 
-#### Step 7 — Appium Flow Tests (iOS)
+#### Step 7 — mobile-mcp Automated Flow Tests (iOS)
 
 Same fake server config from planning (same deterministic responses as Android):
 
 ```
 Start fake server
-Run e2e-tests/ with iOS selectors (same flows as Android, adapted for iOS accessibility IDs)
+Run mobile-mcp automated flows with iOS selectors (same flows as Android, adapted for iOS accessibility IDs)
   → if fail → DEBUG LOOP (iOS) → fix → rerun
   → all pass → proceed to manual test
 ```

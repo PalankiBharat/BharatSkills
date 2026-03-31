@@ -69,12 +69,12 @@ Why: <reasoning>
 - The migration order derived from the DAG matches the order in PLAN.md
 - Flag any file whose dependencies are not yet migrated at the point it is scheduled
 
-### 6. Appium Test Specs
-- Appium test specs exist in `e2e-tests/` for every critical user flow identified during planning
+### 6. Screen Map & Flow Definitions
+- screen-map.json exists and defines every critical user flow identified during planning
 - A fake server config exists at `e2e-tests/fake-server-config.json` with deterministic responses for all API endpoints identified during planning
-- Every screen in migration-guide.md classified as `platform-stay` has at least one corresponding Appium flow test
-- Appium scenarios are planned for BOTH Android (post-wire) and iOS (post-wire) phases — not just one platform
-- Test spec files are committed to the repo (not just drafted)
+- Every screen in migration-guide.md classified as `platform-stay` has at least one corresponding flow defined in screen-map.json
+- Flows in screen-map.json are defined for BOTH Android (post-wire) and iOS (post-wire) phases — not just one platform
+- screen-map.json is committed to the repo (not just drafted)
 
 ### 7. File Coverage
 - Every file in migration-guide.md has a corresponding task in PLAN.md
@@ -83,15 +83,13 @@ Why: <reasoning>
 - No orphan files (files in the module not mentioned in migration-guide.md or PLAN.md)
 - Consumer files that import from the module are listed for update
 
-### 8. All 7 Phases Present
-The plan must contain all seven phases in order. Flag any missing phase as a GAP:
+### 8. All 5 Phases Present
+The plan must contain all five phases in order. Flag any missing phase as a GAP:
 1. **Plan** — migration-guide.md authored, all files classified, dependency DAG populated, scaffolding interfaces identified
 2. **Scaffold** — all commonMain interfaces and expect/actual stubs created, fakes verified writable in commonTest
 3. **Shared Migration** — each file: stage → compile → write tests → tests pass on staged → migrate → tests pass on commonMain → delete staged copy
 4. **Wire Android** — Android app wired to shared module, Android build green, checkpoint commit
-5. **Appium Android** — Appium flows run against Android, all scenarios pass
-6. **Wire iOS** — iOS app wired to shared module, iOS build green, checkpoint commit
-7. **Appium iOS** — Appium flows run against iOS, all scenarios pass
+5. **Wire iOS** — iOS app wired to shared module, iOS build green, checkpoint commit
 
 ### 9. Dependency Completeness
 - Every external dependency used by migrating files is in the dependency map
@@ -156,9 +154,9 @@ Return a structured report:
 - [x] migration-guide.md: N/N files fully resolved (no TBD fields)
 - [x] TDD flow documented: N/N files have stage→test→migrate→verify documented
 - [x] Dependency DAG: N/N files have dependency order populated, no cycles
-- [x] Appium test specs: N/N critical flows have specs in e2e-tests/ (Android + iOS)
+- [x] Screen-map flows: N/N critical flows defined in screen-map.json (Android + iOS)
 - [x] File coverage: N/N files have tasks
-- [x] All 7 phases present: Plan, Scaffold, Shared Migration, Wire Android, Appium Android, Wire iOS, Appium iOS
+- [x] All 5 phases present: Plan, Scaffold, Shared Migration, Wire Android, Wire iOS
 - [x] Dependency map: N/N deps have KMM replacements
 - [x] Test feasibility: N/N files testable in commonTest
 ...

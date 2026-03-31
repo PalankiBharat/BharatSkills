@@ -89,15 +89,15 @@ Failures:
 - 3-strike rule: max 3 distinct approaches → escalate if still failing
 - Never repeat the same failed fix
 
-**Summary Table** (fill before Appium phase):
+**Summary Table** (fill before mobile-mcp automated flows):
 
 | File | Promised API | Actual API | Verify | Tests |
 |------|-------------|------------|--------|-------|
 | LoginRepository.kt | login(email,pwd):Result | ... | PASS | PASS |
 
-Present to user before proceeding to Appium.
+Present to user before proceeding to mobile-mcp automated flows.
 
-**After Wire Android checkpoint:** proceed to Phase 5 (Appium Android) — MANDATORY. Then manual test. See SKILL.md for phase ordering.
+**After Wire Android checkpoint:** proceed to per-screen verification, then mobile-mcp automated flows (handle blockers), then manual test. See SKILL.md for phase ordering.
 
 Update PROGRESS.md checkpoint. PLAN.md status block updated.
 
@@ -174,7 +174,7 @@ adb logcat -s "DebugLoginScreen"
    - Incremental rebuild only — `./gradlew :app:assembleProductionDebug`
    - Re-launch and re-capture logs
    - Repeat until clean launch (**max 3 iterations via debug loop**, then escalate to user)
-6. **If clean launch** → proceed to per-screen verification (navigate, verify data loads, verify CTA, screenshot — use cached screen-map), then Summary Table, then Phase 5 Appium (MANDATORY), then mobile-mcp automated flows (real app, handle blockers), then manual test
+6. **If clean launch** → proceed to per-screen verification (navigate, verify data loads, verify CTA, screenshot — use cached screen-map), then Summary Table, then mobile-mcp automated flows (handle blockers), then manual test
 
 If still crashing after 3 debug loop iterations, **STOP** and escalate: provide full stacktraces
 (not just filtered lines), all fixes attempted, and your recommendation. Do not attempt a 4th fix.
