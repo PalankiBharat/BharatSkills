@@ -88,6 +88,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - Write migration-guide.md (per-file specs with "Migrate after" for DAG)
 - PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [Appium scenarios + fake-server-config + screen-map.json + Appium infra]
 - Generate Appium test infrastructure in `e2e-tests/`: `package.json` (appium, webdriverio, fake-server deps), `wdio.conf.js` (device capabilities, specs path), `run-tests.sh` (starts fake server, starts Appium, runs tests, collects results, cleans up). See `references/automated-testing.md` for templates.
+- **Allocate dedicated device + ports** for this gameplan (prevents collisions when multiple gameplans test concurrently). Auto-allocate by scanning for free ports and existing devices. Record in PLAN.md header. See `references/automated-testing.md` § Device & Port Isolation for details.
 - Verify platform navigation architecture: read the actual Android Router/Navigator and iOS AppRouter/Coordinator code before writing Wire phases. Record the verified architecture in findings.md.
 - Verify build task names: run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names. Record verified names in PLAN.md build verification section.
 - Generate `build-verify.sh` in the gameplan directory using the verified build commands. This project-specific script runs all build checks with zero LLM tokens. Commit it with the gameplan files.

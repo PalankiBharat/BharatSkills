@@ -147,6 +147,77 @@ Each test covers:
 - Deterministic reproduction — same test, same result, every time
 - CI-ready — runs without agent tokens
 
+### Device & Port Isolation
+
+When multiple gameplans run concurrently on the same machine, their test phases collide: same emulator, same ports, same app install. Each gameplan gets its own dedicated device and ports, allocated during Phase 1.
+
+**Auto-allocation protocol (Phase 1, Task 1.7c):**
+
+**1. Allocate ports:**
+```bash
+# Find free ports for fake server and Appium
+# Start from base ports, increment until free
+FAKE_PORT=$(python3 -c "
+import socket
+for p in range(8089, 8189):
+    try:
+        s = socket.socket(); s.bind(('', p)); s.close(); print(p); break
+    except: pass
+")
+APPIUM_PORT=$(python3 -c "
+import socket
+for p in range(4723, 4823):
+    try:
+        s = socket.socket(); s.bind(('', p)); s.close(); print(p); break
+    except: pass
+")
+echo "Allocated: FAKE_PORT=$FAKE_PORT APPIUM_PORT=$APPIUM_PORT"
+```
+
+**2. Allocate Android emulator:**
+```bash
+# Create a dedicated AVD named after the gameplan
+AVD_NAME="kmm-<gameplan-name>"
+avdmanager create avd -n "$AVD_NAME" \
+  -k "system-images;android-34;google_apis;arm64-v8a" \
+  --force
+# Boot in background, headless
+emulator -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim &
+# Wait for boot, capture serial
+adb wait-for-device
+ANDROID_SERIAL=$(adb devices | grep emulator | head -1 | awk '{print $1}')
+echo "Allocated Android: $ANDROID_SERIAL"
+```
+
+**3. Allocate iOS simulator:**
+```bash
+# Create a dedicated simulator named after the gameplan
+SIM_NAME="kmm-<gameplan-name>"
+IOS_UDID=$(xcrun simctl create "$SIM_NAME" "iPhone 16" "iOS-18-0")
+xcrun simctl boot "$IOS_UDID"
+echo "Allocated iOS: $IOS_UDID"
+```
+
+**4. Record in PLAN.md header:**
+```
+<!-- DEVICE: android=emulator-5558 | ios=A1B2C3D4-E5F6-... -->
+<!-- PORTS: fake=8091 | appium=4725 -->
+```
+
+**5. Wire into test infrastructure** — `run-tests.sh` reads these from env vars (`FAKE_PORT`, `APPIUM_PORT`, `ANDROID_SERIAL`, `IOS_UDID`). `wdio.conf.js` uses them for device capabilities and Appium connection.
+
+**Cleanup on session completion:**
+```bash
+# Delete dedicated emulator
+avdmanager delete avd -n "kmm-<gameplan-name>"
+# Delete dedicated simulator
+xcrun simctl delete <IOS_UDID>
+```
+
+The orchestrator reads device/port values from PLAN.md header and exports them as env vars before running any test command.
+
+---
+
 ### Appium Infrastructure (generated during Phase 1)
 
 Phase 1 generates the full test infrastructure so Appium tests run automatically — no manual setup needed.
@@ -210,11 +281,13 @@ module.exports = server;
 ```javascript
 const path = require('path');
 const platform = process.env.TEST_PLATFORM || 'android';
+const appiumPort = parseInt(process.env.APPIUM_PORT || '4723', 10);
 
 const androidCaps = {
   platformName: 'Android',
   'appium:automationName': 'UiAutomator2',
   'appium:app': process.env.ANDROID_APK || path.resolve(__dirname, '../app/build/outputs/apk/debug/app-debug.apk'),
+  'appium:udid': process.env.ANDROID_SERIAL || undefined, // targets dedicated emulator
   'appium:noReset': false,
 };
 
@@ -222,6 +295,7 @@ const iosCaps = {
   platformName: 'iOS',
   'appium:automationName': 'XCUITest',
   'appium:app': process.env.IOS_APP || path.resolve(__dirname, '../iosApp/build/Build/Products/Debug-iphonesimulator/iosApp.app'),
+  'appium:udid': process.env.IOS_UDID || undefined, // targets dedicated simulator
   'appium:deviceName': 'iPhone 16',
   'appium:platformVersion': '18.0',
   'appium:noReset': false,
@@ -229,9 +303,10 @@ const iosCaps = {
 
 exports.config = {
   runner: 'local',
+  port: appiumPort,
   specs: ['./*.test.js'],
   capabilities: [platform === 'ios' ? iosCaps : androidCaps],
-  services: ['appium'],
+  services: [['appium', { args: { port: appiumPort } }]],
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: { timeout: 120000 },
@@ -242,7 +317,9 @@ exports.config = {
 ```bash
 #!/usr/bin/env bash
 # run-tests.sh — Runs Appium tests with fake server, zero manual setup
-# Usage: ./run-tests.sh <android|ios> [--apk path] [--app path]
+# Usage: ./run-tests.sh <android|ios> [--apk path] [--app path] [--plan path/to/PLAN.md]
+# Device and port isolation: reads DEVICE/PORTS from PLAN.md header or env vars.
+# Env vars: FAKE_PORT, APPIUM_PORT, ANDROID_SERIAL, IOS_UDID
 set -euo pipefail
 
 PLATFORM="${1:?Usage: ./run-tests.sh <android|ios>}"
@@ -250,15 +327,42 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Parse optional args
-APK_PATH="" ; APP_PATH=""
+APK_PATH="" ; APP_PATH="" ; PLAN_PATH=""
 shift
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --apk) APK_PATH="$2"; shift 2 ;;
     --app) APP_PATH="$2"; shift 2 ;;
+    --plan) PLAN_PATH="$2"; shift 2 ;;
     *) echo "Unknown arg: $1"; exit 1 ;;
   esac
 done
+
+# Auto-read device/port allocation from PLAN.md if not set via env
+if [ -n "$PLAN_PATH" ] && [ -f "$PLAN_PATH" ]; then
+  if [ -z "${FAKE_PORT:-}" ]; then
+    FAKE_PORT=$(grep -oP '(?<=fake=)\d+' "$PLAN_PATH" | head -1) || true
+  fi
+  if [ -z "${APPIUM_PORT:-}" ]; then
+    APPIUM_PORT=$(grep -oP '(?<=appium=)\d+' "$PLAN_PATH" | head -1) || true
+  fi
+  if [ -z "${ANDROID_SERIAL:-}" ]; then
+    ANDROID_SERIAL=$(grep -oP '(?<=android=)[^\s|]+' "$PLAN_PATH" | head -1) || true
+  fi
+  if [ -z "${IOS_UDID:-}" ]; then
+    IOS_UDID=$(grep -oP '(?<=ios=)[^\s|]+' "$PLAN_PATH" | head -1) || true
+  fi
+fi
+
+# Defaults if nothing allocated (single-gameplan scenario)
+export FAKE_PORT="${FAKE_PORT:-8089}"
+export APPIUM_PORT="${APPIUM_PORT:-4723}"
+[ -n "${ANDROID_SERIAL:-}" ] && export ANDROID_SERIAL
+[ -n "${IOS_UDID:-}" ] && export IOS_UDID
+
+echo "--- Config: FAKE_PORT=$FAKE_PORT APPIUM_PORT=$APPIUM_PORT"
+[ -n "${ANDROID_SERIAL:-}" ] && echo "    ANDROID_SERIAL=$ANDROID_SERIAL"
+[ -n "${IOS_UDID:-}" ] && echo "    IOS_UDID=$IOS_UDID"
 
 cleanup() {
   echo "--- Cleaning up..."
@@ -270,21 +374,21 @@ trap cleanup EXIT
 # Install deps if needed
 [ -d node_modules ] || npm install || { echo "FAIL: npm install failed"; exit 1; }
 
-# Start fake server
-echo "--- Starting fake server..."
+# Start fake server on allocated port
+echo "--- Starting fake server on port $FAKE_PORT..."
 node fake-server.js &
 FAKE_PID=$!
 sleep 2
 
 # Verify fake server is running
-curl -sf http://localhost:8089/__requests > /dev/null || { echo "FAIL: Fake server not responding"; exit 1; }
+curl -sf "http://localhost:${FAKE_PORT}/__requests" > /dev/null || { echo "FAIL: Fake server not responding on port $FAKE_PORT"; exit 1; }
 
 # Set platform and optional paths
 export TEST_PLATFORM="$PLATFORM"
 [ -n "$APK_PATH" ] && export ANDROID_APK="$APK_PATH"
 [ -n "$APP_PATH" ] && export IOS_APP="$APP_PATH"
 
-# Run tests
+# Run tests (wdio.conf.js reads APPIUM_PORT, ANDROID_SERIAL, IOS_UDID from env)
 echo "--- Running Appium tests ($PLATFORM)..."
 npx wdio run wdio.conf.js 2>&1 | tee test-results-${PLATFORM}.log
 RESULT=${PIPESTATUS[0]}
@@ -300,16 +404,16 @@ fi
 
 ### Running Appium Tests
 
-The agent runs Appium tests via Bash — zero LLM tokens on execution, only on failure diagnosis:
+The agent runs Appium tests via Bash — zero LLM tokens on execution, only on failure diagnosis. Pass `--plan` to auto-read allocated device/ports from PLAN.md:
 
 **Phase 5 (Android):**
 ```bash
-e2e-tests/run-tests.sh android
+e2e-tests/run-tests.sh android --plan ~/dev/gameplans/<name>/PLAN.md
 ```
 
 **Phase 7 (iOS):**
 ```bash
-e2e-tests/run-tests.sh ios
+e2e-tests/run-tests.sh ios --plan ~/dev/gameplans/<name>/PLAN.md
 ```
 
 **On failure:**

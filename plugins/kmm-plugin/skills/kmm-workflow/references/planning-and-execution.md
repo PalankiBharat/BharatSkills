@@ -106,6 +106,8 @@ The first 15 lines of PLAN.md are injected by hooks on every message and before 
 <!-- NEXT: Task N.X — <description> -->
 <!-- VERIFY: <build verification command> -->
 <!-- CHECKPOINT: <last checkpoint commit or "none yet"> -->
+<!-- DEVICE: android=<emulator-serial> | ios=<simulator-UDID> -->
+<!-- PORTS: fake=<port> | appium=<port> -->
 ## KMM Migration: <module-name>
 ## Rules (always in scope)
 - 1:1 MECHANICAL PORT: only Android→KMM specifics change, any behavioral change → REQUIRES_APPROVAL
@@ -182,6 +184,7 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.6:** Write findings.md with assessment data (see findings.md Structure below).
 - **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Dispatch **Sonnet agent** to write Appium test specs for every critical flow (`e2e-tests/<flow>.test.js`). Generate `e2e-tests/screen-map.json` — record every screen in scope with navigation steps, key elements to verify, CTA targets, and known blockers (OTP, login, personal details). Define user journey flows in the screen map for mobile-mcp automated testing.
 - **Task 1.7b:** Generate Appium test infrastructure: `e2e-tests/package.json`, `e2e-tests/wdio.conf.js`, `e2e-tests/fake-server.js`, `e2e-tests/run-tests.sh`. See `references/automated-testing.md` for templates. Adapt `wdio.conf.js` capabilities to the actual project (app path, device, platform version). Make `run-tests.sh` executable. Run `cd e2e-tests && npm install` to verify deps resolve. Commit `e2e-tests/` to the worktree — this becomes the regression suite.
+- **Task 1.7c:** Allocate dedicated device and ports for this gameplan (prevents collisions with concurrent gameplans). See `references/automated-testing.md` § Device & Port Isolation. Auto-allocate by scanning for free ports and existing emulators/simulators. Record allocated device serials and ports in PLAN.md header (`<!-- DEVICE: ... -->`, `<!-- PORTS: ... -->`). Wire the allocated values into `wdio.conf.js` and `run-tests.sh` via env vars.
 - **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases.
 - **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md.
 - **Task 1.10:** Verify build task names — run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names for Android compilation, iOS arm64 compilation, and app assembly. Record verified task names in PLAN.md build verification section. Never write build commands based on assumptions.
@@ -487,6 +490,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.6 Write findings.md
 - [ ] 1.7 Write fake server config + Appium specs + screen-map.json
 - [ ] 1.7b Generate Appium infra (package.json, wdio.conf.js, fake-server.js, run-tests.sh), npm install, commit e2e-tests/
+- [ ] 1.7c Allocate dedicated device + ports (auto), record in PLAN.md header
 - [ ] 1.8 Verify platform navigation architecture
 - [ ] 1.9 Verify SDK availability
 - [ ] 1.10 Verify build task names
@@ -713,6 +717,7 @@ Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHEC
 - Appium tests in `e2e-tests/` committed — CI-ready regression suite
 - `findings.md` saved for next migration (Known Fixes, Gotchas, Library Versions)
 - `migration-guide.md` and `PLAN.md` kept for reference or deleted per user preference
+- **Device cleanup:** delete dedicated emulator AVD (`avdmanager delete avd -n <name>`) and iOS simulator (`xcrun simctl delete <UDID>`) that were allocated for this gameplan. Release ports.
 
 ---
 
