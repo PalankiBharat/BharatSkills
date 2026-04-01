@@ -15,6 +15,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
 | `kmm-plugin` | 4.3.0 | KMM migration toolkit |
 | `gameplan` | 1.0.0 | Structured execution planning — phased plans, checkpoint commits, progress tracking, escalation rules, autonomous execution |
+| `issue-resolver` | 1.0.0 | Automated issue resolution pipeline — fetch issues, fix, PR, self-review, fix gaps |
 
 ## Installation
 
@@ -35,6 +36,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install om-pipeline@punchhq-skills
 /plugin install kmm-plugin@punchhq-skills
 /plugin install gameplan@punchhq-skills
+/plugin install issue-resolver@punchhq-skills
 ```
 
 ### 3. Use the skills
@@ -61,6 +63,9 @@ skill feedback
 
 # Gameplan (structured execution planning)
 /gameplan:gameplan create
+
+# Issue resolver (batch-fix open issues + self-review)
+/issue-resolver:issue-resolver skill:kmm-workflow
 ```
 
 ## For Teams
@@ -90,7 +95,8 @@ To pre-enable specific plugins:
     "skill-feedback@punchhq-skills": true,
     "clean-code@punchhq-skills": true,
     "kmm-plugin@punchhq-skills": true,
-    "gameplan@punchhq-skills": true
+    "gameplan@punchhq-skills": true,
+    "issue-resolver@punchhq-skills": true
   }
 }
 ```
@@ -177,6 +183,12 @@ claude-code-skills/
 │           └── gameplan/
 │               ├── SKILL.md
 │               └── references/        # plan-structure, escalation-rules
+│   └── issue-resolver/
+│       ├── .claude-plugin/
+│       │   └── plugin.json
+│       └── skills/
+│           └── issue-resolver/
+│               └── SKILL.md           # 6-phase pipeline: fetch → plan → fix → PR → review → fix gaps
 └── README.md
 ```
 

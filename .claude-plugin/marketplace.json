@@ -90,6 +90,15 @@
       "category": "orchestration",
       "tags": ["planning", "execution", "phased", "checkpoint", "task-management", "orchestration"],
       "keywords": ["gameplan", "plan", "phase", "checkpoint", "execute", "autonomous"]
+    },
+    {
+      "name": "issue-resolver",
+      "source": "./plugins/issue-resolver",
+      "description": "Automated issue resolution pipeline — fetches open GitHub issues, implements fixes, creates PR, self-reviews for gaps, fixes review findings.",
+      "version": "1.0.0",
+      "category": "automation",
+      "tags": ["issues", "github", "pull-request", "review", "automation"],
+      "keywords": ["issues", "fix", "resolve", "pr", "review", "github"]
     }
   ]
 }
