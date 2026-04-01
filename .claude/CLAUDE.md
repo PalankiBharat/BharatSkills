@@ -5,20 +5,23 @@
 The `om-pipeline` plugin is at `plugins/om-pipeline/` with three commands:
 
 - `om.md` — Master orchestrator, invokes Bramha then Vishnu, handles retry loop (max 2 cycles)
-- `om-bramha.md` — Creation phase (stages 1-5): plan, side effects analysis, execute (with clean-code prehook), harsh review, regression analysis
-- `om-vishnu.md` — Preservation phase (stages 6-8): generate device test cases (including regression), device testing via phone-driver, bug fix assessment
+- `om-bramha.md` — Creation phase (stages 1-6): speckit plan, side effects analysis, speckit task breakdown, team execute (parallel agents with clean-code prehook), harsh review, regression analysis
+- `om-vishnu.md` — Preservation phase (stages 7-9): generate device test cases (including regression), device testing via phone-driver, bug fix assessment
 
 ## Architecture
 
 ```
-/om → Bramha (stages 1-5) → Vishnu (stages 6-8) → Om decides retry/complete
+/om → Bramha (stages 1-6) → Vishnu (stages 7-9) → Om decides retry/complete
 ```
 
 - Bramha outputs `BRAMHA_RESULT:` JSON for Om to parse
 - Vishnu outputs `VISHNU_RESULT:` JSON for Om to parse
+- Stage 1 uses `/speckit.plan` for full planning workflow (research, data model, contracts, constitution)
+- Stage 3 uses `/speckit.tasks` to break enriched plan into phased, dependency-ordered tasks
+- Stage 4 executes tasks as a team — parallel `[P]` tasks spawn concurrent executor agents
 - Review cycle counter (max 3) is shared between harsh review and regression analysis
-- Executor has mandatory clean-code prehook (`$HOME/.claude/skills/clean-code/SKILL.md`)
-- Side effects analysis enriches plan with safeguards before execution
+- On review/regression rejection, loops back to Stage 3 (re-generates tasks with fix feedback)
+- Side effects analysis enriches plan with safeguards before task breakdown
 - Regression analysis cross-references stage 2 amendments post-implementation
 
 ## User-level install location
