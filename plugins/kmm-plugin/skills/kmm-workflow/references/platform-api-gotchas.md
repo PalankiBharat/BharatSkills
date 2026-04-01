@@ -21,6 +21,9 @@ APIs that compile on JVM/Android but fail on Kotlin/Native (iOS) or are unavaila
 | `android.content.SharedPreferences` | Android-only | `multiplatform-settings` (`com.russhwolf`) | Wraps SharedPreferences (Android) and NSUserDefaults (iOS). |
 | `@VisibleForTesting` | AndroidX annotation | Remove or use `internal` visibility | No commonMain equivalent. If needed for testing, make the member `internal`. |
 | `Locale` / `java.util.Locale` | Java stdlib | Platform-specific via `expect`/`actual` | No standard KMM locale API. Use `expect`/`actual` or skip locale-dependent formatting. |
+| API status string comparison | Gson `valueOf()` is case-sensitive but matches uppercase API responses. After migrating to kotlinx.serialization, raw string comparisons like `status == "success"` fail when API returns `"SUCCESS"`. | Always use `status.equals("success", ignoreCase = true)` or `status.lowercase()` | Affects any `when(status)` block comparing API response values. |
+| Box with scroll + footer overlay | `Box { Column(Modifier.fillMaxHeight().verticalScroll()) { ... }; Footer(Modifier.align(BottomCenter)) }` — scroll gesture intercepts footer touches on iOS/CMP | Use `Column { Column(Modifier.weight(1f).verticalScroll()) { ... }; Footer() }` instead | Android handles z-order touch dispatch differently. On CMP/iOS, the scroll gesture detector on the full-height Column swallows touches on the overlapping footer. |
+| `println()` | Output goes to stdout on iOS, NOT captured by `xcrun simctl spawn ... log stream/show`. Invisible for debugging. | Use `Napier.d()` / `Napier.e()` (which uses `NSLog` on iOS) | Always replace `println` debug statements with Napier in shared code. `println` is fine for JVM unit tests but useless for iOS runtime debugging. |
 
 ## atomicfu Setup
 
@@ -95,3 +98,54 @@ When migrating a file from `src/main/java/` to `shared/src/commonMain/`:
 - The original MUST be deleted (or moved to a backup location outside the source set) BEFORE any compile or test step
 
 This is NOT optional — duplicate declarations are a hard build failure, not a warning.
+
+## Gradle Task Name Ambiguity (Product Flavors)
+
+When a KMM module has Android product flavors, Gradle generates multiple compile tasks per flavor. Using ambiguous task names like `./gradlew :module:compileDebugKotlin` fails with "task is ambiguous."
+
+**Fix:** Use fully qualified task names: `compileStagingDebugKotlinAndroid`, `testStagingDebugUnitTest`.
+
+**Discovery:** Run `./gradlew :module:tasks --all | grep -i compile` to find exact task names before running builds.
+
+## Kotlin `object` Method Name `init*` → Swift `doInit*`
+
+Kotlin/Native maps Kotlin names to ObjC selectors. When a method name starts with `init` (reserved in Swift/ObjC), the compiler prefixes `do`.
+
+| Kotlin | Swift |
+|--------|-------|
+| `KoinHelper.initKoin(config, delegate)` | `KoinHelper.shared.doInitKoin(config:scripPersistenceDelegate:)` |
+
+Applies to ANY method starting with `init`: `initialize()` → `doInitialize()`, `initSession()` → `doInitSession()`.
+
+**Fix:** Rename the Kotlin method (e.g., `startKoin()`) or document the `do` prefix.
+
+## Kotlin `Result<T>` Returns `Any?` in Swift — Cast Fails Silently
+
+`Result<T>` is an inline class. In K/N ObjC interop, it's boxed as `Any?`. SKIE converts `suspend fun` to `async throws`, but return type is still `Any?`.
+
+| Kotlin | Swift (SKIE) | Problem |
+|--------|-------------|---------|
+| `suspend fun get(): Result<Model>` | `func get() async throws -> Any?` | `result as? Model` → nil |
+
+**Fix:** Create a Kotlin helper that unwraps: `fun getSingle(): Model? = repo.get().getOrNull()`
+
+**Do NOT** cast `Any?` in Swift — it will always be nil.
+
+## Xcode 16+ `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` Breaks ObjectBox
+
+New Xcode 16+ projects default to `@MainActor` isolation (Swift 6). This breaks ObjectBox's `EntityInspectable` and `__EntityRelatable` protocol conformance.
+
+**Fix:** `SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated` in build settings. Check BEFORE first iOS build.
+
+## KMM Framework `CFBundleIdentifier` Rejected Without Explicit `bundleId`
+
+Default `Info.plist` sets `CFBundleIdentifier` to module name with underscores. Xcode rejects this when embedding.
+
+**Fix:**
+```kotlin
+binaries.framework {
+    baseName = xcfName
+    binaryOption("bundleId", "com.example.sdk")
+}
+```
+Apply to ALL iOS targets.

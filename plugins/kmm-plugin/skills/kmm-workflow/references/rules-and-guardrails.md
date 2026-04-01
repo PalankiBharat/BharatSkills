@@ -50,6 +50,7 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
 - **Latest stable deps.** When adding new dependencies, check the latest stable version via web search or Context7, not training data or skill reference files (which may have outdated version numbers).
 - **No "Shared" prefix** on class/file names in commonMain. Keep names natural (e.g., `LoginViewModel` not `SharedLoginViewModel`).
 - **Host app DI stays untouched.** When migrating a library SDK consumed by a host app with its own DI framework (Hilt, Dagger): keep the host app's DI as-is. Add Koin alongside for the SDK's types only. Bridge via a small module. Do NOT propose removing the host app's DI framework.
+- **SDK demo app source may differ from published artifact.** When porting from an SDK's demo app, verify enums, methods, and types against the actual Maven/CocoaPods artifact — not the demo source. Demo apps may be ahead or behind the published SDK version (e.g., `SesameState.gender` vs `.personal`). Always check the published artifact as the source of truth.
 
 ---
 

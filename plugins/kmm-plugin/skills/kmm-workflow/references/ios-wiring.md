@@ -732,6 +732,9 @@ case .openMyNewScreen(let e):
 
 Missing any step causes silent failures: the destination exists but is never reachable, or is reachable but renders nothing.
 
+### PBXFileSystemSynchronizedRootGroup (Xcode 16+)
+If the project uses `PBXFileSystemSynchronizedRootGroup`, new .swift files are auto-discovered — no manual `PBXBuildFile`, `PBXFileReference`, or `PBXGroup` entries needed. Check `project.pbxproj` for this group type before planning manual registration tasks.
+
 ### pbxproj Registration
 
 **Project format detection:** Before registering files, check if the Xcode project uses `PBXFileSystemSynchronizedRootGroup` (Xcode 16+ modern format). If present, Xcode auto-discovers all files in the group directory — skip manual pbxproj registration entirely. Only proceed with manual registration for legacy `PBXGroup`-based projects.
@@ -806,6 +809,14 @@ xcodebuild \
 ```
 
 Failures: check `findings.md` Known Fixes first, then 3-strike rule.
+
+### pod install Sequence (CMP Projects)
+For projects using Compose Multiplatform with CocoaPods:
+1. Full shared framework build (`./gradlew :shared:build` or `:shared:linkDebugFrameworkIosSimulatorArm64`)
+2. `cd iosApp && pod install` — re-run AFTER the full build, not just after `generateDummyFramework`
+3. `xcodebuild` — only after pod install picks up populated compose-resources
+
+`generateDummyFramework` + `pod install` produces an empty framework with no compose resources. The full build must populate `build/compose/cocoapods/compose-resources` first.
 
 ### Runtime Verify (mobile-mcp on simulator, fallback: xcrun)
 
@@ -897,6 +908,15 @@ case .navigateToNext:   // Effect.NavigateToNext in Kotlin
 ```
 
 **Simulator vs device behavior** — Keychain, push notifications, and biometrics behave differently on simulator. If a feature fails only on device, check entitlements and provisioning.
+
+### ComposeUIViewController Theme Wrapping
+Every `ComposeUIViewController` factory function MUST wrap its content in `PunchTheme { ... }`. Unlike Android where the Activity's theme propagates, iOS ComposeUIViewControllers start with no theme context. Missing theme = wrong fonts + light mode colors.
+
+### iOS Safe Area Insets
+When the SwiftUI wrapper uses `.ignoresSafeArea(.all)`, CMP composables get the full screen. The root composable MUST apply:
+- `Modifier.statusBarsPadding()` — prevents content behind the notch
+- `Modifier.navigationBarsPadding()` — prevents buttons in the home indicator zone (touches are silently swallowed by iOS)
+- Parent `Surface` color should match the app's background (e.g., `Background5`) so the status bar area isn't white
 
 ---
 

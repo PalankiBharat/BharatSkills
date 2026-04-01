@@ -35,6 +35,7 @@ When migrating an Android SDK to KMM, every Android-only dependency needs a deci
 | **java.util.UUID** | Replace | `kotlin.uuid.Uuid` (Kotlin 2.0+) | Built into Kotlin stdlib. |
 | **org.json.JSONObject/JSONArray** | Replace | `kotlinx.serialization.json.JsonObject/JsonArray` | Already in most KMM projects. |
 | **java.util.concurrent** | Replace | kotlinx.coroutines.sync.Mutex + atomicfu | `@Synchronized` → `Mutex.withLock{}`, `ConcurrentLinkedQueue` → Mutex-guarded MutableList. |
+| **Dispatchers.IO** | Keep | `Dispatchers.IO` (with `import kotlinx.coroutines.IO`) | Available on ALL KMP targets since coroutines 1.7.0. Extension property on Native — requires explicit import. Do NOT replace with `Dispatchers.Default`. |
 
 ## Coroutines version guidance
 
@@ -62,3 +63,14 @@ When a database has no KMM support but has separate iOS/Android SDKs:
 5. App startup (Swift): create bridge instance → pass to `initKoin()` → Koin resolves
 
 This avoids cinterop entirely — Swift objects enter Kotlin via function parameters.
+
+## DI Binding Patterns
+
+### WebSocket Client Bindings
+
+| Type | Binding | Rationale |
+|------|---------|-----------|
+| `IWebSocketClient` | `factory` | Each WebSocket service (feed, trading) needs its own connection lifecycle. A `single` binding shares one client instance → message cross-contamination between channels. |
+| `HttpClient` | `single` | HTTP clients are stateless request factories — safe to share. |
+
+**Rule:** Any dependency that maintains connection state (WebSocket clients, database connections with session affinity) should be `factory` in Koin, not `single`, when multiple consumers need independent instances. The original code pattern is the indicator: if the original created `N` separate instances (e.g., `val feedClient = KtorWebSocketClientImpl()` + `val tradingClient = KtorWebSocketClientImpl()`), the Koin binding must be `factory`.
