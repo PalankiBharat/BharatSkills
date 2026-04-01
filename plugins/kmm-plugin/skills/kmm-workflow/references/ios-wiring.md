@@ -737,16 +737,7 @@ If the project uses `PBXFileSystemSynchronizedRootGroup`, new .swift files are a
 
 ### pbxproj Registration
 
-**Project format detection:** Before registering files, check if the Xcode project uses `PBXFileSystemSynchronizedRootGroup` (Xcode 16+ modern format). If present, Xcode auto-discovers all files in the group directory — skip manual pbxproj registration entirely. Only proceed with manual registration for legacy `PBXGroup`-based projects.
-
-```bash
-# Check project format
-grep -c "PBXFileSystemSynchronizedRootGroup" iosApp/iosApp.xcodeproj/project.pbxproj
-# If > 0 → modern format, skip manual registration
-# If 0 → legacy format, register manually below
-```
-
-For legacy projects, every new `.swift` file MUST be manually registered in `project.pbxproj`. Xcode does this automatically when you use the GUI, but since files are created via code or terminal, they are not registered automatically.
+For legacy (`PBXGroup`-based) projects, every new `.swift` file MUST be manually registered in `project.pbxproj`. Xcode does this automatically when you use the GUI, but since files are created via code or terminal, they are not registered automatically.
 
 A missing registration means the file exists on disk and can be imported but is never compiled. Errors will appear as "use of unresolved identifier" elsewhere — not as a missing-file error on the new file itself.
 

@@ -80,7 +80,7 @@ actual fun createLogger(): Logger = object : Logger {
 // iosMain
 actual fun createLogger(): Logger = object : Logger {
     override fun log(message: String) {
-        println(message) // maps to NSLog on iOS
+        NSLog(message) // println is invisible on iOS — always use NSLog or Napier
     }
 }
 ```
@@ -336,7 +336,7 @@ class KoinHelper : KoinComponent {
 - **Never create unscoped `CoroutineScope(Dispatchers.IO).launch { }`** — these leak; always use `viewModelScope`
 - Tie every scope to a lifecycle (`viewModelScope` in ViewModels, `lifecycleScope` in Android Activities/Fragments)
 
-**`Dispatchers.IO` in commonMain:** Available with `kotlinx-coroutines-core` 1.7+. If the Android source code uses `Dispatchers.IO`, upgrade the coroutines version to 1.7+ and keep using `Dispatchers.IO` in commonMain — Android is the source of truth, don't change dispatchers unnecessarily. On iOS, `Dispatchers.IO` maps to a background thread pool appropriate for I/O-bound work (network, disk).
+**`Dispatchers.IO` in commonMain:** Available with `kotlinx-coroutines-core` 1.7+ on JVM + Native targets. Requires explicit `import kotlinx.coroutines.IO` — it is an extension property on Native, and the IDE may not auto-import it. If the Android source code uses `Dispatchers.IO`, keep using it in commonMain with the correct import. On iOS/Native, `Dispatchers.IO` maps to a background thread pool (up to 64 threads, lazily allocated). Do NOT replace with `Dispatchers.Default` — they serve different purposes.
 
 ### Patterns
 
