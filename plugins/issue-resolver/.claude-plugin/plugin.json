@@ -1,0 +1,19 @@
+{
+  "name": "issue-resolver",
+  "version": "1.0.0",
+  "description": "Automated issue resolution pipeline — fetches open GitHub issues for a skill/project, implements fixes, creates PR, self-reviews for gaps, fixes review findings, and updates PR.",
+  "author": {
+    "name": "PunchHQ",
+    "email": "manish@punchhq.com"
+  },
+  "category": "automation",
+  "keywords": [
+    "issues",
+    "github",
+    "pull-request",
+    "review",
+    "fix",
+    "automation",
+    "self-review"
+  ]
+}
