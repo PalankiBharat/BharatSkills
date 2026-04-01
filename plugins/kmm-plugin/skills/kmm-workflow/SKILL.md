@@ -74,8 +74,8 @@ The skill is file-based (PLAN.md, PROGRESS.md, migration-guide.md, findings.md) 
 
 | When | Why | What to do |
 |------|-----|------------|
-| After Phase 1 (PLAN) | Planning fills context with research, file reads, Q&A | `/clear` → `/kmm-workflow` → Continue |
-| After Phase 3 (SHARED CODE MIGRATION) | Heaviest phase — per-file TDD loops, agent outputs, debug traces bloat context 300K+ tokens. Fresh start prevents stale-reference errors in wiring phases. | `/clear` → `/kmm-workflow` → Continue |
+| After Phase 1 (PLAN) | Planning fills context with research, file reads, Q&A | Run retrospective → `/clear` → `/kmm-workflow` → Continue |
+| After Phase 3 (SHARED CODE MIGRATION) | Heaviest phase — per-file TDD loops, agent outputs, debug traces bloat context 300K+ tokens. Fresh start prevents stale-reference errors in wiring phases. | Run retrospective → `/clear` → `/kmm-workflow` → Continue |
 
 The orchestrator MUST stop after these phases and instruct the user to `/clear`. Do not continue into the next phase group without clearing.
 
@@ -100,6 +100,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - **Library KMP audit:** For every Android-only library being replaced, web search for official KMP support before planning a manual alternative. AndroidX libraries are rapidly adding KMP support — training data is outdated, always research first. Record findings in findings.md.
 - **Gap analysis is mandatory** before presenting plan for approval. The orchestrator MUST run the plan-analyzer agent and fix all BLOCKER/HIGH issues BEFORE asking the user to approve. Do NOT present a plan with known gaps.
 - **Interface completeness check:** When creating abstraction interfaces, read the FULL implementation class AND all consumers. Include all public methods and all direct field access by consumers. Never estimate the method count — read the code and list every method.
+- **Impl completeness check:** For every interface listed in migration-guide.md, grep for implementation classes in the source. If an impl exists, it MUST have its own migration item in migration-guide.md — do not assume "interface-only" without verifying. Missing impls surface as compile errors in wiring phases when consumers try to instantiate the class. Check: `grep -r "class.*Impl.*:.*<InterfaceName>" src/` for each interface.
 - Read `references/planning-and-execution.md` before this phase
 
 ### Phase 2: SCAFFOLD
@@ -131,9 +132,10 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
     → FILE_COMPLETE or FILE_BLOCKED
   - **TDD enforcement:** The orchestrator MUST verify that each FILE_COMPLETE includes `tests: N` where N > 0. If an agent returns `tests: 0`, reject the completion and re-dispatch with explicit instruction to write characterization tests. Migration without test coverage is not accepted.
   - Gate: ALL files at this level complete before next level
+  - **Original deletion (two-step):** (1) BEFORE dispatching agents for a level, the orchestrator deletes ALL `src/main/java` originals for files being migrated at that level — originals are committed in the previous checkpoint, safe to remove, prevents duplicate class errors when agents write to commonMain. (2) AFTER all agents complete, verify no originals remain — agents cannot reliably delete files, so the orchestrator handles cleanup.
 - After all levels: `./gradlew :shared:testDebugUnitTest`
 - **SharedFlow collector audit:** scan all composables/screens for `effect.collectLatest` or `effect.collect` calls. Flag any `SharedFlow` that has multiple concurrent collectors as a potential race condition — multiple collectors on `SharedFlow(replay=0)` silently swallow effects.
-- Cross-platform Koin audit: for each VM registered in the shared Koin module, verify ALL constructor parameter types have bindings in BOTH `androidBridgeModule` AND `iosBridgeModule`. If a type is only bound on one platform, add the missing binding before proceeding.
+- **Cross-platform Koin binding verification (early):** For each VM registered in the shared Koin module, verify ALL constructor parameter types have bindings in BOTH `androidBridgeModule` AND `iosBridgeModule` during Phase 3 — do not wait until Phase 5 (iOS wiring). Missing iOS Koin bindings for ONE VM crash ALL VM resolution on that platform. Manifests as `trapOnUndeclaredException` in unrelated VMs (e.g., SplashViewModel). Android bindings are verified implicitly (it runs first); iOS bindings are only tested at end.
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/dependency-replacements.md`, `references/kmm-architecture.md`, and `references/rules-and-guardrails.md` before this phase
 - After all levels complete: dispatch auditor (sonnet) for code quality sweep → AUDIT_COMPLETE required before wiring
@@ -146,6 +148,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - **Empty lambda audit:** Scan all migrated composables for callback parameters with default `= {}` (e.g., `onClick: () -> Unit = {}`). Trace each one to verify it reaches a real action from the parent composable. Empty lambdas on onClick/callback params are functional stubs that pass compilation but produce dead buttons.
 - **Koin binding completeness check:** for each VM registered in the shared Koin module, verify ALL constructor parameter types AND all types used by child composables/screens have Koin bindings. Missing bindings crash at runtime — check transitively, not just direct constructor params.
 - Build + test
+- **Visual parity baselines:** Before runtime verification, install the master/base-branch build, screenshot every migrated screen, save as baselines in `e2e-tests/screenshots/<platform>/baseline/`. After installing the migrated build, screenshot the same screens and compare side-by-side. Flag any visual differences (missing icons, wrong colors, layout shifts, placeholder text).
 - **Mandatory runtime verification** (mobile-mcp/adb) — "app launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates (see `references/automated-testing.md`). For each migrated screen listed in migration-guide.md:
   1. Navigate to the screen using cached coordinates from screen-map (first time: call `mobile_list_elements_on_screen` and populate cache)
   2. Verify data loads (not stuck on spinner)
@@ -165,9 +168,15 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 
 - PARALLEL: [Sonnet ui-migrator per screen] ‖ [Sonnet Koin iOS]
 - Wire navigation + pbxproj
-- **Stub audit + Koin completeness check** (same as Phase 4, for iOS bindings)
+- **Stub audit + Koin completeness check** (same as Phase 4, for iOS bindings). Extended for iOS: in addition to Kotlin stubs (`error("…")`, `TODO()`, `TODO("…")`), scan all `.swift` files for `// TODO:`, `// FIXME:`, and `// HACK:` comments. Swift TODOs in non-test code indicate unwired functionality that will silently produce dead UI.
 - **Empty lambda audit** (same as Phase 4 — for any CMP screens shared with iOS)
-- Build + runtime verify (mobile-mcp/simulator) — same mandatory per-screen checklist as Phase 4
+- **Visual parity baselines:** Before runtime verification, install the master/base-branch build, screenshot every migrated screen, save as baselines in `e2e-tests/screenshots/<platform>/baseline/`. After installing the migrated build, screenshot the same screens and compare side-by-side. Flag any visual differences (missing icons, wrong colors, layout shifts, placeholder text).
+- **Mandatory runtime verification** (mobile-mcp/simulator) — same per-screen checklist as Phase 4. Additionally for iOS demo/test apps:
+  1. Take screenshot after app loads
+  2. For EACH visible section: verify data is not stuck on "loading", "NC", or placeholder values
+  3. For real-time feeds: take TWO screenshots 5 seconds apart and verify values changed
+  4. If ANY section shows stale/placeholder data → DEBUG LOOP before declaring success
+  "App launches and shows some data" is NOT sufficient — every section must be individually verified.
 - **mobile-mcp automated flows** — execute every flow defined in `e2e-tests/screen-map.json` against the real app (iOS), comparing with Android parity:
   - Uses cached screen-map coordinates — does NOT re-discover elements on unchanged screens
   - On `blocker` steps (OTP, payment, personal details): STOP, ask user to complete the action on device, wait for confirmation, then resume
@@ -268,5 +277,11 @@ On Continue, when listing gameplans:
 - When migrating a library SDK consumed by a host app with its own DI framework: **keep the host app's DI untouched**. Add Koin alongside for the SDK's types only. Bridge via a small module that pulls host-provided deps into Koin. Do NOT propose removing the host app's DI framework unless the user explicitly asks.
 - **No "Shared" prefix** on class/file names in commonMain. Keep names natural (e.g., `LoginViewModel` not `SharedLoginViewModel`).
 - When using a reference branch for patterns, **copy specific files** — never merge or pull the branch.
-- After Phase 1 approval and after final phase completion, ALWAYS run the migration retrospective (`references/self-improvement.md`). This is the skill's learning mechanism — skipping it means the same mistakes repeat in the next migration.
+- After Phase 1 approval, after Phase 3 completion, and after final phase completion, ALWAYS run the migration retrospective (`references/self-improvement.md`). This is the skill's learning mechanism — skipping it means the same mistakes repeat in the next migration.
 - **Empty lambda audit at phase boundaries:** Before any checkpoint commit in Phases 4-5, scan all migrated composables for callback parameters with default `= {}`. Trace each to verify it reaches a real action. Dead buttons from empty lambdas are the most common form of silent unwiring.
+- **Retrospective before /clear is mandatory.** The orchestrator MUST run the migration retrospective (`references/self-improvement.md`) BEFORE instructing the user to `/clear`. Context is erased on clear — if the retrospective hasn't run, all session learnings are permanently lost. The "auto-trigger" mechanism does not work in practice; treat it as a manual mandatory step. Sequence: finish phase → run retrospective → present findings → user approves/skips → THEN instruct `/clear`.
+- **PROGRESS.md is a checklist, not a journal.** Each checkbox should be ONE line describing *what* was done, not *how*. Implementation details (file names, version numbers, build flags, workarounds) belong in findings.md or commit messages. If a task needs sub-bullets, limit to 2-3 short items max.
+- **No CoroutineScope lifecycle changes in 1:1 ports.** Migration agents MUST NOT add `CoroutineScope.cancel()` or scope recreation (`coroutineScope = CoroutineScope(...)`) to classes that manage their own scope lifecycle. If the original only cancels individual jobs in `disconnect()`, the migration must do the same. Scope lifecycle changes are behavioral changes that REQUIRES_APPROVAL. Specifically: changing `val coroutineScope` to `var coroutineScope` to enable cancel/recreate is a red flag — the original used `val` for a reason.
+- **Verify every fix automatically.** After making any code fix, the orchestrator MUST rebuild, install, and run automated E2E testing of the specific flow affected. Iterate until the fix is verified working. Never report a fix to the user without automated verification passing first.
+- **Scaffold backgroundColor on all CMP Scaffolds.** Every `Scaffold` in shared CMP screens MUST set `backgroundColor` explicitly (e.g., `Background5`). The default is `MaterialTheme.colors.background` which is white when no dark MaterialTheme is configured. This applies to all sub-screens in nav hosts, not just the top-level screen.
+- **No TODO placeholders in migrated code.** Migrated composables MUST NOT contain `// TODO` comments with placeholder content (emoji text, empty Box, commented-out Image). If a drawable resource is needed, copy it from Android `res/drawable/` to `shared/src/commonMain/composeResources/drawable/` during migration. The stub audit at phase boundaries MUST also scan for `// TODO` comments in view files.

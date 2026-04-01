@@ -80,7 +80,7 @@ actual fun createLogger(): Logger = object : Logger {
 // iosMain
 actual fun createLogger(): Logger = object : Logger {
     override fun log(message: String) {
-        println(message) // maps to NSLog on iOS
+        NSLog(message) // println is invisible on iOS — always use NSLog or Napier
     }
 }
 ```
@@ -336,7 +336,7 @@ class KoinHelper : KoinComponent {
 - **Never create unscoped `CoroutineScope(Dispatchers.IO).launch { }`** — these leak; always use `viewModelScope`
 - Tie every scope to a lifecycle (`viewModelScope` in ViewModels, `lifecycleScope` in Android Activities/Fragments)
 
-**`Dispatchers.IO` in commonMain:** Available with `kotlinx-coroutines-core` 1.7+. If the Android source code uses `Dispatchers.IO`, upgrade the coroutines version to 1.7+ and keep using `Dispatchers.IO` in commonMain — Android is the source of truth, don't change dispatchers unnecessarily. On iOS, `Dispatchers.IO` maps to a background thread pool appropriate for I/O-bound work (network, disk).
+**`Dispatchers.IO` in commonMain:** Available with `kotlinx-coroutines-core` 1.7+ on JVM + Native targets. Requires explicit `import kotlinx.coroutines.IO` — it is an extension property on Native, and the IDE may not auto-import it. If the Android source code uses `Dispatchers.IO`, keep using it in commonMain with the correct import. On iOS/Native, `Dispatchers.IO` maps to a background thread pool (up to 64 threads, lazily allocated). Do NOT replace with `Dispatchers.Default` — they serve different purposes.
 
 ### Patterns
 
@@ -442,6 +442,21 @@ Hard-won learnings from real production KMM migrations. Every item here burned t
 - `:shared:assemble` compiles without running tests
 - `:shared:linkDebugFrameworkIosSimulatorArm64` compiles iOS framework only
 - Use `assemble` or `linkDebugFramework` when pre-existing test failures block build verification
+
+### SKIE SuspendInterop Breaks Third-Party KMM SDK Companions
+- When shared module exports a pre-built KMM SDK via `api()` + `export()`, SKIE SuspendInterop generates incorrect Companion wrappers (`static member 'shared' cannot be used on instance of type 'X.Companion'`)
+- Fix: disable SuspendInterop for the SDK package, keep FlowInterop enabled
+- Root cause: SDK wasn't built with SKIE, generated wrappers reference non-existent symbols
+
+### iOS ATS Blocks Staging HTTP URLs Silently
+- Staging HTTP URLs silently blocked by ATS — no crash, buttons do nothing
+- Fix: `NSAppTransportSecurity.NSAllowsArbitraryLoads = true` in Info.plist
+- Xcode 16: place Info.plist at project root (not inside auto-discovered source dir), set `INFOPLIST_FILE` build setting
+
+### CMP Compose Resources Not Bundled Until pod install Re-run
+- `spec.resources = ['build/compose/cocoapods/compose-resources']` references build output
+- `generateDummyFramework` + `pod install` = empty resources. Must: (1) full build, (2) re-run pod install, (3) xcodebuild
+- Symptom: `MissingResourceException` for fonts/drawables that exist in build output
 
 ---
 
@@ -563,6 +578,27 @@ coroutineScope {
 ### expect/actual VMs Can't Be Instantiated in commonTest
 - If your ViewModel uses `expect/actual` (e.g., `expect abstract class KMMViewModel`), it can't be directly created in `commonTest`
 - Fix: create a test wrapper class in the test directory that extends the VM
+
+### Koin Generic Type Erasure
+
+When two Koin bindings differ only by generic type parameter, JVM type erasure makes them indistinguishable at runtime:
+
+```kotlin
+// BAD — both erase to MessageParser<*>, Koin returns whichever was registered first
+single<MessageParser<Messages>> { FlatBufferMessageParser() }
+single<MessageParser<TradingMessage>> { TradingMessageParser(get()) }
+
+// GOOD — named qualifiers disambiguate
+single<MessageParser<Messages>>(named("feed")) { FlatBufferMessageParser() }
+single<MessageParser<TradingMessage>>(named("trading")) { TradingMessageParser(get()) }
+
+// Consumers use named qualifiers
+single<IFeedWebSocketService> {
+    FeedWebSocketServiceImpl(messageParser = get(named("feed")))
+}
+```
+
+**Rule:** Always use `named()` qualifiers for Koin bindings that differ only by generic type parameter. Koin silently returns whichever was registered first, causing hard-to-debug runtime type mismatches (e.g., feed service receiving trading parser → `ClassCastException` kills message consumer channel → live feed appears frozen).
 
 ---
 
