@@ -254,7 +254,7 @@ On Continue, when listing gameplans:
 - Orchestrator NEVER writes migration code — only agents do
 - Tests MUST pass on original BEFORE migration proceeds
 - Tests MUST pass on migrated code BEFORE file marked complete
-- Always use latest docs (Context7/find-docs/web search), never training data
+- **Dependency research order (mandatory):** (1) Web search + Context7/find-docs FIRST — KMM ecosystem moves fast, live data is the only reliable source for library availability, versions, and API compatibility. (2) Skill reference files (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) SECOND — battle-tested patterns but may lag behind latest releases. (3) Training data NEVER — it is outdated for KMM and has caused incorrect guidance (e.g., Dispatchers.IO, Paging3 KMP).
 - REQUIRES_APPROVAL batched at phase boundaries, not one-by-one
 - Every decision in files — /clear erases chat, only files survive
 - PROGRESS.md updated and committed after each phase

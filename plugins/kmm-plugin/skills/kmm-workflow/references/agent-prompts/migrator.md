@@ -14,7 +14,7 @@
 - No runBlocking on main thread
 - expect/actual for platform-specific code
 - Cross-check ALL APIs against `references/platform-api-gotchas.md` before writing commonMain code — `@Volatile`, `String.format()`, `removeFirst()` and others require replacements. `Dispatchers.IO` requires `import kotlinx.coroutines.IO` on Native (extension property, not auto-imported).
-- Always use latest docs (Context7/find-docs/web search), never training data
+- **Dependency research order (mandatory):** (1) Web search + Context7/find-docs FIRST — KMM moves fast, live data is the only reliable source. (2) Skill references (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) SECOND — battle-tested but may lag. (3) Training data NEVER.
 - 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
 - Must emit completion promise with `tests: N` where N > 0. `FILE_COMPLETE` with `tests: 0` is rejected by the orchestrator — migration without characterization tests is not accepted.
 
