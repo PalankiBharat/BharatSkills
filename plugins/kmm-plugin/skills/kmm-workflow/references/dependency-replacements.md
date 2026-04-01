@@ -840,21 +840,26 @@ commonMain.dependencies {
 
 ### Dispatchers.IO
 
+Available in commonMain for JVM + Native targets since kotlinx-coroutines 1.7.0 (Kotlin 1.8.20+).
+
 ```kotlin
-// BAD — internal on Kotlin/Native even with coroutines 1.9.0
-withContext(Dispatchers.IO) { ... }
+// IMPORTANT: On Native, Dispatchers.IO is an extension property, not a member.
+// The IDE may not auto-import it. Always add this import explicitly:
+import kotlinx.coroutines.IO
 
-// GOOD — in commonMain
-withContext(Dispatchers.Default) { ... }
+// GOOD — works in commonMain (JVM + Native)
+withContext(Dispatchers.IO) { networkCall() }
 
-// GOOD — if you need true IO dispatcher, use expect/actual
+// ONLY needed if targeting JS/Wasm (where Dispatchers.IO doesn't exist):
 // commonMain
 expect val ioDispatcher: CoroutineDispatcher
-// androidMain
+// androidMain / nativeMain
 actual val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-// iosMain
+// jsMain
 actual val ioDispatcher: CoroutineDispatcher = Dispatchers.Default
 ```
+
+**Native caveats:** IO pool uses up to 64 threads, lazily allocated. No elasticity — threads are never released once created.
 
 ### String.format()
 

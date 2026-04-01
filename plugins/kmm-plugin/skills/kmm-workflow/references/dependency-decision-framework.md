@@ -43,7 +43,7 @@ Always check if upgrading kotlinx-coroutines unlocks APIs needed in commonMain:
 - **1.8.0+**: Improved Native coroutine support
 - **1.7.0+**: New Kotlin/Native memory model (fixes threading issues)
 
-**WARNING:** `Dispatchers.IO` is `internal` on Kotlin/Native even with coroutines 1.9.0. Do NOT use `Dispatchers.IO` in commonMain. Use `Dispatchers.Default` or create an `expect`/`actual` dispatcher. See `references/platform-api-gotchas.md` for the full list of APIs not available on Native.
+**`Dispatchers.IO` on Native:** Available since 1.7.0 as an **extension property** — requires `import kotlinx.coroutines.IO` (IDE may not auto-suggest it). Works on JVM + Native targets. NOT available on JS/Wasm — use `expect`/`actual` if targeting those. On Native, the IO pool has up to 64 threads (lazily allocated, no elasticity). See `references/platform-api-gotchas.md` for the full platform API reference.
 
 ## Wire protobuf specifics
 

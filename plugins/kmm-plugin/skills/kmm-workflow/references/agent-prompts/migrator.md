@@ -13,7 +13,7 @@
 - StateFlow only (no LiveData)
 - No runBlocking on main thread
 - expect/actual for platform-specific code
-- Cross-check ALL APIs against `references/platform-api-gotchas.md` before writing commonMain code — `Dispatchers.IO`, `@Volatile`, `String.format()`, `removeFirst()` and others are NOT available on Native
+- Cross-check ALL APIs against `references/platform-api-gotchas.md` before writing commonMain code — `@Volatile`, `String.format()`, `removeFirst()` and others require replacements. `Dispatchers.IO` requires `import kotlinx.coroutines.IO` on Native (extension property, not auto-imported).
 - Always use latest docs (Context7/find-docs/web search), never training data
 - 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
 - Must emit completion promise with `tests: N` where N > 0. `FILE_COMPLETE` with `tests: 0` is rejected by the orchestrator — migration without characterization tests is not accepted.
@@ -135,7 +135,7 @@ Run the tests:
 - Apply `expect`/`actual` declarations for any remaining platform-specific behavior
 - API signatures MUST match Android exactly: same method names, parameter names, parameter order, return types
 - Android is the source of truth — replicate behavior, do not improve it
-- **Platform API check:** Before writing any code, cross-reference ALL APIs used in the file against `references/platform-api-gotchas.md`. Replace any API listed as "NOT available in commonMain" with its documented replacement. Common traps: `Dispatchers.IO` (use `Dispatchers.Default`), `@Volatile` (use `@kotlin.concurrent.Volatile`), `String.format()` (use custom formatter), `removeFirst()` (use `removeAt(0)`).
+- **Platform API check:** Before writing any code, cross-reference ALL APIs used in the file against `references/platform-api-gotchas.md`. Replace any API listed as unavailable with its documented replacement. Common traps: `Dispatchers.IO` (requires `import kotlinx.coroutines.IO` on Native — not auto-imported), `@Volatile` (use `@kotlin.concurrent.Volatile`), `String.format()` (use custom formatter), `removeFirst()` (use `removeAt(0)`).
 - If Android code has a logic bug, migrate the bug as-is and mark it with a `// BUG:` comment — do not block migration for logic bugs
 - If there is architectural ambiguity that could silently break consumers: output REQUIRES_APPROVAL rather than guessing
 

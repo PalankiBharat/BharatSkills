@@ -6,7 +6,7 @@ APIs that compile on JVM/Android but fail on Kotlin/Native (iOS) or are unavaila
 
 | API | Problem | Replacement | Notes |
 |-----|---------|-------------|-------|
-| `Dispatchers.IO` | `internal` on Kotlin/Native even with coroutines 1.9.0 | `Dispatchers.Default` in commonMain | Only use `Dispatchers.IO` in `androidMain`/`jvmMain`. For IO-bound work in commonMain, use `Dispatchers.Default` or create an `expect`/`actual` dispatcher. |
+| `Dispatchers.IO` | On Native, it's an **extension property** requiring `import kotlinx.coroutines.IO` (not a member like on JVM). Not available on JS/Wasm. | `Dispatchers.IO` with correct import in commonMain (JVM+Native). `expect`/`actual` only if targeting JS/Wasm. | Available since kotlinx-coroutines 1.7.0 (Kotlin 1.8.20+). On Native: real thread pool (up to 64 threads, lazily allocated, no elasticity). Ensure `import kotlinx.coroutines.IO` is present — IDE may not auto-import it on Native. |
 | `kotlin.jvm.Volatile` / `@Volatile` | JVM-only annotation | `@kotlin.concurrent.Volatile` | Available since Kotlin 1.8.20. Import `kotlin.concurrent.Volatile`. |
 | `@Synchronized` | JVM-only annotation | `kotlinx.atomicfu.locks.SynchronizedObject` + `synchronized(lock) {}` | Requires `kotlinx-atomicfu` dependency. See atomicfu section below. |
 | `String.format()` | Java stdlib method, not available on Native | Custom formatter or `kotlin.math` rounding | For decimal formatting: use `kotlin.math.round` or write a `formatDecimal(value, precision)` helper. |
