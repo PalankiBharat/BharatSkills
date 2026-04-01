@@ -46,8 +46,10 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
 - **Completion promise required.** Every agent must emit a completion promise string as its last output. No promise = work not accepted.
 - **Tests are immutable after baseline.** Once the orchestrator runs baseline and tests pass, test files must not be modified. If tests fail after migration, fix the migration.
 - **API signature parity.** Migrated KMM code must have identical method signatures to Android — same method names, parameter names, parameter order, return types.
-- **Always use latest docs.** Use Context7, `/find-docs`, or web search for library APIs, versions, and patterns. Never rely on training data — it may be outdated.
-- **Latest stable deps.** When adding new dependencies, check the latest stable version via live docs, not training data.
+- **Dependency research (mandatory):** When looking up ANY dependency, library version, API compatibility, or KMM availability: (1) **Web search + Context7/find-docs** for latest availability, versions, and API status — this step is NOT optional. (2) **Skill references** (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns, swap code examples, and known gotchas. **Combine both** — live data confirms what's current, skill references provide proven patterns and caveats learned from past migrations. Neither alone is sufficient. (3) **Training data NEVER** — it has caused incorrect guidance (Dispatchers.IO, Paging3 KMP, library versions). If web search is unavailable, explicitly state "unable to verify via live search" rather than falling back to training data silently.
+- **Latest stable deps.** When adding new dependencies, check the latest stable version via web search or Context7, not training data or skill reference files (which may have outdated version numbers).
+- **No "Shared" prefix** on class/file names in commonMain. Keep names natural (e.g., `LoginViewModel` not `SharedLoginViewModel`).
+- **Host app DI stays untouched.** When migrating a library SDK consumed by a host app with its own DI framework (Hilt, Dagger): keep the host app's DI as-is. Add Koin alongside for the SDK's types only. Bridge via a small module. Do NOT propose removing the host app's DI framework.
 
 ---
 
@@ -476,6 +478,101 @@ val viewModelModule = module {
 val viewModelModule = module {
     factory { UserViewModel(get()) }
 }
+```
+
+---
+
+### Empty Lambda Callbacks
+
+**What to look for:** Callback parameters (`onClick`, `onSubmit`, `onDismiss`, any `() -> Unit` parameter) with default `= {}` that are never overridden by the parent composable.
+
+**Why it's a problem:** The button/control compiles and renders correctly but does nothing when tapped. This is the most common form of silent unwiring during screen migration — the user only discovers it during manual testing.
+
+**Where to look:**
+- Migrated Compose screens — especially child composables that accept callback lambdas
+- Parent composables that instantiate child components — check whether all callbacks are passed
+
+**How to fix:** Trace the callback chain from declaration to call site. Wire the missing action from the parent composable to the appropriate ViewModel action. If the action is unclear, escalate via REQUIRES_APPROVAL rather than leaving the empty lambda.
+
+**Code example:**
+
+Bad:
+```kotlin
+@Composable
+fun WithdrawalsScreen(
+    onOpenWhatsapp: (String) -> Unit = {} // dead button — never passed from parent
+) {
+    Button(onClick = { onOpenWhatsapp(supportNumber) }) {
+        Text("Need Help?")
+    }
+}
+```
+
+Good:
+```kotlin
+@Composable
+fun WithdrawalsScreen(
+    onOpenWhatsapp: (String) -> Unit // no default — parent MUST pass it
+) {
+    Button(onClick = { onOpenWhatsapp(supportNumber) }) {
+        Text("Need Help?")
+    }
+}
+
+// Parent:
+WithdrawalsScreen(
+    onOpenWhatsapp = { number -> viewModel.processAction(OpenWhatsapp(number)) }
+)
+```
+
+---
+
+### Multiple SharedFlow Collectors
+
+**What to look for:** More than one composable or SwiftUI view collecting from the same `SharedFlow(replay=0)` or `Channel`.
+
+**Why it's a problem:** Only one collector receives each emission. When multiple composables independently collect from the same SharedFlow, effects are silently split between them — some effects go to collector A, some to collector B, and the user sees inconsistent behavior. This compiles and looks correct but breaks at runtime.
+
+**Where to look:**
+- NavHost-based screens migrated to state-machine navigation
+- Parent composables that collect effects AND child composables that also collect from the same flow
+- SwiftUI views with multiple `.task {}` blocks collecting the same flow
+
+**How to fix:** Ensure only ONE composable/view collects from each SharedFlow/Channel. Child composables should receive effects via parameters from the parent, not through their own collectors.
+
+**Code example:**
+
+Bad:
+```kotlin
+// Parent collects
+LaunchedEffect(Unit) {
+    viewModel.effects.collect { effect -> handleEffect(effect) }
+}
+
+// Child ALSO collects from the same flow — effects are split!
+@Composable
+fun ChildScreen(viewModel: MyViewModel) {
+    LaunchedEffect(Unit) {
+        viewModel.effects.collect { effect -> handleChildEffect(effect) }
+    }
+}
+```
+
+Good:
+```kotlin
+// Only parent collects
+LaunchedEffect(Unit) {
+    viewModel.effects.collect { effect ->
+        when (effect) {
+            is ParentEffect -> handleEffect(effect)
+            is ChildEffect -> childEffectHandler(effect)
+        }
+    }
+}
+
+// Child receives effects via parameter
+@Composable
+fun ChildScreen(onEffect: (ChildEffect) -> Unit) { ... }
 ```
 
 ---

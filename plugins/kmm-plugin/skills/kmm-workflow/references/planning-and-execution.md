@@ -135,6 +135,7 @@ Update the STATUS comments and Rules after every phase completes.
 - The verification step(s) the user specified
 - Runs at EVERY checkpoint before committing
 - ALL must pass before a checkpoint commit is allowed — no exceptions
+- **CRITICAL:** Build commands MUST use verified Gradle task names from Task 1.13 — NEVER write build commands based on assumptions. Wrong task names (e.g., `compileReleaseKotlinIosArm64` instead of `compileKotlinIosArm64`) waste a full build cycle and require manual correction.
 
 ---
 
@@ -183,12 +184,26 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Generate `e2e-tests/screen-map.json` — record every screen in scope with navigation steps, key elements to verify, CTA targets, and known blockers (OTP, login, personal details). Define user journey flows in the screen map for mobile-mcp automated testing.
 - **Task 1.7b:** Generate fake server: `e2e-tests/fake-server.js`. See `references/automated-testing.md` for template. Commit `e2e-tests/` to the worktree.
 - **Task 1.7c:** Allocate dedicated device and ports for this gameplan (prevents collisions with concurrent gameplans). See `references/automated-testing.md` § Device & Port Isolation. Auto-allocate by scanning for free ports and existing emulators/simulators. Record allocated device serials and FAKE_PORT in PLAN.md header (`<!-- DEVICE: ... -->`, `<!-- PORTS: ... -->`).
+- **Note:** All e2e-tests files (Tasks 1.7, 1.7b) MUST be created inside the worktree path established in Task 1.2, not the main repo working directory.
 - **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases.
 - **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md.
-- **Task 1.10:** Verify build task names — run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names for Android compilation, iOS arm64 compilation, and app assembly. Record verified task names in PLAN.md build verification section. Never write build commands based on assumptions.
-- **Task 1.11:** Generate `build-verify.sh` in the gameplan directory using the verified build commands from Task 1.10. This project-specific script is the single source of truth for build checks throughout all phases — zero LLM tokens on mechanical builds. See [Build Verification Script](#build-verification-script) for the template and usage.
-- **Task 1.12:** Dispatch **Sonnet agent** (`plan-analyzer.md`) to find remaining ambiguity → resolve → user approves.
-- **Task 1.13:** Verify the current repo builds clean (in the worktree) by running `<gameplan-dir>/build-verify.sh <worktree-dir>`. If already broken → STOP and escalate.
+- **Task 1.10:** Dependency decision framework — Read `references/dependency-decision-framework.md`. For each Android-only dependency in the module:
+  1. Look up the recommended decision (Replace/Port/Abstract) in the framework
+  2. Present the recommendation WITH rationale to the user — do not ask open-ended "what should we do?" questions
+  3. Only ask if the framework has no recommendation or the user's situation differs from the default
+  4. Record all decisions in findings.md with the rationale
+- **Task 1.11:** Android API audit — Before writing migration-guide.md per-file specs, grep all files planned for commonMain migration for Android-only APIs (`android.util.Log`, `System.currentTimeMillis`, `java.util.Date`, `org.joda.time`, `org.json`, `com.google.gson`, `@Synchronized`, `java.util.concurrent`, `Dispatchers.IO`, `GlobalScope`, `@VisibleForTesting`, `android.content.Context`, `android.content.SharedPreferences`). Record EVERY occurrence per file. The per-file spec in migration-guide.md MUST list the specific replacement for each occurrence — never write "should port cleanly" or "minimal changes".
+- **Task 1.12:** Library KMP audit — For every Android-only library being replaced (Paging3, Room, DataStore, Navigation, etc.), web search for official KMP support before planning a manual alternative. AndroidX libraries are rapidly adding KMP support — training data is outdated, always research first. Record findings in findings.md.
+- **Task 1.13:** Verify build task names — run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names for Android compilation, iOS arm64 compilation, and app assembly. Record verified task names in PLAN.md build verification section. Never write build commands based on assumptions.
+- **Task 1.14:** Generate `build-verify.sh` in the gameplan directory using the verified build commands from Task 1.13. This project-specific script is the single source of truth for build checks throughout all phases — zero LLM tokens on mechanical builds. See [Build Verification Script](#build-verification-script) for the template and usage.
+- **Task 1.15:** Dispatch **Sonnet agent** (`plan-analyzer.md`) to find remaining ambiguity → resolve → user approves.
+- **Task 1.15b:** Gap analysis is mandatory before presenting plan for approval. The orchestrator MUST run the plan-analyzer agent and fix all BLOCKER/HIGH issues BEFORE asking the user to approve. Do NOT present a plan with known gaps and wait for the user to ask for a review.
+- **Task 1.15c:** Interface completeness check — When creating abstraction interfaces (e.g., ScripStore wrapping ObjectBox), read the FULL implementation class AND all consumers (grep for usages across all repos). Include:
+  - All public methods from the implementation class
+  - All direct field access by consumers (e.g., `store.boxStore.query()` bypassing the API)
+  - Convert these direct accesses into proper interface methods
+  Never estimate the method count — read the code and list every method.
+- **Task 1.16:** Verify the current repo builds clean (in the worktree) by running `<gameplan-dir>/build-verify.sh <worktree-dir>`. If already broken → STOP and escalate.
 - **Checkpoint 1** committed in the worktree. Commit message: `chore: begin KMM migration for [module-name]`
 
 ---
@@ -412,15 +427,22 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.7c Allocate dedicated device + FAKE_PORT (auto), record in PLAN.md header
 - [ ] 1.8 Verify platform navigation architecture
 - [ ] 1.9 Verify SDK availability
-- [ ] 1.10 Verify build task names
-- [ ] 1.11 Generate build-verify.sh
-- [ ] 1.12 Plan ambiguity analysis (plan-analyzer.md)
-- [ ] 1.13 Verify clean build baseline
+- [ ] 1.10 Dependency decision framework (references/dependency-decision-framework.md)
+- [ ] 1.11 Android API audit (grep Android-only APIs per file)
+- [ ] 1.12 Library KMP audit (web search for official KMP support)
+- [ ] 1.13 Verify build task names
+- [ ] 1.14 Generate build-verify.sh
+- [ ] 1.15 Plan ambiguity analysis (plan-analyzer.md)
+- [ ] 1.15b Mandatory gap analysis — fix BLOCKER/HIGH before approval
+- [ ] 1.15c Interface completeness check
+- [ ] 1.16 Verify clean build baseline
 - [ ] Checkpoint 1 committed
 
 ## Phase 2: SCAFFOLD
 - [ ] 2.1 Create KMM module skeleton (build.gradle.kts, source sets)
 - [ ] 2.2 Write expect/actual stubs for platform APIs
+- [ ] 2.3 Add commonTest source set (kotlin-test + kotlinx-coroutines-test)
+- [ ] 2.4 Add kotlinx-atomicfu if @Synchronized replacement needed
 - [ ] 2.N ...
 - [ ] Checkpoint 2 committed
 
@@ -630,7 +652,7 @@ Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHEC
 
 ## Build Verification Script
 
-During Phase 1 (Task 1.11), generate a project-specific `build-verify.sh` in the gameplan directory. This script is tailored to the actual project — using the exact Gradle task names and xcodebuild commands verified in Task 1.10. The skill stays project-agnostic; the script is project-specific.
+During Phase 1 (Task 1.14), generate a project-specific `build-verify.sh` in the gameplan directory. This script is tailored to the actual project — using the exact Gradle task names and xcodebuild commands verified in Task 1.13. The skill stays project-agnostic; the script is project-specific.
 
 **Template** (adapt to the project's verified build commands):
 
@@ -664,7 +686,9 @@ run_check() {
   rm -f "$out"
 }
 
-# ── Verified build commands (from Task 1.10) ──
+# ── Verified build commands (from Task 1.13) ──
+# NEVER use assumed task names. These must come from:
+#   ./gradlew :<module>:tasks --all | grep -i <platform>
 # Replace these with the actual verified commands for this project:
 run_check "./gradlew :shared:compileDebugKotlin"
 run_check "./gradlew :shared:compileKotlinIosArm64"

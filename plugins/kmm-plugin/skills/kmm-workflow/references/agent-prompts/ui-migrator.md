@@ -13,7 +13,7 @@
 - StateFlow only (no LiveData)
 - No runBlocking on main thread
 - expect/actual for platform-specific code
-- Always use latest docs (Context7/find-docs/web search), never training data
+- **Dependency research (mandatory):** (1) Web search + Context7/find-docs for latest availability, versions, and API status. (2) Skill references (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns and gotchas. **Combine both** — live data confirms what's current, skill references provide proven swap patterns. Neither alone is sufficient. (3) Training data NEVER — it has caused wrong guidance.
 - 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
 - Must emit completion promise
 
@@ -156,6 +156,21 @@ struct <ScreenName>: View {
 
 ---
 
+## onClick Audit (mandatory before completion)
+
+Before reporting UI_COMPLETE, you MUST verify every interactive element is wired:
+
+1. **Scan all callback parameters** — find every `onClick`, `onTap`, `onSubmit`, `onDismiss`, and any `() -> Unit` / `() -> Void` parameter in the screen
+2. **Trace each callback** — follow from the composable/view declaration up to where it's called from the parent. Verify the parent passes a real action (ViewModel call, navigation, etc.) — not an empty lambda `= {}`
+3. **Flag empty defaults** — any callback parameter with default `= {}` that is never overridden by the parent is a dead button. Report it as a finding.
+4. **Verify clickable modifiers** — check `.clickable {}`, `.onTapGesture {}`, and `Button(action:)` blocks. Each must contain a real action, not an empty closure.
+
+If ANY interactive element is unwired, do NOT report UI_COMPLETE. Instead either:
+- Fix the wiring by passing the correct callback from the parent (if the ViewModel action is obvious)
+- Report UI_BLOCKED listing each unwired element in the reason field (e.g., "3 unwired callbacks: onOpenWhatsapp, onRetry, onDismiss — parent does not pass actions")
+
+---
+
 ## Completion Output
 
 **On success:**
@@ -171,7 +186,7 @@ UI_COMPLETE: <screen-name> | strategy: <CMP|SwiftUI|Hybrid> | components: N | re
 **If blocked:**
 
 ```
-UI_BLOCKED: <screen-name> | reason: <clear one-sentence explanation>
+UI_BLOCKED: <screen-name> | reason: <clear explanation, may include list of unwired elements>
 ```
 
 Do not make assumptions to unblock yourself. Stop and report.

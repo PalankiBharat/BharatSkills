@@ -13,7 +13,8 @@
 - StateFlow only (no LiveData)
 - No runBlocking on main thread
 - expect/actual for platform-specific code
-- Always use latest docs (Context7/find-docs/web search), never training data
+- Cross-check ALL APIs against `references/platform-api-gotchas.md` before writing commonMain code — `@Volatile`, `String.format()`, `removeFirst()` and others require replacements. `Dispatchers.IO` requires `import kotlinx.coroutines.IO` on Native (extension property, not auto-imported).
+- **Dependency research (mandatory):** (1) Web search + Context7/find-docs for latest availability, versions, and API status. (2) Skill references (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns and gotchas. **Combine both** — live data confirms what's current, skill references provide proven swap patterns. Neither alone is sufficient. (3) Training data NEVER — it has caused wrong guidance.
 - 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
 - Must emit completion promise with `tests: N` where N > 0. `FILE_COMPLETE` with `tests: 0` is rejected by the orchestrator — migration without characterization tests is not accepted.
 
@@ -42,9 +43,10 @@ Why: <reasoning>
 
 Execute these steps in order. Do not skip any.
 
-### Step 1: Stage original → shared/src/androidMain/
+### Step 1: Stage original and remove from Android source set
 
 - Copy the Android source file into `shared/src/androidMain/` at the appropriate package path
+- **IMMEDIATELY delete the original file from `src/main/java/`** (or `src/main/kotlin/`) — commonMain compiles into all platform targets including Android, so keeping the original causes duplicate class declaration errors
 - Update the package declaration to match the KMM module's package structure
 - Update any imports that reference scaffolded interfaces or types already in `commonMain` — these must now use the `commonMain` package paths
 - Make MINIMAL changes only: package, namespace, imports to resolve compilation in the KMM context
@@ -133,6 +135,7 @@ Run the tests:
 - Apply `expect`/`actual` declarations for any remaining platform-specific behavior
 - API signatures MUST match Android exactly: same method names, parameter names, parameter order, return types
 - Android is the source of truth — replicate behavior, do not improve it
+- **Platform API check:** Before writing any code, cross-reference ALL APIs used in the file against `references/platform-api-gotchas.md`. Replace any API listed as unavailable with its documented replacement. Common traps: `Dispatchers.IO` (requires `import kotlinx.coroutines.IO` on Native — not auto-imported), `@Volatile` (use `@kotlin.concurrent.Volatile`), `String.format()` (use custom formatter), `removeFirst()` (use `removeAt(0)`).
 - If Android code has a logic bug, migrate the bug as-is and mark it with a `// BUG:` comment — do not block migration for logic bugs
 - If there is architectural ambiguity that could silently break consumers: output REQUIRES_APPROVAL rather than guessing
 
@@ -204,7 +207,14 @@ val user = Json { ignoreUnknownKeys = true }.decodeFromString<User>(json)
 
 Do NOT use `expect`/`actual` as a shortcut for dependency swaps that have pure-`commonMain` solutions.
 
-### Step 8: Run SAME tests against commonMain — must ALL PASS
+### Step 8: Delete the staged androidMain copy
+
+- Delete the file from `shared/src/androidMain/` that was staged in Step 1
+- This MUST happen before running tests — both `commonMain` and `androidMain` compile into the Android target, so keeping both causes duplicate class declaration errors
+- After this step: the migrated code exists ONLY in `shared/src/commonMain/`
+- The original `src/main/java/` file was already deleted in Step 1
+
+### Step 9: Run SAME tests against commonMain — must ALL PASS
 
 Run the same test suite again (no changes to tests):
 
@@ -218,12 +228,6 @@ Run the same test suite again (no changes to tests):
   - Attempt 2: apply a targeted fix to the commonMain file only — no test changes
   - Attempt 3: apply a second targeted fix — if still failing, output FILE_BLOCKED
 - Every fix attempt must conform to the 1:1 rule — fix the KMM port to match Android behavior, never adjust tests to match wrong behavior
-
-### Step 9: Delete the staged androidMain copy
-
-- Delete the file from `androidMain` that was staged in Step 1
-- The migrated code must exist ONLY in `commonMain` after this step
-- No duplicate copies. No dead code left behind.
 
 ### Step 10: Wire imports for consumers
 
@@ -243,11 +247,11 @@ Run the same test suite again (no changes to tests):
 
 ## What You MUST NOT Do
 
-- **Do NOT skip Steps 5, 6, or 8.** Step 5 (write tests) is NOT optional — migration without characterization tests is rejected by the orchestrator. Tests must pass at both checkpoints — against staged androidMain (Step 6) AND against commonMain (Step 8). A `FILE_COMPLETE` with `tests: 0` is invalid and will be rejected.
+- **Do NOT skip Steps 5, 6, or 9.** Step 5 (write tests) is NOT optional — migration without characterization tests is rejected by the orchestrator. Tests must pass at both checkpoints — against staged androidMain (Step 6) AND against commonMain (Step 9). A `FILE_COMPLETE` with `tests: 0` is invalid and will be rejected.
 - **Do NOT change test files to make a failing migration pass.** If tests fail after migration, fix the migration.
 - **Do NOT change API signatures.** Method names, parameter names, parameter order, and return types must match the Android source exactly. Android is in production — any signature drift breaks callers.
 - **Do NOT improve or refactor.** Zero behavioral changes. Zero "while we're here" edits. If Android has a bug, migrate the bug and note it with `// BUG:`.
-- **Do NOT modify files outside the assigned scope.** Only touch: the `commonMain` target file, the `androidMain` staged copy (to stage then delete), `expect`/`actual` platform files for the migrated type, test files written for this migration, and consumer import paths.
+- **Do NOT modify files outside the assigned scope.** Only touch: the `commonMain` target file, the `androidMain` staged copy (to stage then delete), `expect`/`actual` platform files for the migrated type, test files written for this migration, consumer import paths, and DI module bindings (Koin modules) for the migrated type.
 
 ---
 
