@@ -65,7 +65,7 @@ On ANY invocation, always ask: Create / Continue. Never auto-resume. Never assum
 ## Workflow
 
 ```
-CREATE → user /clear → Phases 2-3 (scaffold + migrate) → /clear → Phases 4-5 (wiring + testing) → DONE
+Phase 1 (PLAN) → /clear → Phases 2-3 (scaffold + migrate) → /clear → Phases 4-5 (wiring + testing) → Retrospective → DONE
 ```
 
 ### Mandatory /clear Points
@@ -204,6 +204,7 @@ The retrospective is NOT optional — it runs automatically. The user can skip i
 ## References (read ONLY when entering relevant phase)
 
 - `references/planning-and-execution.md` — Phase 1 (PLAN)
+- `references/automated-testing.md` — Phase 1 (PLAN): device/port isolation, fake server, screen-map setup
 - `references/kmm-architecture.md` — Phase 2 (SCAFFOLD): expect/actual patterns, source set structure, ViewModel/DI/coroutine patterns, gotchas
 - `references/dependency-replacements.md` — Phase 3 (SHARED CODE MIGRATION): library swap tables and before/after code examples
 - `references/kmm-architecture.md` — Phase 3 (SHARED CODE MIGRATION): architecture patterns and battle-tested gotchas
@@ -235,8 +236,9 @@ If a phase's build/test fails after migrations are complete:
 
 ### Wrong Branch
 On Continue, before reading PLAN.md, verify:
-1. Current branch matches the base branch recorded in PLAN.md header
-2. If mismatch → STOP, report to user, do not proceed
+1. The worktree is on the `feature/<name>` branch recorded in PLAN.md header
+2. The base branch in PLAN.md matches the branch the worktree was created from
+3. If mismatch → STOP, report to user, do not proceed
 
 ### Stale Sessions
 On Continue, when listing gameplans:

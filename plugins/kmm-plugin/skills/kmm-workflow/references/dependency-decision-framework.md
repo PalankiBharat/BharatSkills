@@ -39,10 +39,11 @@ When migrating an Android SDK to KMM, every Android-only dependency needs a deci
 ## Coroutines version guidance
 
 Always check if upgrading kotlinx-coroutines unlocks APIs needed in commonMain:
-- **1.8.0+**: `Dispatchers.IO` available in commonMain (previously JVM-only)
+- **1.9.0+**: Latest stable with full Native support
+- **1.8.0+**: Improved Native coroutine support
 - **1.7.0+**: New Kotlin/Native memory model (fixes threading issues)
 
-If the project uses coroutines <1.8.0 and needs `Dispatchers.IO` in commonMain, upgrade as part of the migration.
+**WARNING:** `Dispatchers.IO` is `internal` on Kotlin/Native even with coroutines 1.9.0. Do NOT use `Dispatchers.IO` in commonMain. Use `Dispatchers.Default` or create an `expect`/`actual` dispatcher. See `references/platform-api-gotchas.md` for the full list of APIs not available on Native.
 
 ## Wire protobuf specifics
 

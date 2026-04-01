@@ -652,7 +652,7 @@ Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHEC
 
 ## Build Verification Script
 
-During Phase 1 (Task 1.11), generate a project-specific `build-verify.sh` in the gameplan directory. This script is tailored to the actual project — using the exact Gradle task names and xcodebuild commands verified in Task 1.10. The skill stays project-agnostic; the script is project-specific.
+During Phase 1 (Task 1.14), generate a project-specific `build-verify.sh` in the gameplan directory. This script is tailored to the actual project — using the exact Gradle task names and xcodebuild commands verified in Task 1.13. The skill stays project-agnostic; the script is project-specific.
 
 **Template** (adapt to the project's verified build commands):
 

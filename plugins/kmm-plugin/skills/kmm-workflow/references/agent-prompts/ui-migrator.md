@@ -167,7 +167,7 @@ Before reporting UI_COMPLETE, you MUST verify every interactive element is wired
 
 If ANY interactive element is unwired, do NOT report UI_COMPLETE. Instead either:
 - Fix the wiring by passing the correct callback from the parent (if the ViewModel action is obvious)
-- Report UI_BLOCKED with the list of unwired elements
+- Report UI_BLOCKED listing each unwired element in the reason field (e.g., "3 unwired callbacks: onOpenWhatsapp, onRetry, onDismiss — parent does not pass actions")
 
 ---
 
@@ -186,7 +186,7 @@ UI_COMPLETE: <screen-name> | strategy: <CMP|SwiftUI|Hybrid> | components: N | re
 **If blocked:**
 
 ```
-UI_BLOCKED: <screen-name> | reason: <clear one-sentence explanation>
+UI_BLOCKED: <screen-name> | reason: <clear explanation, may include list of unwired elements>
 ```
 
 Do not make assumptions to unblock yourself. Stop and report.

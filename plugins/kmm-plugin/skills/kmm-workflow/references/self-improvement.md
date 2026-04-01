@@ -41,7 +41,7 @@ Scan for iOS/Android-specific issues discovered during migration:
 - Runtime behavior differences between platforms
 - Build configuration surprises
 
-**Output:** New entry in `references/kmm-architecture.md` gotchas section.
+**Output:** New entry in `references/platform-api-gotchas.md` (for APIs not available on Native) or `references/kmm-architecture.md` gotchas section (for architectural/runtime gotchas).
 
 ### Category E: Library-Specific Knowledge
 New information about KMM library compatibility:
@@ -49,7 +49,7 @@ New information about KMM library compatibility:
 - "ObjectBox doesn't support KMM"
 - Version-specific features ("coroutines 1.8.0+ has Dispatchers.IO in commonMain")
 
-**Output:** Updated entry in `references/dependency-decision-framework.md` or `references/dependency-replacements.md`.
+**Output:** Summary row (library → decision → replacement → rationale) goes in `references/dependency-decision-framework.md`. Full before/after code examples go in `references/dependency-replacements.md`. If both are needed, update both files.
 
 ## How to present
 
