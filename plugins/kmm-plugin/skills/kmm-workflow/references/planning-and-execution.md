@@ -135,6 +135,7 @@ Update the STATUS comments and Rules after every phase completes.
 - The verification step(s) the user specified
 - Runs at EVERY checkpoint before committing
 - ALL must pass before a checkpoint commit is allowed — no exceptions
+- **CRITICAL:** Build commands MUST use verified Gradle task names from Task 1.13 — NEVER write build commands based on assumptions. Wrong task names (e.g., `compileReleaseKotlinIosArm64` instead of `compileKotlinIosArm64`) waste a full build cycle and require manual correction.
 
 ---
 
@@ -183,6 +184,7 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Generate `e2e-tests/screen-map.json` — record every screen in scope with navigation steps, key elements to verify, CTA targets, and known blockers (OTP, login, personal details). Define user journey flows in the screen map for mobile-mcp automated testing.
 - **Task 1.7b:** Generate fake server: `e2e-tests/fake-server.js`. See `references/automated-testing.md` for template. Commit `e2e-tests/` to the worktree.
 - **Task 1.7c:** Allocate dedicated device and ports for this gameplan (prevents collisions with concurrent gameplans). See `references/automated-testing.md` § Device & Port Isolation. Auto-allocate by scanning for free ports and existing emulators/simulators. Record allocated device serials and FAKE_PORT in PLAN.md header (`<!-- DEVICE: ... -->`, `<!-- PORTS: ... -->`).
+- **Note:** All e2e-tests files (Tasks 1.7, 1.7b) MUST be created inside the worktree path established in Task 1.2, not the main repo working directory.
 - **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases.
 - **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md.
 - **Task 1.10:** Dependency decision framework — Read `references/dependency-decision-framework.md`. For each Android-only dependency in the module:
@@ -439,6 +441,8 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 ## Phase 2: SCAFFOLD
 - [ ] 2.1 Create KMM module skeleton (build.gradle.kts, source sets)
 - [ ] 2.2 Write expect/actual stubs for platform APIs
+- [ ] 2.3 Add commonTest source set (kotlin-test + kotlinx-coroutines-test)
+- [ ] 2.4 Add kotlinx-atomicfu if @Synchronized replacement needed
 - [ ] 2.N ...
 - [ ] Checkpoint 2 committed
 
@@ -682,7 +686,9 @@ run_check() {
   rm -f "$out"
 }
 
-# ── Verified build commands (from Task 1.10) ──
+# ── Verified build commands (from Task 1.13) ──
+# NEVER use assumed task names. These must come from:
+#   ./gradlew :<module>:tasks --all | grep -i <platform>
 # Replace these with the actual verified commands for this project:
 run_check "./gradlew :shared:compileDebugKotlin"
 run_check "./gradlew :shared:compileKotlinIosArm64"

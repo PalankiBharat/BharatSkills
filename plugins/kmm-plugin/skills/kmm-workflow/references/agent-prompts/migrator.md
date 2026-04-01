@@ -13,6 +13,7 @@
 - StateFlow only (no LiveData)
 - No runBlocking on main thread
 - expect/actual for platform-specific code
+- Cross-check ALL APIs against `references/platform-api-gotchas.md` before writing commonMain code — `Dispatchers.IO`, `@Volatile`, `String.format()`, `removeFirst()` and others are NOT available on Native
 - Always use latest docs (Context7/find-docs/web search), never training data
 - 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
 - Must emit completion promise with `tests: N` where N > 0. `FILE_COMPLETE` with `tests: 0` is rejected by the orchestrator — migration without characterization tests is not accepted.
@@ -42,9 +43,10 @@ Why: <reasoning>
 
 Execute these steps in order. Do not skip any.
 
-### Step 1: Stage original → shared/src/androidMain/
+### Step 1: Stage original and remove from Android source set
 
 - Copy the Android source file into `shared/src/androidMain/` at the appropriate package path
+- **IMMEDIATELY delete the original file from `src/main/java/`** (or `src/main/kotlin/`) — commonMain compiles into all platform targets including Android, so keeping the original causes duplicate class declaration errors
 - Update the package declaration to match the KMM module's package structure
 - Update any imports that reference scaffolded interfaces or types already in `commonMain` — these must now use the `commonMain` package paths
 - Make MINIMAL changes only: package, namespace, imports to resolve compilation in the KMM context
@@ -133,6 +135,7 @@ Run the tests:
 - Apply `expect`/`actual` declarations for any remaining platform-specific behavior
 - API signatures MUST match Android exactly: same method names, parameter names, parameter order, return types
 - Android is the source of truth — replicate behavior, do not improve it
+- **Platform API check:** Before writing any code, cross-reference ALL APIs used in the file against `references/platform-api-gotchas.md`. Replace any API listed as "NOT available in commonMain" with its documented replacement. Common traps: `Dispatchers.IO` (use `Dispatchers.Default`), `@Volatile` (use `@kotlin.concurrent.Volatile`), `String.format()` (use custom formatter), `removeFirst()` (use `removeAt(0)`).
 - If Android code has a logic bug, migrate the bug as-is and mark it with a `// BUG:` comment — do not block migration for logic bugs
 - If there is architectural ambiguity that could silently break consumers: output REQUIRES_APPROVAL rather than guessing
 
@@ -221,8 +224,9 @@ Run the same test suite again (no changes to tests):
 
 ### Step 9: Delete the staged androidMain copy
 
-- Delete the file from `androidMain` that was staged in Step 1
-- The migrated code must exist ONLY in `commonMain` after this step
+- Delete the file from `shared/src/androidMain/` that was staged in Step 1
+- After this step: the migrated code exists ONLY in `shared/src/commonMain/`
+- The original `src/main/java/` file was already deleted in Step 1
 - No duplicate copies. No dead code left behind.
 
 ### Step 10: Wire imports for consumers

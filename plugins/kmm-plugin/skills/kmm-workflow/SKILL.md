@@ -88,6 +88,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - Write migration-guide.md (per-file specs with "Migrate after" for DAG)
 - PARALLEL after migration-guide done: [PLAN.md + PROGRESS.md] ‖ [findings.md] ‖ [fake-server-config + screen-map.json]
 - Generate fake server infrastructure: `e2e-tests/fake-server.js` and `e2e-tests/fake-server-config.json`. See `references/automated-testing.md`.
+- **All e2e-tests files** (`fake-server-config.json`, `screen-map.json`, `fake-server.js`) MUST be created inside the worktree path, not the main repo working directory. The worktree is created in Task 1 of Phase 1 — all file creation happens there.
 - **Allocate dedicated device + ports** for this gameplan (prevents collisions when multiple gameplans test concurrently). Auto-allocate by scanning for free ports and existing devices. Record in PLAN.md header. See `references/automated-testing.md` § Device & Port Isolation.
 - Verify platform navigation architecture: read the actual Android Router/Navigator and iOS AppRouter/Coordinator code before writing Wire phases. Record the verified architecture in findings.md.
 - Verify build task names: run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names. Record verified names in PLAN.md build verification section.
@@ -105,6 +106,9 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 
 - From migration-guide.md, identify ALL external dependencies (classes not being migrated)
 - For each: create interface in commonMain + androidMain actual delegating to original
+- **Scaffold dependencies:** Ensure `build.gradle.kts` for the shared module includes:
+  - `kotlinx-atomicfu` in commonMain if ANY migrated file uses `@Synchronized` or `java.util.concurrent` (check migration-guide.md)
+  - `commonTest` source set with `kotlin("test")` and `kotlinx-coroutines-test` — without this, `@Test` annotations fail with `NonExistentClass` errors and ALL characterization tests are blocked
 - Build check: run `<gameplan-dir>/build-verify.sh` (project-specific, zero LLM tokens)
 - CHECKPOINT COMMIT "scaffold: interfaces for <module>"
 - Read `references/kmm-architecture.md` before this phase
@@ -112,6 +116,7 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 ### Phase 3: SHARED CODE MIGRATION (dependency-level parallelism)
 
 - Build dependency DAG from migration-guide.md "Migrate after" fields
+- **Platform API pre-check:** Before dispatching migrator agents, ensure ALL agents receive `references/platform-api-gotchas.md` as context. APIs like `Dispatchers.IO`, `@Volatile`, `String.format()`, `removeFirst()` compile on JVM but fail on Native — agents must use the documented replacements.
 - For each level (leaves first):
   - PARALLEL: dispatch Sonnet subagent per file (full TDD pipeline):
     1. Stage original → shared/src/androidMain/ (update imports to use interfaces/commonMain)
@@ -208,6 +213,7 @@ The retrospective is NOT optional — it runs automatically. The user can skip i
 - `references/automated-testing.md` — Phases 4, 5 (testing)
 - `references/dependency-decision-framework.md` — Phase 1 (PLAN): dependency Replace/Port/Abstract decisions
 - `references/self-improvement.md` — Migration retrospective (post-Phase 1 and post-completion)
+- `references/platform-api-gotchas.md` — Phase 3 (SHARED CODE MIGRATION): APIs not available in commonMain/Native
 
 ## Recovery Protocols
 

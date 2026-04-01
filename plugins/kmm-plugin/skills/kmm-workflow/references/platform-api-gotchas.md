@@ -1,0 +1,97 @@
+# KMM Platform API Gotchas
+
+APIs that compile on JVM/Android but fail on Kotlin/Native (iOS) or are unavailable in commonMain. Migrator agents MUST check this table before writing commonMain code.
+
+## APIs NOT Available in commonMain
+
+| API | Problem | Replacement | Notes |
+|-----|---------|-------------|-------|
+| `Dispatchers.IO` | `internal` on Kotlin/Native even with coroutines 1.9.0 | `Dispatchers.Default` in commonMain | Only use `Dispatchers.IO` in `androidMain`/`jvmMain`. For IO-bound work in commonMain, use `Dispatchers.Default` or create an `expect`/`actual` dispatcher. |
+| `kotlin.jvm.Volatile` / `@Volatile` | JVM-only annotation | `@kotlin.concurrent.Volatile` | Available since Kotlin 1.8.20. Import `kotlin.concurrent.Volatile`. |
+| `@Synchronized` | JVM-only annotation | `kotlinx.atomicfu.locks.SynchronizedObject` + `synchronized(lock) {}` | Requires `kotlinx-atomicfu` dependency. See atomicfu section below. |
+| `String.format()` | Java stdlib method, not available on Native | Custom formatter or `kotlin.math` rounding | For decimal formatting: use `kotlin.math.round` or write a `formatDecimal(value, precision)` helper. |
+| `MutableList.removeFirst()` | Java 21 `SequencedCollection` method | `removeAt(0)` | `removeFirst()` compiles on JVM 21+ but crashes with `NoSuchMethodError` on JVM 8 targets and is absent on Native. |
+| `MutableList.removeLast()` | Java 21 `SequencedCollection` method | `removeAt(lastIndex)` | Same as `removeFirst()`. |
+| `System.currentTimeMillis()` | Java stdlib | `Clock.System.now().toEpochMilliseconds()` | Requires `kotlinx-datetime`. |
+| `java.util.UUID` | Java stdlib | `kotlin.uuid.Uuid` (Kotlin 2.0+) | Built into Kotlin stdlib 2.0+. For older Kotlin: use `expect`/`actual`. |
+| `java.util.concurrent.*` | Java concurrency package | `kotlinx.coroutines.sync.Mutex`, `kotlinx.atomicfu` | `ConcurrentHashMap` → `Mutex`-guarded `MutableMap`. `AtomicInteger` → `kotlinx.atomicfu.atomic(0)`. |
+| `java.io.File` | Java IO | `okio` or `expect`/`actual` | Use Okio for multiplatform file operations, or abstract behind `expect`/`actual`. |
+| `android.util.Log` | Android-only | Napier (`io.github.aakira:napier`) | `Log.d(tag, msg)` → `Napier.d(msg, tag = tag)`. |
+| `android.content.Context` | Android-only | Pass via DI or `expect`/`actual` | Never reference `Context` in commonMain. Inject platform-specific implementations via Koin. |
+| `android.content.SharedPreferences` | Android-only | `multiplatform-settings` (`com.russhwolf`) | Wraps SharedPreferences (Android) and NSUserDefaults (iOS). |
+| `@VisibleForTesting` | AndroidX annotation | Remove or use `internal` visibility | No commonMain equivalent. If needed for testing, make the member `internal`. |
+| `Locale` / `java.util.Locale` | Java stdlib | Platform-specific via `expect`/`actual` | No standard KMM locale API. Use `expect`/`actual` or skip locale-dependent formatting. |
+
+## atomicfu Setup
+
+When replacing `@Synchronized` or `java.util.concurrent` atomics, you MUST add the `kotlinx-atomicfu` dependency during Phase 2 (SCAFFOLD):
+
+```kotlin
+// build.gradle.kts — shared module
+kotlin {
+    sourceSets {
+        commonMain.dependencies {
+            implementation("org.jetbrains.kotlinx:atomicfu:0.23.2")
+        }
+    }
+}
+```
+
+**Usage pattern:**
+
+```kotlin
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
+
+class ThreadSafeCache : SynchronizedObject() {
+    private val cache = mutableMapOf<String, Any>()
+
+    fun get(key: String): Any? = synchronized(this) { cache[key] }
+    fun put(key: String, value: Any) = synchronized(this) { cache[key] = value }
+}
+```
+
+## commonTest Setup
+
+During Phase 2 (SCAFFOLD), the `commonTest` source set MUST be configured with test dependencies:
+
+```kotlin
+// build.gradle.kts — shared module
+kotlin {
+    sourceSets {
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+        }
+    }
+}
+```
+
+Without this, `@Test` annotations resolve to `NonExistentClass` and kapt/ksp fails on the entire module.
+
+## String Formatting Helper
+
+For `String.format("%.Nf", value)` replacement in commonMain:
+
+```kotlin
+fun Double.formatDecimal(precision: Int): String {
+    val factor = 10.0.pow(precision)
+    val rounded = kotlin.math.round(this * factor) / factor
+    val parts = rounded.toString().split(".")
+    val intPart = parts[0]
+    val decPart = (parts.getOrElse(1) { "0" }).padEnd(precision, '0').take(precision)
+    return "$intPart.$decPart"
+}
+
+// Usage: value.formatDecimal(2) instead of String.format("%.2f", value)
+```
+
+## Duplicate Class Resolution
+
+When migrating a file from `src/main/java/` to `shared/src/commonMain/`:
+
+- `commonMain` compiles into ALL platform targets, including Android
+- If the original `src/main/java/` file still exists with the same package + class name, the Android compilation sees TWO declarations → hard compiler error
+- The original MUST be deleted (or moved to a backup location outside the source set) BEFORE any compile or test step
+
+This is NOT optional — duplicate declarations are a hard build failure, not a warning.
