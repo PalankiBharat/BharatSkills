@@ -13,7 +13,7 @@
 - StateFlow only (no LiveData)
 - No runBlocking on main thread
 - expect/actual for platform-specific code
-- **Dependency research order (mandatory):** (1) Web search + Context7/find-docs FIRST — KMM moves fast, live data is the only reliable source. (2) Skill references (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) SECOND — battle-tested but may lag. (3) Training data NEVER.
+- **Dependency research (mandatory):** (1) Web search + Context7/find-docs for latest availability, versions, and API status. (2) Skill references (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns and gotchas. **Combine both** — live data confirms what's current, skill references provide proven swap patterns. Neither alone is sufficient. (3) Training data NEVER — it has caused wrong guidance.
 - 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
 - Must emit completion promise
 
