@@ -10,9 +10,11 @@ Runs AFTER all shared code migration phases are checkpointed. BEFORE iOS.
 ## Table of Contents
 
 1. [Wire Android Protocol](#1-wire-android-protocol)
+   - 1.0 [Pre-Wire Analysis](#10-pre-wire-analysis)
    - 1.1 [Update Imports in Android Consumers](#11-update-imports-in-android-consumers)
    - 1.2 [Update DI (Hilt → Koin)](#12-update-di-hilt--koin)
    - 1.3 [Delete Original Android Files](#13-delete-original-android-files)
+   - 1.4 [Consumer Wrapper Pattern](#14-consumer-wrapper-pattern)
 2. [Parallel Execution](#2-parallel-execution)
 3. [Build & Test](#3-build--test)
 4. [Runtime Verification](#4-runtime-verification)
@@ -30,6 +32,18 @@ Runs AFTER all shared code migration phases are checkpointed. BEFORE iOS.
 **Goal:** Switch the Android app module from its original Android-only source files to the newly
 migrated shared module. All consumers updated, originals deleted, Android build passes, app
 verified working.
+
+### 1.0 Pre-Wire Analysis
+
+Before starting consumer wiring, enumerate ALL breaking type changes from the SDK migration:
+
+| Old SDK Type | New SDK Type | Propagation |
+|-------------|-------------|-------------|
+| `OldClass` | `NewClass` | N files, method signatures + field types |
+| `java.util.Date` (in SDK methods) | `kotlinx.datetime.Instant` | N call sites need conversion |
+| `OldInterface` | `NewInterface` | N DI bindings + N constructor params |
+
+This table drives the wiring work breakdown. "Update imports" underestimates when types actually changed — the real work is type propagation through consumer code (method signatures, field types, generic parameters, DI bindings).
 
 ### 1.1 Update Imports in Android Consumers
 
@@ -58,6 +72,32 @@ Then delete. Do not defer deletions — stale files cause ambiguous imports.
 If deletion would break a non-migrated consumer (consumer is `platform-stay` or outside scope):
 → REQUIRES_APPROVAL: present options (migrate consumer now, keep original alongside shared,
 use typealias)
+
+### 1.4 Consumer Wrapper Pattern
+
+When the consumer app has a wrapper class (e.g., `ScripRepository`) that delegates to the SDK's interface:
+
+**DO:** Keep the wrapper implementing the consumer's own interfaces. Inject the SDK interface as a dependency.
+```kotlin
+class ScripRepository(
+    private val scripStore: ScripStore,  // SDK interface, injected
+    private val scripLocalStore: ScripLocalStore
+) : GetChartFromScripRepository, GetScripListRepository {  // Consumer interfaces only
+    // Delegates to scripStore for SDK queries
+}
+```
+
+**DON'T:** Make the wrapper implement the SDK interface directly.
+```kotlin
+// BAD — forces implementing all 18+ abstract methods as boilerplate pass-throughs
+class ScripRepository(...) : ScripStore {
+    override fun get(scripId: Long) = scripLocalStore.get(scripId)  // boilerplate
+    override fun getFromIsin(isin: String) = scripLocalStore.getFromIsin(isin)  // boilerplate
+    // ... 16 more
+}
+```
+
+If consumers need the full SDK interface, inject `ScripStore` directly — don't wrap it.
 
 ---
 

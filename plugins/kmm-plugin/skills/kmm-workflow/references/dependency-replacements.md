@@ -10,6 +10,7 @@ Project-agnostic reference for every common Android library and its KMM replacem
 
 - [Networking: Retrofit + OkHttp → Ktor Client](#networking-retrofit--okhttp--ktor-client)
 - [Serialization: Gson / Moshi → kotlinx.serialization](#serialization-gson--moshi--kotlinxserialization)
+  - [Consumer Impact: ApiClient Generic Type Changes](#consumer-impact-apiclient-generic-type-changes)
 - [Dependency Injection: Hilt / Dagger → Koin 4](#dependency-injection-hilt--dagger--koin-4)
 - [Preferences: SharedPreferences → Multiplatform-Settings](#preferences-sharedpreferences--multiplatform-settings-russhwolf)
 - [Database: Room → Room 2.7+ KMP or SQLDelight](#database-room--room-27-kmp-or-sqldelight)
@@ -151,6 +152,29 @@ val json = Json { ignoreUnknownKeys = true }
 val user = json.decodeFromString<User>(jsonString)
 val encoded = json.encodeToString(user)
 ```
+
+### Consumer Impact: ApiClient Generic Type Changes
+
+When SDK remote stores migrate from Gson (`JSONObject`) to kotlinx-serialization (`JsonObject`), the `ApiClient<Request, Response>` generic parameter types change:
+
+**Before (consumer DI):**
+```kotlin
+@Provides fun provideApiClient(httpClient: HttpClient): ApiClient<Map<String, String>, JSONObject> =
+    KtorApiClientImpl(httpClient, StringToJSONMapper())
+```
+
+**After (consumer DI):**
+```kotlin
+@Provides fun provideApiClient(httpClient: HttpClient): ApiClient<Map<String, String>, JsonObject> =
+    KtorApiClientImpl(httpClient, StringToJsonObjectMapper())
+```
+
+Changes:
+- `org.json.JSONObject` → `kotlinx.serialization.json.JsonObject` in generic params
+- Inner mapper classes may be renamed (e.g., `StringToJSONMapper` → `StringToJsonObjectMapper`)
+- Consumer DI modules that construct these ApiClient instances need updating
+
+**Phase 6 action:** Grep consumer DI for `ApiClient<.*JSONObject>` and update to `JsonObject`.
 
 ---
 
