@@ -32,7 +32,7 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
 - **Every decision in files.** After /clear, only files survive. Never leave decisions only in chat.
 - **No type casting.** Never use `as`, `as?`, `as!` in Kotlin or Swift. Use polymorphism, generics, protocol conformance, or `is` checks instead.
 - **kotlinx.serialization only.** Never use Gson or Moshi in shared/common code.
-- **`sealed interface`, not `sealed class`.** Prefer `sealed interface` for KMM discriminated unions.
+- **`sealed interface` preferred, `sealed class` for SKIE-consumed Action/Effect types.** Prefer `sealed interface` for general KMM discriminated unions. However, when sealed types are consumed from Swift via SKIE `onEnum(of:)` (e.g., Action and Effect types in ViewModels), `sealed class` may be required — SKIE generates more reliable exhaustive switch support for `sealed class` subtypes. If Swift `onEnum(of:)` fails to pattern-match on a `sealed interface`, switch to `sealed class`.
 - **Ktor only.** Never use Retrofit or OkHttp in `commonMain`. Use Ktor client.
 - **Koin 4 only.** Never use Hilt or Dagger in shared code. Use Koin 4 for DI.
 - **`kotlinx-datetime` only.** Never use `java.time` or platform date APIs in `commonMain`.

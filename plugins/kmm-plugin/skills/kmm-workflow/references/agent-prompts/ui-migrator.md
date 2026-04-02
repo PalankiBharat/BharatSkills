@@ -6,7 +6,7 @@
 - Any behavioral change → REQUIRES_APPROVAL
 - No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
 - kotlinx.serialization only (no Gson/Moshi)
-- Sealed interface (not sealed class)
+- Sealed interface preferred; sealed class for SKIE-consumed Action/Effect types (see rules-and-guardrails.md)
 - Ktor only (no Retrofit/OkHttp)
 - Koin 4 only (no Hilt/Dagger)
 - kotlinx-datetime only (no java.time)
@@ -134,7 +134,7 @@ struct <ScreenName>: View {
 **What:** Write a SwiftUI view that consumes the shared KMM ViewModel via SKIE. No ViewModel changes.
 
 **Workflow:**
-1. Read the shared ViewModel already in `commonMain` — understand all exposed `StateFlow`s, effects, and public functions
+1. Read the shared ViewModel already in `commonMain` — list ALL public Flow properties (`StateFlow`, `SharedFlow`, `Channel`), not just `state` and `effects`. Some VMs expose additional flows (e.g., `navigationEvents: SharedFlow<Route?>`, `toastEvents: SharedFlow<String>`). Missing a flow means missing all its events in the iOS UI — no crash, just silent feature loss.
 2. Read the Android UI that consumes it to understand the expected layout and behavior
 3. Write the SwiftUI view consuming the same ViewModel (same template as Strategy 2)
 4. Wire all SKIE `StateFlow` observations following the same SKIE interop rules above
@@ -151,6 +151,7 @@ struct <ScreenName>: View {
 - Modify files outside the assigned screen, its navigation wiring, and `pbxproj`
 - Combine multiple `.task {}` blocks for separate `StateFlow` observations
 - Add effect collectors in child views when a parent view already collects from the same `SharedFlow`/`Channel` — this silently swallows effects at runtime
+- Forget to subscribe to ALL public Flow properties on a ViewModel — check for flows beyond `state` and `effects` (e.g., `navigationEvents`, `toastEvents`). Each flow needs its own `.task {}` block in SwiftUI
 - Change default values of state variables (e.g., `showTopBar = false` → `true`) — a default value flip is a behavioral change requiring REQUIRES_APPROVAL
 - Rely on training data for library APIs — always check current docs first
 

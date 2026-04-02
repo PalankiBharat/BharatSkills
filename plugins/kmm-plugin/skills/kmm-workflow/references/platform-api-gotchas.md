@@ -26,6 +26,7 @@ APIs that compile on JVM/Android but fail on Kotlin/Native (iOS) or are unavaila
 | `println()` | Output goes to stdout on iOS, NOT captured by `xcrun simctl spawn ... log stream/show`. Invisible for debugging. | Use `Napier.d()` / `Napier.e()` (which uses `NSLog` on iOS) | Always replace `println` debug statements with Napier in shared code. `println` is fine for JVM unit tests but useless for iOS runtime debugging. |
 | Extra headers in migrated HTTP clients | Ktor `HttpClientFactory` may add headers (e.g., `platform`, `app_version`) that the original OkHttp client never sent. Backend servers may 500 on unexpected headers. | Diff the exact headers sent by original vs migrated client. Remove any headers not present in the original. | Debug with curl bisection: reproduce the request via curl, remove headers one at a time until the error resolves. Also verify `app_version` sends the version name string (e.g., `"1.2.3"`), not the numeric version code. |
 | `DialogProperties.decorFitsSystemWindows` | Android Compose only, not in CMP | Remove the parameter | CMP `DialogProperties` only supports `dismissOnBackPress`, `dismissOnClickOutside`, `usePlatformDefaultWidth`. Android-specific params like `decorFitsSystemWindows` cause compile failure on iOS. |
+| SKIE `data object` vs `data class` Swift access | Kotlin `data object` subtypes of sealed classes are accessed via `.shared` property in Swift, not `()` constructor. `data class` subtypes use `()` constructor as normal. Getting this wrong causes compile errors or silent nil values. | `data object Idle : State` → Swift: `State.Idle.shared`. `data class Loaded(val items: List<Item>) : State` → Swift: `State.Loaded(items: [...])` | Applies to ALL sealed class/interface subtypes consumed via SKIE `onEnum(of:)` in SwiftUI. |
 
 ## atomicfu Setup
 
@@ -73,6 +74,44 @@ kotlin {
 ```
 
 Without this, `@Test` annotations resolve to `NonExistentClass` and kapt/ksp fails on the entire module.
+
+## Napier Initialization
+
+Napier MUST be initialized at app startup on EACH platform. Without initialization, all `Napier.d()`, `Napier.e()`, etc. calls are **silently no-ops** — no crash, no warning, just missing logs. This makes debugging impossible.
+
+**Android** (`Application.onCreate()`):
+```kotlin
+import io.github.aakira.napier.DebugAntilog
+import io.github.aakira.napier.Napier
+
+class MyApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        Napier.base(DebugAntilog())
+    }
+}
+```
+
+**iOS** (`AppDelegate` or app entry point):
+```swift
+import shared // or your framework name
+
+@main
+struct MyApp: App {
+    init() {
+        NapierKt.debugBuild() // or call a Kotlin helper that initializes Napier
+    }
+}
+```
+
+**Kotlin helper (commonMain):**
+```kotlin
+fun debugBuild() {
+    Napier.base(DebugAntilog())
+}
+```
+
+Verify Napier initialization BEFORE relying on log output for debugging. If logs are empty during a debug loop, check initialization first.
 
 ## String Formatting Helper
 
@@ -151,3 +190,24 @@ binaries.framework {
 }
 ```
 Apply to ALL iOS targets.
+
+## KAPT `_` Keyword Conflict in Worktrees
+
+KAPT (Kotlin Annotation Processing Tool) in some Kotlin versions treats `_` as a reserved keyword in property setters. This manifests as a build error in worktrees or CI where clean builds run from scratch.
+
+**Symptom:** `'_' is a reserved keyword` or `name expected` error in generated code referencing `set(_){}`.
+
+**Fix options:**
+1. Add compiler argument: `freeCompilerArgs += "-Xno-new-java-annotation-targets"` in `build.gradle.kts`
+2. In manual code: use `set(value){}` instead of `set(_){}` for unused setter parameters
+
+```kotlin
+// build.gradle.kts
+tasks.withType<KotlinCompile> {
+    compilerOptions {
+        freeCompilerArgs.add("-Xno-new-java-annotation-targets")
+    }
+}
+```
+
+This is most commonly encountered when creating fresh worktrees where the Gradle cache doesn't mask the issue.
