@@ -101,9 +101,24 @@ Labels: `skill:kmm-workflow`, `type:self-improvement`, `session:<date>`
 
 - **Always create retrospective issues on `PunchHQ/claude-code-skills`**, NOT on the app repo. The learnings are about the skill itself, not the app.
 
+## Generalization rule (mandatory)
+
+Every learning MUST be generalized before capturing. The skill's reference files are project-agnostic — they must be useful for ANY KMM migration, not just the current project.
+
+**Before writing any learning, strip:**
+- Project-specific class/interface names → replace with generic examples (e.g., `MyUseCase` not `IGetEstimatedMarginUseCase`)
+- Branch names, repo names, artifact names → describe the pattern (e.g., "check if a KMM branch exists" not "merge `feature/xyz-kmm`")
+- API endpoints, server names, product names → describe the category (e.g., "backend server" not "Heimdall")
+- Gameplan/phase-specific context → extract the reusable principle
+
+**Test:** Would a developer on a completely different Android→KMM project find this learning useful as-is? If they'd need to mentally replace project names to understand it, it's not generalized enough.
+
+**For external SDK dependencies:** When capturing a learning about an SDK's KMM availability, do NOT record the specific SDK. Instead, record the **process improvement** — e.g., "always ask the user if a KMM version exists for external SDK deps before building Android bridge adapters."
+
 ## What NOT to capture
 
-- Project-specific decisions (base URLs, artifact names, branch names)
+- Project-specific decisions (base URLs, artifact names, branch names, class names)
 - One-off bugs that were fixed during the session
 - User preferences that are already in CLAUDE.md (like "no type casting")
 - Anything already in the skill's reference files
+- Phase-specific or gameplan-specific details that only apply to the current session

@@ -36,7 +36,7 @@ When migrating an Android SDK to KMM, every Android-only dependency needs a deci
 | **org.json.JSONObject/JSONArray** | Replace | `kotlinx.serialization.json.JsonObject/JsonArray` | Already in most KMM projects. |
 | **java.util.concurrent** | Replace | kotlinx.coroutines.sync.Mutex + atomicfu | `@Synchronized` → `Mutex.withLock{}`, `ConcurrentLinkedQueue` → Mutex-guarded MutableList. |
 | **Dispatchers.IO** | Keep | `Dispatchers.IO` (with `import kotlinx.coroutines.IO`) | Available on JVM + Native targets since coroutines 1.7.0. Extension property on Native — requires explicit import. NOT available on JS/Wasm. Do NOT replace with `Dispatchers.Default`. |
-| **MarketPulse SDK (AAR)** | Replace | MarketPulse KMM SDK (`feature/marketpulse-kmm` branch) | KMM version available with `ScripStore` (replaces `MPScripQueryRepository`), `IMultiChannelLiveFeedUseCase`, `ScripFeedModel` all in commonMain. Sniper wiring branch: `feature/marketpulse-kmm-wiring` (replaces `Scrip` → `ScripEntity`, `MPScripQueryRepository` → `ScripStore`). Merge the wiring branch before Phase 4 to avoid double-adapter work. |
+| **External AAR SDK (no KMM)** | Replace (if KMM exists) or Abstract | Ask user if a KMM/KMP version of the SDK exists (check for KMM branches in the SDK repo). If yes: replace with the KMM version before Phase 4 to avoid building throwaway Android bridge adapters. If no: Abstract with expect/actual interface. | Before building Android-only bridge adapters, always confirm KMM availability with the user — building adapters then discovering a KMM version exists means double work. |
 
 ## Coroutines version guidance
 

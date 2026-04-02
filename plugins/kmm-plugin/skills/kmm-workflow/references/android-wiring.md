@@ -276,7 +276,7 @@ Common KMM runtime crash signatures to look for in logs:
 8. **Hilt scope mismatch** — `cannot be provided without an @Provides-annotated method`
    - Root cause: `SharedBridgeEntryPoint` is `@InstallIn(SingletonComponent)` but the type is provided in `@InstallIn(ViewModelComponent)`. Parent components can't see child component bindings.
    - Fix: Either (a) move the `@Provides` to a `@InstallIn(SingletonComponent)` module with `@Singleton` scope, or (b) expose the type's raw dependencies via the entry point and construct it manually in `initializeKoin()`.
-   - Watch for: `IGetEstimatedMarginUseCase`, `IPlaceMultipleOrdersUseCase`, `GetOrdersUseCase`, `IPositionsAndPnlObserver` — commonly ViewModelScoped but needed by shared Koin modules.
+   - Watch for: any use case or repository that is `@InstallIn(ViewModelComponent)` but needed by shared Koin modules at singleton scope.
 
 ---
 

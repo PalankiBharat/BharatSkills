@@ -201,6 +201,8 @@ After Phase 1 approval and after final phase completion, the retrospective runs 
 
 The retrospective is NOT optional and NOT interactive — it runs automatically and reports results. The user can modify issues after the fact.
 
+**Generalization is mandatory.** All learnings must be project-agnostic — strip specific class names, branch names, API endpoints, and product names. Extract the reusable pattern. See `references/self-improvement.md` § "Generalization rule" for details.
+
 ## Agent Dispatch Table
 
 | Task | Prompt | Model | Returns |
