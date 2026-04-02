@@ -193,10 +193,11 @@ After Phase 1 approval and after final phase completion, the retrospective runs 
 1. Read `references/self-improvement.md`
 2. Scan conversation AND `findings.md` (if exists) for learnings (Categories A-E)
 3. Cross-reference against existing skill files to avoid duplicates
-4. Check existing open issues — comment on matching issues instead of creating duplicates
-5. Create/update GitHub issues on `PunchHQ/claude-code-skills` (NOT the app repo)
-6. Label: `skill:kmm-workflow`, `type:self-improvement`, `session:<date>`
-7. Present summary of what was created/updated — user reviews afterward
+4. Cross-reference findings against each other — merge duplicates within the same retrospective
+5. Check existing open issues — comment on matching issues instead of creating duplicates
+6. Create/update GitHub issues on `PunchHQ/claude-code-skills` (NOT the app repo)
+7. Label: `skill:kmm-workflow`, `type:self-improvement`, `session:<date>`
+8. Present summary of what was created/updated — user reviews afterward
 
 The retrospective is NOT optional and NOT interactive — it runs automatically and reports results. The user can modify issues after the fact.
 

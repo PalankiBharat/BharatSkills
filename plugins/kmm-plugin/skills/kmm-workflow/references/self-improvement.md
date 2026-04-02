@@ -4,8 +4,11 @@
 
 Run **automatically** at these points — do NOT wait for the user to ask:
 - After Phase 1 (PLAN) is approved — capture planning-phase learnings before /clear
+- After Phase 3 (SHARED CODE MIGRATION) completes — capture execution-phase learnings before /clear
 - After all phases complete — capture execution-phase learnings
 - On any REQUIRES_APPROVAL that the user had to manually resolve
+
+The retrospective MUST complete BEFORE the orchestrator instructs `/clear`. Context is erased on clear — if the retrospective hasn't run, all session learnings are permanently lost.
 
 ## What to scan for
 
@@ -93,13 +96,6 @@ Body contains for each learning:
 - **Section:** where in the file
 - **Content to add:** the actual markdown/text to insert (copy-pasteable)
 - **Rationale:** why this was learned (what went wrong without it)
-
-### Deduplication
-Before creating a new issue, check for existing open issues:
-```bash
-gh issue list --state open --label "skill:kmm-workflow" --label "type:self-improvement" --json number,title,body
-```
-If an existing open issue covers the same topic/file, **add a comment** to that issue with the new learnings instead of creating a duplicate issue. Only create a new issue if no existing issue matches.
 
 Labels: `skill:kmm-workflow`, `type:self-improvement`, `session:<date>`
 
