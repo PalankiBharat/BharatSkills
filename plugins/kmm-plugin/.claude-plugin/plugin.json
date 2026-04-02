@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "4.7.0",
-  "description": "KMM migration orchestrator v4.7 — platform API gotchas blocklist, duplicate-class resolution flow, scaffold dependency checklist (atomicfu + commonTest), dependency decision framework, onClick/empty-lambda audit, Library KMP audit, Android API audit, mandatory gap analysis, interface completeness check, self-improving retrospective, two-layer testing (unit tests + mobile-mcp flows), screen-map caching, device/port isolation, TDD enforcement, stub audit, blocker handling, SharedFlow audit, transitive Koin check, 5-phase workflow, 1:1 mechanical port, session-scoped gameplans, worktree auto-creation, mandatory /clear points, auto-continue between phases, migration retrospective learnings (Phases 3-5), iOS platform gotchas (SKIE, ATS, CMP resources, safe area, theme wrapping), DI binding patterns, visual parity baselines, Phase 6 retrospective learnings (version resolution, emulator restart, pre-wire analysis, consumer wrapper pattern, removed API audit, multiplatform-settings consumer dep, ApiClient type changes).",
+  "version": "4.8.0",
+  "description": "Battle-tested KMM migration orchestrator — 5-phase workflow (plan, scaffold, shared code, wire Android, wire iOS) with TDD enforcement, autonomous self-improving retrospective, two-layer testing (unit + mobile-mcp E2E), comprehensive platform gotchas reference, and dependency decision framework. 1:1 mechanical port with parallel agent execution.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"

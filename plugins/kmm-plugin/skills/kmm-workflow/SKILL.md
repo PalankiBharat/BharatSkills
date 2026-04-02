@@ -189,15 +189,19 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 
 ### Migration Retrospective (auto-triggers)
 
-After Phase 1 approval and after final phase completion:
+After Phase 1 approval and after final phase completion, the retrospective runs **autonomously** — do NOT wait for user prompting:
 1. Read `references/self-improvement.md`
-2. Scan conversation for learnings (Categories A-E)
+2. Scan conversation AND `findings.md` (if exists) for learnings (Categories A-E)
 3. Cross-reference against existing skill files to avoid duplicates
-4. Present summary to user with specific file changes
-5. On approval: create GitHub issue with copy-pasteable content
-6. Label: `skill:kmm-workflow`, `type:self-improvement`, `session:<date>`
+4. Cross-reference findings against each other — merge duplicates within the same retrospective
+5. Check existing open issues — comment on matching issues instead of creating duplicates
+6. Create/update GitHub issues on the **skill's own repo** (NOT the app repo being migrated) — detect via `gh repo view --json nameWithOwner`
+7. Label: `skill:kmm-workflow`, `type:self-improvement`, `session:<date>`
+8. Present summary of what was created/updated — user reviews afterward
 
-The retrospective is NOT optional — it runs automatically. The user can skip individual findings but the scan always happens.
+The retrospective is NOT optional and NOT interactive — it runs automatically and reports results. The user can modify issues after the fact.
+
+**Generalization is mandatory.** All learnings must be project-agnostic — strip specific class names, branch names, API endpoints, and product names. Extract the reusable pattern. See `references/self-improvement.md` § "Generalization rule" for details.
 
 ## Agent Dispatch Table
 
@@ -259,6 +263,8 @@ On Continue, when listing gameplans:
 ## Rules
 
 - Auto-continue between phases — do NOT pause to ask "should I continue?" or "Phase X complete, proceed?". Continue automatically to the next phase unless: (a) a mandatory `/clear` point is reached, (b) REQUIRES_APPROVAL items need user decision, or (c) a build/test failure blocks progress. Status updates are fine ("Starting Phase N"), confirmation prompts are not.
+- **Always create a worktree — even for non-migration work.** ALL work done via this skill must use git worktrees. This includes E2E test setup, Appium configuration, SDK wiring — not just migration phases. Working directly on the base branch risks polluting it with experimental changes.
+- **Rate limit awareness in E2E testing.** Login OTP has rate limits (max 2-3 resends → 10-min block). Each test run counts. Plan E2E runs carefully and use a fake server for repeated iterations during development.
 - mobile-mcp automated flows are MANDATORY after runtime verification in Phases 4 and 5. The orchestrator MUST NEVER skip them. Phase order is: Wire → runtime verify → mobile-mcp flows → Manual Test. No exceptions.
 - When a worktree exists, ALL agent prompts must include the worktree path as the target directory for file creation and edits
 - Orchestrator NEVER writes migration code — only agents do
@@ -280,11 +286,11 @@ On Continue, when listing gameplans:
 - When using a reference branch for patterns, **copy specific files** — never merge or pull the branch.
 - After Phase 1 approval, after Phase 3 completion, and after final phase completion, ALWAYS run the migration retrospective (`references/self-improvement.md`). This is the skill's learning mechanism — skipping it means the same mistakes repeat in the next migration.
 - **Empty lambda audit at phase boundaries:** Before any checkpoint commit in Phases 4-5, scan all migrated composables for callback parameters with default `= {}`. Trace each to verify it reaches a real action. Dead buttons from empty lambdas are the most common form of silent unwiring.
-- **Retrospective before /clear is mandatory.** The orchestrator MUST run the migration retrospective (`references/self-improvement.md`) BEFORE instructing the user to `/clear`. Context is erased on clear — if the retrospective hasn't run, all session learnings are permanently lost. The "auto-trigger" mechanism does not work in practice; treat it as a manual mandatory step. Sequence: finish phase → run retrospective → present findings → user approves/skips → THEN instruct `/clear`.
+- **Retrospective before /clear is mandatory and autonomous.** The orchestrator MUST run the migration retrospective (`references/self-improvement.md`) BEFORE instructing the user to `/clear`. Context is erased on clear — if the retrospective hasn't run, all session learnings are permanently lost. The retrospective runs end-to-end without user input: scan → deduplicate → create/comment issues → summarize. Sequence: finish phase → run retrospective → present summary → THEN instruct `/clear`.
 - **PROGRESS.md is a checklist, not a journal.** Each checkbox should be ONE line describing *what* was done, not *how*. Implementation details (file names, version numbers, build flags, workarounds) belong in findings.md or commit messages. If a task needs sub-bullets, limit to 2-3 short items max.
 - **No CoroutineScope lifecycle changes in 1:1 ports.** Migration agents MUST NOT add `CoroutineScope.cancel()` or scope recreation (`coroutineScope = CoroutineScope(...)`) to classes that manage their own scope lifecycle. If the original only cancels individual jobs in `disconnect()`, the migration must do the same. Scope lifecycle changes are behavioral changes that REQUIRES_APPROVAL. Specifically: changing `val coroutineScope` to `var coroutineScope` to enable cancel/recreate is a red flag — the original used `val` for a reason.
 - **Verify every fix automatically.** After making any code fix, the orchestrator MUST rebuild, install, and run automated E2E testing of the specific flow affected. Iterate until the fix is verified working. Never report a fix to the user without automated verification passing first.
-- **Scaffold backgroundColor on all CMP Scaffolds.** Every `Scaffold` in shared CMP screens MUST set `backgroundColor` explicitly (e.g., `Background5`). The default is `MaterialTheme.colors.background` which is white when no dark MaterialTheme is configured. This applies to all sub-screens in nav hosts, not just the top-level screen.
+- **Scaffold backgroundColor on all CMP Scaffolds.** Every `Scaffold` in shared CMP screens MUST set `backgroundColor` explicitly (e.g., your app's background color token). The default is `MaterialTheme.colors.background` which is white when no dark MaterialTheme is configured. This applies to all sub-screens in nav hosts, not just the top-level screen.
 - **No TODO placeholders in migrated code.** Migrated composables MUST NOT contain `// TODO` comments with placeholder content (emoji text, empty Box, commented-out Image). If a drawable resource is needed, copy it from Android `res/drawable/` to `shared/src/commonMain/composeResources/drawable/` during migration. The stub audit at phase boundaries MUST also scan for `// TODO` comments in view files.
 - **Version resolution check (mandatory, Phase 4/5):** After updating the SDK version in a consumer project, run `./gradlew :app:dependencies --configuration <config>Classpath | grep <artifact>` to confirm the resolved version matches. Use `--refresh-dependencies` on the first build. Gradle caches can silently serve stale versions, making the build "pass" against the old SDK.
 - **Emulator restart on network failure:** During runtime verification, if the emulator shows DNS resolution failures (`Unable to resolve host`), the orchestrator MUST restart the emulator (cold boot: `adb -s <device> emu kill`, then re-launch with `emulator -avd <name> -no-snapshot-load`), wait for boot + network, reinstall, and re-verify. Never commit a checkpoint when the app is stuck on splash due to network errors — it masks real DI/initialization crashes.

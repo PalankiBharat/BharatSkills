@@ -901,13 +901,13 @@ case .navigateToNext:   // Effect.NavigateToNext in Kotlin
 **Simulator vs device behavior** — Keychain, push notifications, and biometrics behave differently on simulator. If a feature fails only on device, check entitlements and provisioning.
 
 ### ComposeUIViewController Theme Wrapping
-Every `ComposeUIViewController` factory function MUST wrap its content in `PunchTheme { ... }`. Unlike Android where the Activity's theme propagates, iOS ComposeUIViewControllers start with no theme context. Missing theme = wrong fonts + light mode colors.
+Every `ComposeUIViewController` factory function MUST wrap its content in your app's theme composable (e.g., `AppTheme { ... }`). Unlike Android where the Activity's theme propagates, iOS ComposeUIViewControllers start with no theme context. Missing theme = wrong fonts + light mode colors.
 
 ### iOS Safe Area Insets
 When the SwiftUI wrapper uses `.ignoresSafeArea(.all)`, CMP composables get the full screen. The root composable MUST apply:
 - `Modifier.statusBarsPadding()` — prevents content behind the notch
 - `Modifier.navigationBarsPadding()` — prevents buttons in the home indicator zone (touches are silently swallowed by iOS)
-- Parent `Surface` color should match the app's background (e.g., `Background5`) so the status bar area isn't white
+- Parent `Surface` color should match the app's background color token so the status bar area isn't white
 
 ---
 

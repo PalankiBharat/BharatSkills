@@ -600,6 +600,22 @@ single<IFeedWebSocketService> {
 
 **Rule:** Always use `named()` qualifiers for Koin bindings that differ only by generic type parameter. Koin silently returns whichever was registered first, causing hard-to-debug runtime type mismatches (e.g., feed service receiving trading parser → `ClassCastException` kills message consumer channel → live feed appears frozen).
 
+### Koin module declaration order causes NPE
+
+Top-level `val` Koin modules in Kotlin are initialized in file declaration order. If module A uses `includes(moduleB)` but `moduleB` is declared AFTER `moduleA`, `moduleB` is `null` at init time → `NullPointerException: Module.getIncludedModules() on null`.
+
+**Fix:** Declare included modules BEFORE the parent module, or use `lazy` delegation.
+
+```kotlin
+// BAD — loginModule references bottomPanelModule which isn't initialized yet
+val loginModule = module { includes(bottomPanelModule) }
+val bottomPanelModule = module { ... }
+
+// GOOD — bottomPanelModule declared first
+val bottomPanelModule = module { ... }
+val loginModule = module { includes(bottomPanelModule) }
+```
+
 ---
 
 ## Process Gotchas

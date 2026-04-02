@@ -52,6 +52,17 @@ For every file listed under "Consumers" in migration-guide.md:
 - Do not change call sites — signatures are identical (1:1 rule)
 - Dispatch parallel Haiku agents if consumer count > 5 (see Section 2)
 
+**Pager composable tab routing:** When a shared composable uses `HorizontalPager` with multiple tab types (e.g., Positions/Orders/Holdings), and multiple nav routes render the same composable for different tabs, each route MUST pass the correct `initialTab` parameter. Hardcoding a default tab means other tabs silently render the wrong content.
+
+```kotlin
+// BAD — Holdings route shows Positions content
+Route.HoldingsRoute -> { ExpandedPositionsBook() } // defaults to Positions tab
+
+// GOOD — each route specifies its tab
+Route.PositionsRoute -> { ExpandedPositionsBook(initialTab = TabOption.Positions(0)) }
+Route.HoldingsRoute -> { ExpandedPositionsBook(initialTab = TabOption.Holdings(0)) }
+```
+
 ### 1.2 Update DI (Hilt → Koin)
 
 - Wire shared module classes into the Android Koin module (`androidApp/src/.../di/`)
@@ -255,6 +266,17 @@ Common KMM runtime crash signatures to look for in logs:
    - Root cause: mutable state shared across threads under the old K/N memory model
    - Fix: ensure `kotlin.native.binary.memoryModel=experimental` is set, or restructure to avoid
      cross-thread mutation
+
+7. **Duplicate route registration** — API requests cancelled with `CancellationException: StandaloneCoroutine was cancelled`
+   - Root cause: Both `bottomSheet(route.key)` and `composable(route.key)` registered for the same route. First-registered (bottomSheet) wins → screen opens as dismissible sheet → VM scope cancelled on dismiss → API requests fail silently
+   - Symptom: Screen shows empty data, no crash, API logs show `CancellationException`
+   - Fix: grep for duplicate route keys in NavGraph before wiring: `grep -r "Route.XxxRoute.key" app/src/ | grep -E "bottomSheet|composable"`
+   - Delete old route registrations when migrating screens from bottomSheet to composable
+
+8. **Hilt scope mismatch** — `cannot be provided without an @Provides-annotated method`
+   - Root cause: `SharedBridgeEntryPoint` is `@InstallIn(SingletonComponent)` but the type is provided in `@InstallIn(ViewModelComponent)`. Parent components can't see child component bindings.
+   - Fix: Either (a) move the `@Provides` to a `@InstallIn(SingletonComponent)` module with `@Singleton` scope, or (b) expose the type's raw dependencies via the entry point and construct it manually in `initializeKoin()`.
+   - Watch for: any use case or repository that is `@InstallIn(ViewModelComponent)` but needed by shared Koin modules at singleton scope.
 
 ---
 

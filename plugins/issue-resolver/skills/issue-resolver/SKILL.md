@@ -89,7 +89,7 @@ Implement all changes.
    - New files (no conflicts possible)
    - Files only touched by one issue
 3. **Serialize shared files** — files touched by multiple issues must be edited sequentially
-4. **Version bump** — update `plugin.json`, `marketplace.json`, `README.md` as needed
+4. **Version bump** — update `plugin.json`, `marketplace.json`, `README.md` as needed. **Keep descriptions concise (2-3 lines max).** The description should reflect what the plugin does as a whole, NOT enumerate every change being merged. Do not append new learnings/features to the description string — rewrite it if needed to stay concise. **Use semver patch for small changes** (e.g., `4.7.0` → `4.7.1`), minor for new features/learnings (e.g., `4.7.0` → `4.8.0`). Prefer `x.y.z` format — never skip the patch digit (e.g., `4.8.0` not `4.8`).
 5. **Commit** — one commit covering all issue fixes. Message format:
    ```
    fix: resolve N open <scope> issues — <brief summary>

@@ -726,3 +726,9 @@ var biometryLabel: String {
 - HIGH items should be fixed in the same sprint as the migration. Create tickets if they cannot be fixed immediately.
 - MEDIUM items should be addressed in a follow-up pass before the first production release.
 - LOW items are informational. Log them for new team members to avoid confusion, but do not block on them.
+
+### Color value audit for migrated models
+
+When migrating models that store colors as `Long` (packed ARGB), verify all color fields have non-zero values. `0L` in packed ARGB means alpha=0 (fully transparent) — text renders but is invisible.
+
+**Check during Phase 3E (CMP screens):** Grep for `Color = 0L` or `color = 0` in migrated model data classes. Verify against the original Android code's actual color values.
