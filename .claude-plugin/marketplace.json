@@ -76,7 +76,7 @@
     {
       "name": "kmm-plugin",
       "source": "./plugins/kmm-plugin",
-      "description": "Battle-tested KMM migration toolkit v4.8 — autonomous retrospective (findings.md scanning, issue dedup, no user prompts), platform API gotchas blocklist, duplicate-class resolution, scaffold dependency checklist, dependency decision framework, onClick/empty-lambda audit, Library KMP audit, self-improving retrospective, two-layer testing (unit tests + mobile-mcp flows), screen-map caching, device/port isolation, TDD enforcement, stub audit, blocker handling, SharedFlow audit, transitive Koin check, 5-phase workflow, worktree auto-creation, mandatory /clear points, auto-continue between phases, migration retrospective learnings (Phases 3-6), iOS platform gotchas (SKIE, ATS, CMP resources, safe area, theme wrapping), DI binding patterns, visual parity baselines, curl bisection debugging, Compose UiAutomator2 workarounds, WDA version mismatch, Koin module order NPE, NavGraph duplicate route fix, Hilt scope mismatch, color value audit, MarketPulse KMM SDK.",
+      "description": "Battle-tested KMM migration orchestrator — 5-phase workflow (plan, scaffold, shared code, wire Android, wire iOS) with TDD enforcement, autonomous self-improving retrospective, two-layer testing (unit + mobile-mcp E2E), comprehensive platform gotchas reference, and dependency decision framework.",
       "version": "4.8.0",
       "category": "migration",
       "tags": ["kmm", "kotlin-multiplatform", "migration", "tdd", "swiftui", "skie", "ios", "android"],

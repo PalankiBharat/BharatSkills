@@ -99,7 +99,7 @@ Body contains for each learning:
 
 Labels: `skill:kmm-workflow`, `type:self-improvement`, `session:<date>`
 
-- **Always create retrospective issues on `PunchHQ/claude-code-skills`**, NOT on the app repo. The learnings are about the skill itself, not the app.
+- **Always create retrospective issues on the skill's own repo** (detect via `gh repo view --json nameWithOwner`), NOT on the app repo being migrated. The learnings are about the skill itself, not the app.
 
 ## Generalization rule (mandatory)
 
