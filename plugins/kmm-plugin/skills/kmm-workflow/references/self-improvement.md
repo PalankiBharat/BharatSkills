@@ -2,12 +2,19 @@
 
 ## When to trigger
 
-Run automatically at these points:
+Run **automatically** at these points — do NOT wait for the user to ask:
 - After Phase 1 (PLAN) is approved — capture planning-phase learnings before /clear
 - After all phases complete — capture execution-phase learnings
 - On any REQUIRES_APPROVAL that the user had to manually resolve
 
 ## What to scan for
+
+### Source material
+Scan TWO sources for learnings:
+1. **Conversation history** — corrections, surprises, workarounds discovered during the session
+2. **findings.md** — if the gameplan has a `findings.md`, read it for research notes, debug logs, and workarounds that contain reusable learnings
+
+Cross-reference all findings against existing skill files AND against each other to avoid duplicate learnings within the same retrospective.
 
 ### Category A: Decision Framework Gaps
 Scan conversation for patterns where the user had to guide a dependency/architecture choice:
@@ -51,35 +58,31 @@ New information about KMM library compatibility:
 
 **Output:** Summary row (library → decision → replacement → rationale) goes in `references/dependency-decision-framework.md`. Full before/after code examples go in `references/dependency-replacements.md`. If both are needed, update both files.
 
-## How to present
+## Execution (autonomous)
 
-After collecting findings, present to user:
+After collecting findings:
+
+1. **Cross-reference** against existing skill reference files — drop any learning already captured
+2. **Cross-reference** findings against each other — merge duplicates within the same retrospective
+3. **Check existing open issues** — `gh issue list --state open --label "skill:kmm-workflow" --label "type:self-improvement" --json number,title,body`
+4. **For each learning:**
+   - If an existing open issue covers the same file/topic → `gh issue comment <number> --body "<new content>"`
+   - Otherwise → create a new issue (format below)
+5. **Summarize** what was done:
 
 ```
-Migration Retrospective — Learnings from this session
+Retrospective complete — N learnings processed:
 
-Found N learnings to embed into the skill:
+| # | Learning | Action | Issue |
+|---|----------|--------|-------|
+| 1 | Koin module order NPE | Created | #45 |
+| 2 | WDA version mismatch | Commented on | #43 |
+...
 
-DECISION FRAMEWORK (N):
-  1. <library> → <replacement> (<rationale>)
-     File: references/dependency-decision-framework.md
-
-GUARDRAILS (N):
-  2. <rule description>
-     File: SKILL.md → Rules section
-
-PROCESS (N):
-  3. <process improvement>
-     File: SKILL.md → Phase N
-
-PLATFORM GOTCHAS (N):
-  4. <gotcha description>
-     File: references/kmm-architecture.md → Gotchas
-
-→ Create GitHub issue with these improvements? (y/n)
+Review the issues above and modify if needed.
 ```
 
-If user approves, create the issue with full content for each finding (the actual text to add to each file, not just a description).
+The user does NOT need to approve individual findings or the issue creation. The retrospective runs end-to-end autonomously. The user reviews the summary and can edit issues afterward if needed.
 
 ## Issue format
 
@@ -91,7 +94,16 @@ Body contains for each learning:
 - **Content to add:** the actual markdown/text to insert (copy-pasteable)
 - **Rationale:** why this was learned (what went wrong without it)
 
+### Deduplication
+Before creating a new issue, check for existing open issues:
+```bash
+gh issue list --state open --label "skill:kmm-workflow" --label "type:self-improvement" --json number,title,body
+```
+If an existing open issue covers the same topic/file, **add a comment** to that issue with the new learnings instead of creating a duplicate issue. Only create a new issue if no existing issue matches.
+
 Labels: `skill:kmm-workflow`, `type:self-improvement`, `session:<date>`
+
+- **Always create retrospective issues on `PunchHQ/claude-code-skills`**, NOT on the app repo. The learnings are about the skill itself, not the app.
 
 ## What NOT to capture
 

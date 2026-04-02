@@ -348,3 +348,30 @@ After migration completes, `e2e-tests/` contains a ready CI regression suite:
 - `screenshots/` — baseline screenshots for visual diff
 
 Unit tests (`./gradlew :shared:testDebugUnitTest`) run on every PR that touches shared code. mobile-mcp flows are run on-demand or as part of release verification.
+
+---
+
+## Compose Screens and UiAutomator2
+
+Compose screens without `contentDescription` or `testTag` return empty page source in UiAutomator2. PIN screens, 2FA OTP, Risk Disclosure, Dashboard — all affected.
+
+**Workarounds:**
+- `adb input text` for typing into fields
+- Coordinate-based taps for buttons (use screenshot to find coordinates)
+- Screenshots for verification instead of element inspection
+- iOS CMP has the same issue
+
+**Long-term fix:** Add `Modifier.testTag("...")` or `Modifier.semantics { contentDescription = "..." }` to interactive elements during migration.
+
+---
+
+## WDA iOS Version Mismatch
+
+WebDriverAgent (WDA) built for one iOS version (e.g., 26.2) fails on simulators running a different version (e.g., 26.4).
+
+**Fix:**
+- Match simulator runtime to WDA build version
+- Create simulators on matching iOS version
+- Or rebuild WDA: `appium driver run xcuitest build-wda --sdk <version>`
+
+Always check WDA compatibility BEFORE starting iOS E2E test runs.

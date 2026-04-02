@@ -27,6 +27,7 @@ This file is the combined reference for both plan structure and iterative execut
 21. [Plan Quality Rules](#plan-quality-rules)
 22. [Safeguards and Key Risks](#safeguards-and-key-risks)
 23. [Session Completion](#session-completion)
+24. [API 500 Debug Protocol](#api-500-debug-protocol-curl-bisection)
 
 ---
 
@@ -637,6 +638,19 @@ Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHEC
 
 **Key Risks (include when non-obvious):**
 - List risks with brief explanation of impact and mitigation
+
+---
+
+## API 500 Debug Protocol (curl bisection)
+
+When a Ktor API call returns 500 but the same endpoint works from master/original code:
+
+1. **Add debug logging** — log the full URL, headers, and body being sent by Ktor
+2. **Reproduce via curl** — copy the exact request as a curl command
+3. **Bisect headers** — remove headers one at a time until the 500 becomes a valid response (e.g., 422, 200)
+4. **Identify the offending header/param** — the header whose removal fixes the 500 is the root cause
+
+This technique found the `platform` header root cause in 5 minutes after 2+ hours of code-level analysis. Always try curl bisection before diving into server-side debugging.
 
 ---
 
