@@ -152,6 +152,29 @@ val user = json.decodeFromString<User>(jsonString)
 val encoded = json.encodeToString(user)
 ```
 
+### Consumer Impact: ApiClient Generic Type Changes
+
+When SDK remote stores migrate from Gson (`JSONObject`) to kotlinx-serialization (`JsonObject`), the `ApiClient<Request, Response>` generic parameter types change:
+
+**Before (consumer DI):**
+```kotlin
+@Provides fun provideApiClient(httpClient: HttpClient): ApiClient<Map<String, String>, JSONObject> =
+    KtorApiClientImpl(httpClient, StringToJSONMapper())
+```
+
+**After (consumer DI):**
+```kotlin
+@Provides fun provideApiClient(httpClient: HttpClient): ApiClient<Map<String, String>, JsonObject> =
+    KtorApiClientImpl(httpClient, StringToJsonObjectMapper())
+```
+
+Changes:
+- `org.json.JSONObject` → `kotlinx.serialization.json.JsonObject` in generic params
+- Inner mapper classes may be renamed (e.g., `StringToJSONMapper` → `StringToJsonObjectMapper`)
+- Consumer DI modules that construct these ApiClient instances need updating
+
+**Phase 6 action:** Grep consumer DI for `ApiClient<.*JSONObject>` and update to `JsonObject`.
+
 ---
 
 ## Dependency Injection: Hilt / Dagger → Koin 4
