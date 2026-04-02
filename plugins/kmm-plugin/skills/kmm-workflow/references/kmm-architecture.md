@@ -431,6 +431,13 @@ Hard-won learnings from real production KMM migrations. Every item here burned t
 - Not automatically propagated — must be copied manually
 - Missing this causes Gradle to fail with "SDK location not found"
 
+### Gradle Configuration Cache Fails in Worktrees
+- Git worktrees have a different filesystem root than the main repo
+- Gradle's configuration cache stores absolute paths — a cache from the main repo is invalid in a worktree
+- Symptom: cryptic serialization errors or `Could not load entry` during configuration phase
+- Fix: use `--no-configuration-cache` for ALL Gradle commands in worktrees
+- Alternative: delete `.gradle/configuration-cache/` in the worktree before first build
+
 ### SourceKit False Positives — Trust xcodebuild
 - Xcode/SourceKit frequently shows "No such module 'shared'" or similar errors
 - These are IDE indexing false positives — NOT real errors

@@ -6,7 +6,7 @@
 - Any behavioral change → REQUIRES_APPROVAL
 - No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
 - kotlinx.serialization only (no Gson/Moshi)
-- Sealed interface (not sealed class)
+- Sealed interface preferred; sealed class for SKIE-consumed Action/Effect types (see rules-and-guardrails.md)
 - Ktor only (no Retrofit/OkHttp)
 - Koin 4 only (no Hilt/Dagger)
 - kotlinx-datetime only (no java.time)

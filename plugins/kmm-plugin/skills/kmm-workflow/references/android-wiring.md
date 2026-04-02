@@ -110,6 +110,22 @@ class ScripRepository(...) : ScripStore {
 
 If consumers need the full SDK interface, inject `ScripStore` directly — don't wrap it.
 
+### 1.5 Lifecycle Method Verification
+
+After rewiring navigation, verify that all lifecycle trigger methods still fire correctly. Navigation refactors are the #1 source of "data doesn't load" bugs — not because the code is wrong, but because the initialization call never executes.
+
+**Check each migrated screen for:**
+- `onLaunch()` / `init {}` / `LaunchedEffect(Unit)` — does the initial data load still trigger?
+- `onResume()` / `DisposableEffect` — does the refresh-on-return still fire?
+- `onCleared()` / `DisposableEffect(onDispose)` — does cleanup still run?
+
+**Common failure patterns:**
+- Screen moved from Fragment to Composable but `onLaunch()` was only called in `onViewCreated()` — now never fires
+- NavHost recomposition triggers `LaunchedEffect(Unit)` multiple times (use a stable key)
+- Parent composable collects effects that previously triggered child `onResume()` — child no longer refreshes
+
+**Verification:** For each migrated screen, trace the data loading path from navigation entry to first API call. If ANY step in the chain is broken, the screen renders with empty/stale data — no crash, just missing content.
+
 ---
 
 ## 2. Parallel Execution

@@ -704,6 +704,11 @@ run_check() {
 # NEVER use assumed task names. These must come from:
 #   ./gradlew :<module>:tasks --all | grep -i <platform>
 # Replace these with the actual verified commands for this project:
+#
+# CRITICAL: Always include a FULL APP build (e.g., :app:assembleDebug or
+# :app:compileProductionDebugKotlin), not just the shared module build.
+# Module-only builds (:shared:assemble) miss consumer compilation errors
+# that only surface when the app module compiles against the migrated SDK.
 run_check "./gradlew :shared:compileDebugKotlin"
 run_check "./gradlew :shared:compileKotlinIosArm64"
 run_check "./gradlew :app:assembleDebug"
