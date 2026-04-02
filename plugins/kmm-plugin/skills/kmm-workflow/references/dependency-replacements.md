@@ -10,6 +10,7 @@ Project-agnostic reference for every common Android library and its KMM replacem
 
 - [Networking: Retrofit + OkHttp → Ktor Client](#networking-retrofit--okhttp--ktor-client)
 - [Serialization: Gson / Moshi → kotlinx.serialization](#serialization-gson--moshi--kotlinxserialization)
+  - [Consumer Impact: ApiClient Generic Type Changes](#consumer-impact-apiclient-generic-type-changes)
 - [Dependency Injection: Hilt / Dagger → Koin 4](#dependency-injection-hilt--dagger--koin-4)
 - [Preferences: SharedPreferences → Multiplatform-Settings](#preferences-sharedpreferences--multiplatform-settings-russhwolf)
 - [Database: Room → Room 2.7+ KMP or SQLDelight](#database-room--room-27-kmp-or-sqldelight)
