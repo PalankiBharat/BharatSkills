@@ -156,6 +156,7 @@ After writing PLAN.md, present a **concise summary** in chat — not the full fi
 - Each phase as a one-liner with task count (e.g., "Phase 2: Data layer migration (8 tasks)")
 - Total phases and tasks
 - Key risks or open items (if any)
+- An **iOS Functional Coverage section** listing: (a) what is fully functional on iOS after this migration, (b) what is stubbed/deferred on iOS. Present proactively — do not wait for the user to ask.
 
 Tell the user where the full PLAN.md is if they want to review details. Wait for approval before proceeding to Phase 1.
 
@@ -202,6 +203,7 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
   2. Present the recommendation WITH rationale to the user — do not ask open-ended "what should we do?" questions
   3. Only ask if the framework has no recommendation or the user's situation differs from the default
   4. Record all decisions in findings.md with the rationale
+- **Task 1.10b:** Cross-check migration levels against dependency decisions — scan every DAG entry and verify it matches the decision in findings.md / dependency-decision-framework. Files involving a library with a recorded decision MUST use the decided approach (Replace/Port/Abstract). Fix mismatches before running the plan-analyzer.
 - **Task 1.11:** Android API audit — Before writing migration-guide.md per-file specs, grep all files planned for commonMain migration for Android-only APIs (`android.util.Log`, `System.currentTimeMillis`, `java.util.Date`, `org.joda.time`, `org.json`, `com.google.gson`, `@Synchronized`, `java.util.concurrent`, `Dispatchers.IO`, `GlobalScope`, `@VisibleForTesting`, `android.content.Context`, `android.content.SharedPreferences`). Record EVERY occurrence per file. The per-file spec in migration-guide.md MUST list the specific replacement for each occurrence — never write "should port cleanly" or "minimal changes".
 - **Task 1.12:** Library KMP audit — For every Android-only library being replaced (Paging3, Room, DataStore, Navigation, etc.), web search for official KMP support before planning a manual alternative. AndroidX libraries are rapidly adding KMP support — training data is outdated, always research first. Record findings in findings.md. Phase 1 planning pre-verifies ALL library versions and pins them in migration-guide.md Swaps field with exact versions. Migrator agents use these pinned versions — no re-research during Phase 3. This is the single source of truth for dependency versions.
 - **Task 1.13:** Verify build task names — run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names for Android compilation, iOS arm64 compilation, and app assembly. Record verified task names in PLAN.md build verification section. Never write build commands based on assumptions.
@@ -456,6 +458,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.8 Verify platform navigation architecture
 - [ ] 1.9 Verify SDK availability
 - [ ] 1.10 Dependency decision framework (references/dependency-decision-framework.md)
+- [ ] 1.10b Cross-check migration levels vs dependency decisions
 - [ ] 1.11 Android API audit (grep Android-only APIs per file)
 - [ ] 1.12 Library KMP audit (web search for official KMP support)
 - [ ] 1.13 Verify build task names
