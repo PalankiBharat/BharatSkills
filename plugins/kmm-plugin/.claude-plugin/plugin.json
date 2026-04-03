@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "4.9.0",
-  "description": "Battle-tested KMM migration orchestrator — 5-phase workflow (plan, scaffold, shared code, wire Android, wire iOS) with TDD enforcement, autonomous self-improving retrospective, two-layer testing (unit + mobile-mcp E2E), comprehensive platform gotchas reference, and dependency decision framework. 1:1 mechanical port with parallel agent execution.",
+  "version": "5.0.0",
+  "description": "Battle-tested KMM migration orchestrator — 5-phase workflow (plan, scaffold, shared code, wire Android, wire iOS) with TDD enforcement, autonomous self-improving retrospective, two-layer testing (unit + Maestro E2E), comprehensive platform gotchas reference, and dependency decision framework. 1:1 mechanical port with parallel agent execution.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"
