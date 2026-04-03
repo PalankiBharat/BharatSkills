@@ -6,7 +6,7 @@ description: >
   "continue a migration", "port Android to shared code", "move to commonMain", or any work involving
   KMM, Kotlin Multiplatform, shared module migration, or iOS porting.
   Do not attempt KMM migrations directly — use this skill first.
-argument-hint: "[create|continue] <module>"
+argument-hint: "[create|continue|improve|audit] <module>"
 hooks:
   UserPromptSubmit:
     - hooks:
@@ -46,11 +46,12 @@ Any behavioral change → REQUIRES_APPROVAL.
 
 ## On Invocation — Always Ask
 
-On ANY invocation, always ask: Create / Continue / Improve. Never auto-resume. Never assume.
+On ANY invocation, always ask: Create / Continue / Improve / Audit. Never auto-resume. Never assume.
 
 - **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md, PROGRESS.md, migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. Write session marker. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
 - **Continue** → list all gameplans with status, user picks. Write session marker → read PLAN.md + PROGRESS.md → verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`) → continue from last checkpoint.
 - **Improve** → read open GitHub issues with `skill:kmm-workflow` label, classify learnings, consolidate into existing skill files (NEVER append — rewrite to absorb), measure file growth, raise PR. See `references/self-improvement.md`.
+- **Audit** → verify and fix an already-migrated module. Detects existing gameplan state (v6 / pre-v6 / none), upgrades or reverse-engineers migration-guide.md, runs the full verification pipeline (parity-check.sh → cross-platform parity → phase checklists → optional Appium), presents findings by severity, fixes with understand-first protocol. See `references/audit-protocol.md`.
 - On completion (all phases done + committed): delete session marker.
 
 ## Workflow
@@ -150,6 +151,7 @@ All agents read `references/agent-protocol.md` before starting.
 - `references/ios-wiring.md` — Phase 5
 - `references/cross-platform-parity.md` — Phases 4, 5: cross-platform verification
 - `references/appium-protocol.md` — Phases 4, 5: verify-first Appium testing
+- `references/audit-protocol.md` — Audit mode: verify and fix already-migrated modules
 - `references/self-improvement.md` — Migration retrospective
 
 ## Recovery Protocols
