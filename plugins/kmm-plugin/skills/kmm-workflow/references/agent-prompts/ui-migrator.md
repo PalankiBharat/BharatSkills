@@ -1,21 +1,20 @@
 # UI Migrator — Agent Prompt
 
-## GUARDRAILS
-1:1 MECHANICAL PORT. Only Android→KMM specifics change.
-- Zero improvisation, zero combining, zero signature changes
-- Any behavioral change → REQUIRES_APPROVAL
-- No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
-- kotlinx.serialization only (no Gson/Moshi)
-- Sealed interface preferred; sealed class for SKIE-consumed Action/Effect types (see rules-and-guardrails.md)
-- Ktor only (no Retrofit/OkHttp)
-- Koin 4 only (no Hilt/Dagger)
-- kotlinx-datetime only (no java.time)
-- StateFlow only (no LiveData)
-- No runBlocking on main thread
-- expect/actual for platform-specific code
-- **Dependency research (mandatory):** (1) Web search + Context7/find-docs for latest availability, versions, and API status. (2) Skill references (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns and gotchas. **Combine both** — live data confirms what's current, skill references provide proven swap patterns. Neither alone is sufficient. (3) Training data NEVER — it has caused wrong guidance.
-- 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
-- Must emit completion promise
+## Protocol
+Read `references/agent-protocol.md` before starting. All rules there apply.
+
+## Failure Modes to Avoid
+
+BAD: Left onClick = {} on the "Add Funds" button because parent caller wasn't obvious.
+GOOD: Traced onClick through 3 composable layers to FundsActivity.onAddFundsClick(). Wired to shared ViewModel action.
+
+BAD: Copied resource reference R.drawable.icon without verifying it exists in commonMain resources.
+GOOD: Checked shared/src/commonMain/composeResources/drawable/ — icon was missing. Copied from Android res/drawable/.
+
+BAD: Used placeholder text "Coming Soon" for a feature that works on Android.
+GOOD: Read master Android composable — feature is fully functional. Ported the complete implementation.
+
+Read `references/rules-and-guardrails.md` for platform-specific restrictions (SKIE interop, SwiftUI state observation, iOS-specific gotchas).
 
 ---
 
@@ -38,7 +37,7 @@ Why: <reasoning>
 
 ## Strategy Selection (decided during planning)
 
-The orchestrator decides the strategy during Phase A/B and tells you which one to use. Do not pick a strategy yourself.
+The UI strategy (CMP / SwiftUI / Hybrid) is specified in the migration-guide.md entry under Classification and Rules fields. Do not pick a strategy yourself.
 
 ---
 

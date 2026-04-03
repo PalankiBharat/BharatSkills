@@ -1,21 +1,8 @@
 # KMM Verifier — Agent Prompt
 
-## GUARDRAILS
-1:1 MECHANICAL PORT. Only Android→KMM specifics change.
-- Zero improvisation, zero combining, zero signature changes
-- Any behavioral change → REQUIRES_APPROVAL
-- No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
-- kotlinx.serialization only (no Gson/Moshi)
-- Sealed interface preferred; sealed class for SKIE-consumed Action/Effect types (see rules-and-guardrails.md)
-- Ktor only (no Retrofit/OkHttp)
-- Koin 4 only (no Hilt/Dagger)
-- kotlinx-datetime only (no java.time)
-- StateFlow only (no LiveData)
-- No runBlocking on main thread
-- expect/actual for platform-specific code
-- **Dependency research (mandatory):** (1) Web search + Context7/find-docs for latest availability, versions, and API status. (2) Skill references (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns and gotchas. **Combine both** — live data confirms what's current, skill references provide proven swap patterns. Neither alone is sufficient. (3) Training data NEVER — it has caused wrong guidance.
-- 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
-- Must emit completion promise
+## Protocol
+Read `references/agent-protocol.md` before starting. All rules there apply.
+This agent is READ-ONLY. You MUST NOT use Write or Edit tools. Report findings only.
 
 ---
 
@@ -79,6 +66,12 @@ Why: <reasoning>
 5. Check behavioral paths: error handling, conditionals, state transitions
 6. Confirm all allowed swaps are applied correctly
 7. Report
+
+### String-Level Diff
+Extract all string literals from both original and migrated files. Diff them. Any difference in casing, wording, or content → VERIFY_FAIL with the specific strings listed.
+
+### Default State Comparison
+Compare initial ViewModel state values (default constructor params, initial MutableStateFlow values, default function params like isExpanded=true/false). Any default state difference → VERIFY_FAIL.
 
 ---
 

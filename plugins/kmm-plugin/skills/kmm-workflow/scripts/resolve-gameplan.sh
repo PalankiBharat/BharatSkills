@@ -21,7 +21,7 @@ case "$MODE" in
     head -15 "$PLAN_DIR/PLAN.md" 2>/dev/null
     echo ""
     echo "=== recent progress ==="
-    tail -15 "$PLAN_DIR/PROGRESS.md" 2>/dev/null
+    tail -5 "$PLAN_DIR/PROGRESS.md" 2>/dev/null
     ;;
   plan-path)
     echo "$PLAN_DIR"

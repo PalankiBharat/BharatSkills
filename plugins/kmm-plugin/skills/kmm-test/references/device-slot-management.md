@@ -100,6 +100,17 @@ SIM_NAME="kmm-$GAMEPLAN_NAME"
 
 Create the Android AVD and iOS simulator (see Device Creation section below), allocate ports (see Port Allocation section), write the new slot to config:
 
+**File locking (mandatory):** All reads and writes to `kmm-device-slots.json` must be wrapped in a file lock to prevent race conditions when multiple gameplans allocate simultaneously:
+
+```bash
+(
+  flock -n 200 || { echo "ERROR: Another gameplan is allocating a slot. Retry in a few seconds."; exit 1; }
+  # ... read/write CONFIG here ...
+) 200>"$CONFIG.lock"
+```
+
+Apply this lock pattern to Step 3 (create), Step 6 (update last_used), and Cleanup (remove slot).
+
 ```bash
 python3 -c "
 import json, datetime
@@ -209,21 +220,21 @@ avdmanager create avd \
   --device "pixel_6" \
   --force
 
-# Boot the emulator in the background
-emulator -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim &
+# Derive deterministic serial from allocated port
+EMU_PORT=$((5554 + SLOT_INDEX * 2))
+ANDROID_SERIAL="emulator-$EMU_PORT"
 
-# Wait for it to be ready
-adb wait-for-device
+# Boot with explicit port (deterministic serial)
+emulator -avd "$AVD_NAME" -port $EMU_PORT -no-window -no-audio -no-boot-anim &
 
-# Capture its serial
-ANDROID_SERIAL=$(adb devices | grep emulator | tail -1 | awk '{print $1}')
+# Wait for this specific device
+adb -s "$ANDROID_SERIAL" wait-for-device
 ```
 
 Notes:
 - `--force` overwrites any AVD with the same name, ensuring idempotency.
 - `-no-window -no-audio -no-boot-anim` reduces resource use in headless environments.
-- `adb wait-for-device` blocks until the device is ready to accept commands.
-- `tail -1` picks the most recently started emulator if multiple are running.
+- Using `-port` flag ensures the serial is deterministic (`emulator-<port>`), preventing the `tail -1` race condition when multiple emulators boot simultaneously.
 
 ### iOS Simulator Creation
 
@@ -241,6 +252,35 @@ Notes:
 - `xcrun simctl create` prints the UDID to stdout. Capture it immediately.
 - The simulator is not visible until `open -a Simulator` is run (not required for headless Appium runs).
 - `iOS-18-0` must match an installed runtime. Verify with `xcrun simctl list runtimes`.
+
+---
+
+## Stale Slot Cleanup
+
+On every allocation (Step 2/3), check all existing slots for staleness:
+
+```bash
+python3 -c "
+import json, datetime
+data = json.load(open('$CONFIG'))
+now = datetime.datetime.utcnow()
+stale = []
+for s in data['slots']:
+    last = datetime.datetime.fromisoformat(s['last_used'].rstrip('Z'))
+    if (now - last).total_seconds() > 86400:  # 24 hours
+        stale.append(s)
+for s in stale:
+    print(f'WARNING: Stale slot for {s[\"worktree\"]} (last used {s[\"last_used\"]}). Freeing.')
+    data['slots'].remove(s)
+json.dump(data, open('$CONFIG', 'w'), indent=2)
+"
+```
+
+Stale slots are freed automatically. Their devices (AVD/simulator) are also cleaned up:
+- `avdmanager delete avd -n <avd_name>` for Android
+- `xcrun simctl delete <udid>` for iOS
+
+A slot is considered stale if `last_used` is older than 24 hours. This prevents crashed sessions from permanently consuming slots.
 
 ---
 
