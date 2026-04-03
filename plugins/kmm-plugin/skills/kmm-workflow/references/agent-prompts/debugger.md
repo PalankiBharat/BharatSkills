@@ -64,11 +64,13 @@ xcrun simctl install booted <app-path>
 xcrun simctl launch --console-pty booted <bundle-id> 2>&1 | grep "Debug<Name>"
 ```
 
-**mobile-mcp (either platform, when available):**
+**Maestro quick smoke (either platform):**
+```bash
+adb -s $ANDROID_SERIAL uninstall <pkg>
+./gradlew :app:installDebug
+maestro test --device $ANDROID_SERIAL e2e-tests/maestro-flows/android/<specific-screen>.yaml
 ```
-mobile_uninstall_app → mobile_install_app → mobile_launch_app
-```
-mobile-mcp is preferred when available — it handles install/launch without manual adb/xcrun. Fall back to adb or xcrun if mobile-mcp is unavailable.
+Maestro is preferred for smoke tests — deterministic, no token cost. Fall back to adb/xcrun if Maestro is unavailable.
 
 ### Step 3: WAIT
 Tell the user exactly what to do:

@@ -5,10 +5,10 @@ Two-layer testing model for KMM migrations. Each layer catches different categor
 | Layer | Tool | Backend | Catches | Token cost |
 |-------|------|---------|---------|------------|
 | 1. Unit/characterization tests | Gradle | N/A | Logic bugs, API parity, regressions | Zero (runs via Gradle) |
-| 2. mobile-mcp automated flows | mobile-mcp | Real app + optional fake server | Runtime crashes, integration bugs, OTP/login flows | Moderate (cached screen map) |
+| 2. Maestro automated flows | Maestro CLI | Real app + optional fake server | Visual regressions, runtime crashes, integration bugs, unwired buttons | Near-zero (deterministic YAML, no AI tokens for device interaction) |
 | 3. Manual test | User | Real backend | UX issues, edge cases automation can't cover | Zero |
 
-**Phase ordering:** Unit tests → mobile-mcp flows → Manual test
+**Phase ordering:** Unit tests → Maestro flows → Manual test
 
 ---
 
@@ -24,13 +24,13 @@ This becomes the input for the fake server config and screen map.
 
 ---
 
-## Screen Map (token optimization)
+## Screen Map
 
-The screen map caches screen elements and navigation steps so mobile-mcp doesn't waste tokens re-discovering what's on screen every run.
+The screen map defines screens and navigation flows. It is consumed by the Maestro flow generator to produce per-platform Maestro YAML files. The `coordinates` field is retained as a fallback for coordinate-based tapping, but primary selectors are `id` (Android) and `text` (iOS).
 
 **File location:** `e2e-tests/screen-map.json`
 
-**Generated during:** Phase 1 (planning) — initial structure from reading Android screens. Updated during first runtime verification with actual element IDs and coordinates.
+**Generated during:** Phase 1 (planning) — initial structure from reading Android screens. Updated during first runtime verification with actual element IDs.
 
 **Format:**
 ```json
@@ -86,19 +86,11 @@ The screen map caches screen elements and navigation steps so mobile-mcp doesn't
 }
 ```
 
-**Cache rules:**
-- **First encounter:** call `mobile_list_elements_on_screen`, record element IDs and coordinates in `screen-map.json` under `coordinates`, set `last_discovered` to current timestamp
-- **Subsequent encounters:** use cached coordinates — only call `mobile_take_screenshot` to verify, NOT `mobile_list_elements_on_screen`
-- **Re-discover when:** (a) a screen's source file was modified in the current phase, (b) a cached tap fails (element moved), (c) screenshot shows unexpected layout
-- **Never cache:** screenshots themselves (always take fresh ones for evidence)
-
-This saves ~500-1000 tokens per screen per re-run by skipping element discovery on unchanged screens.
-
 ---
 
 ## Fake Server
 
-Generate a deterministic fake server config from the recorded endpoints. mobile-mcp flows can optionally point the app at the fake server for deterministic error-path and edge-case testing.
+Generate a deterministic fake server config from the recorded endpoints. Maestro flows can optionally point the app at the fake server for deterministic error-path and edge-case testing.
 
 **File location:** `e2e-tests/fake-server-config.json`
 
@@ -156,7 +148,7 @@ const server = app.listen(process.env.FAKE_PORT || 8089, () => {
 module.exports = server;
 ```
 
-Start the fake server before running mobile-mcp flows against it:
+Start the fake server before running Maestro flows against it:
 ```bash
 FAKE_PORT=8089 node e2e-tests/fake-server.js &
 ```
@@ -167,9 +159,9 @@ FAKE_PORT=8089 node e2e-tests/fake-server.js &
 
 When multiple gameplans run concurrently on the same machine, their test phases collide: same emulator, same ports, same app install. Each gameplan gets its own dedicated device and ports, allocated during Phase 1.
 
-**Auto-allocation protocol (Phase 1, Task 1.7c):**
+See `../kmm-test/references/device-slot-management.md` for the full device slot allocation protocol.
 
-**1. Allocate fake server port:**
+**Allocate fake server port:**
 ```bash
 FAKE_PORT=$(python3 -c "
 import socket
@@ -181,43 +173,13 @@ for p in range(8089, 8189):
 echo "Allocated: FAKE_PORT=$FAKE_PORT"
 ```
 
-**2. Allocate Android emulator:**
-```bash
-# Create a dedicated AVD named after the gameplan
-AVD_NAME="kmm-<gameplan-name>"
-avdmanager create avd -n "$AVD_NAME" \
-  -k "system-images;android-34;google_apis;arm64-v8a" \
-  --force
-# Boot in background, headless
-emulator -avd "$AVD_NAME" -no-window -no-audio -no-boot-anim &
-# Wait for boot, capture serial
-adb wait-for-device
-ANDROID_SERIAL=$(adb devices | grep emulator | head -1 | awk '{print $1}')
-echo "Allocated Android: $ANDROID_SERIAL"
-```
-
-**3. Allocate iOS simulator:**
-```bash
-# Create a dedicated simulator named after the gameplan
-SIM_NAME="kmm-<gameplan-name>"
-IOS_UDID=$(xcrun simctl create "$SIM_NAME" "iPhone 16" "iOS-18-0")
-xcrun simctl boot "$IOS_UDID"
-echo "Allocated iOS: $IOS_UDID"
-```
-
-**4. Record in PLAN.md header:**
+**Record in PLAN.md header:**
 ```
 <!-- DEVICE: android=emulator-5558 | ios=A1B2C3D4-E5F6-... -->
 <!-- PORTS: fake=8091 -->
 ```
 
-**Cleanup on session completion:**
-```bash
-# Delete dedicated emulator
-avdmanager delete avd -n "kmm-<gameplan-name>"
-# Delete dedicated simulator
-xcrun simctl delete <IOS_UDID>
-```
+**Cleanup on session completion:** See `../kmm-test/references/device-slot-management.md` for teardown commands.
 
 The orchestrator reads device/port values from PLAN.md header and exports them as env vars before running any test command.
 
@@ -235,26 +197,39 @@ A checkpoint with failing unit tests is invalid. If tests fail after wiring, the
 
 ---
 
-## Layer 2: mobile-mcp Automated Flows (real app, real device)
+## Layer 2: Maestro Automated Flows (real app, real device)
 
-Drive full user journeys against the real app using mobile-mcp. This catches integration issues that unit tests miss: real backend responses, auth flows, OTP, payment gateways. Optionally point the app at the fake server for deterministic error-path coverage.
+Drive full user journeys against the real app using Maestro CLI. This catches visual regressions, runtime crashes, integration issues, and unwired buttons that unit tests miss. Optionally point the app at the fake server for deterministic error-path coverage.
 
-**Uses `e2e-tests/screen-map.json`** for cached element coordinates. Does NOT re-discover screen elements unless the screen changed.
+**Flow generation:** Flows are generated from `e2e-tests/screen-map.json` by reading `../kmm-test/references/maestro-testing.md` for mapping rules. Each flow in screen-map becomes a Maestro YAML file per platform, written to `e2e-tests/maestro-flows/`.
 
-### Flow execution protocol
+### Baseline capture protocol
 
-For each flow defined in `screen-map.json`:
+1. Create a temp worktree for master:
+   ```bash
+   git worktree add /tmp/kmm-baseline-$(date +%s) master
+   ```
+2. Build from the temp worktree
+3. Install on the allocated device
+4. Run Maestro flows with `takeScreenshot` commands — baseline images saved to `e2e-tests/screenshots/<platform>/baseline/`
+5. Uninstall the app
+6. Write the master commit hash to `e2e-tests/.cache-key`
+7. Clean up the temp worktree
 
-1. **Install and launch:** `mobile_install_app` → `mobile_launch_app`
-2. **Execute steps sequentially** from the flow definition:
-   - `tap` → use cached coordinates from screen-map; if tap fails → re-discover with `mobile_list_elements_on_screen`, update cache, retry
-   - `type` → `mobile_type_keys` with the specified value
-   - `verify` → `mobile_take_screenshot`, visually confirm the expected element is present
-   - `blocker` → **STOP and ask user.** Present the blocker message. Wait for user to complete the action on the device (e.g., enter OTP, complete payment). User confirms done → resume automation.
-3. **After each screen transition:** `mobile_take_screenshot` → save to `e2e-tests/screenshots/<platform>/`
-4. **On failure:** screenshot + `mobile_list_elements_on_screen` (re-discover) → diagnose → DEBUG LOOP
+### Comparison protocol
+
+1. Build from the current branch worktree
+2. Install on the same allocated device
+3. Run Maestro flows with `takeScreenshot` + `assertScreenshot` (97% similarity threshold, `cropOn` to exclude the status bar)
+4. Collect JUnit results from Maestro output
+
+### Baseline caching
+
+Skip baseline rebuild if `e2e-tests/.cache-key` matches `git rev-parse master`. This avoids rebuilding the baseline on every run when master has not changed.
 
 ### Blocker handling
+
+Flows with `blocker` steps are split into segments. Claude's bash loop runs segments sequentially with a user pause between them. See `../kmm-test/references/maestro-testing.md` §3 for segmentation rules.
 
 When a flow step has `"action": "blocker"`:
 
@@ -266,7 +241,7 @@ Flow: <flow name>
 Please complete this step on the device, then confirm to continue.
 ```
 
-Wait for user acknowledgment before proceeding to the next step. Common blockers:
+Wait for user acknowledgment before proceeding to the next segment. Common blockers:
 - OTP entry (SMS/email verification)
 - Personal details (KYC, identity verification)
 - Payment gateway (external redirect)
@@ -274,46 +249,18 @@ Wait for user acknowledgment before proceeding to the next step. Common blockers
 
 The orchestrator does NOT attempt to bypass or automate blockers. It pauses, asks, and resumes.
 
-### What mobile-mcp flows catch that unit tests don't
+### Diff and report
 
-- Real backend integration issues (actual API responses, auth token flows)
-- OTP and payment gateway flows that can't be unit-tested
-- Real-device behavior (biometrics, push notifications, deep links)
-- Backend data format mismatches that unit tests wouldn't expose
-
----
-
-## mobile-mcp: Spot Checks and Debug Loop
-
-Beyond automated flows, mobile-mcp is also used for:
-
-**Runtime verification (Phase 4/5):**
-```
-# Install and launch
-mobile_install_app → mobile_launch_app
-
-# Per-screen verification using cached screen-map
-# First time: discover elements, populate cache
-mobile_list_elements_on_screen → update screen-map.json
-# Subsequent times: use cached coordinates
-mobile_take_screenshot → verify visually
-mobile_click_on_screen_at_coordinates → navigate (from cache)
-```
-
-**Debug loop quick smoke:**
-```
-# Quick smoke after a fix
-mobile_uninstall_app → mobile_install_app → mobile_launch_app → mobile_take_screenshot
-```
-
-**iOS parity check:**
-- Compare screenshots against Android reference screenshots in `e2e-tests/screenshots/`
+- Pixel comparison is handled by Maestro's `assertScreenshot` — zero token cost
+- Only screens that **fail** the 97% threshold are reviewed by Claude vision
+- Claude classifies each failure as: `VISUAL_REGRESSION` / `EXPECTED_CHANGE` / `FALSE_POSITIVE`
+- Report written to `e2e-tests/test-report.md`
 
 ---
 
 ## Fallback: adb / xcrun
 
-When mobile-mcp is unavailable, fall back to direct commands.
+When Maestro is unavailable, fall back to manual adb/xcrun commands for build verification and log capture. Screenshot comparison must be done manually.
 
 **Android:**
 ```bash
@@ -332,46 +279,30 @@ xcrun simctl launch --console-pty booted <bundle-id> 2>&1 | grep "Debug<ScreenNa
 
 ## Screenshot Comparison
 
-During iOS runtime verification, compare each screen against its Android counterpart:
-
-1. Android runtime verify produces screenshots saved to `e2e-tests/screenshots/android/`
-2. iOS runtime verify produces screenshots saved to `e2e-tests/screenshots/ios/`
-3. Visual diff catches layout regressions and missing data
+Maestro's `assertScreenshot` handles pixel-level comparison during test execution. For screens that fail, Claude reads the baseline and comparison screenshots to classify the difference. Cross-platform parity: compare Android comparison screenshots against iOS comparison screenshots using Claude vision.
 
 ---
 
 ## CI Integration
 
-After migration completes, `e2e-tests/` contains a ready CI regression suite:
+`e2e-tests/` contains a CI-ready regression suite:
 - `fake-server-config.json` — deterministic backend for error-path coverage
-- `screen-map.json` — cached screen elements and flow definitions for mobile-mcp runs
+- `screen-map.json` — flow definitions consumed by Maestro flow generator
+- `maestro-flows/` — generated Maestro YAML files per platform
 - `screenshots/` — baseline screenshots for visual diff
 
-Unit tests (`./gradlew :shared:testDebugUnitTest`) run on every PR that touches shared code. mobile-mcp flows are run on-demand or as part of release verification.
+Unit tests (`./gradlew :shared:testDebugUnitTest`) run on every PR that touches shared code. Maestro flows are run on-demand or as part of release verification.
 
 ---
 
-## Compose Screens and UiAutomator2
+## Compose/SwiftUI and Maestro Selectors
 
-Compose screens without `contentDescription` or `testTag` return empty page source in UiAutomator2. PIN screens, 2FA OTP, Risk Disclosure, Dashboard — all affected.
+Compose screens need `Modifier.testTag("...")` for reliable element targeting in Maestro.
+SwiftUI screens need `.accessibilityIdentifier("...")`.
+Compose Multiplatform maps `testTag` to `accessibilityIdentifier` automatically on iOS.
 
-**Workarounds:**
-- `adb input text` for typing into fields
-- Coordinate-based taps for buttons (use screenshot to find coordinates)
-- Screenshots for verification instead of element inspection
-- iOS CMP has the same issue
+If interactive elements don't have test tags, add them during the wiring phase:
+- Kotlin: `Modifier.testTag("submit_btn")`
+- Swift: `.accessibilityIdentifier("submit_btn")`
 
-**Long-term fix:** Add `Modifier.testTag("...")` or `Modifier.semantics { contentDescription = "..." }` to interactive elements during migration.
-
----
-
-## WDA iOS Version Mismatch
-
-WebDriverAgent (WDA) built for one iOS version (e.g., 26.2) fails on simulators running a different version (e.g., 26.4).
-
-**Fix:**
-- Match simulator runtime to WDA build version
-- Create simulators on matching iOS version
-- Or rebuild WDA: `appium driver run xcuitest build-wda --sdk <version>`
-
-Always check WDA compatibility BEFORE starting iOS E2E test runs.
+Maestro iOS prefers text-based selectors (most reliable). ID selectors work when accessibility identifiers are set. Coordinate-based tapping is a last resort.

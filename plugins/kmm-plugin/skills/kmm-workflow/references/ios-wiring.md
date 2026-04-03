@@ -87,15 +87,15 @@ Failures: check `findings.md` Known Fixes first, then 3-strike rule.
 
 See [Section 7](#7-build--runtime-verification) for the full verification protocol.
 
-#### Step 7 — mobile-mcp Automated Flow Tests (iOS)
+#### Step 7 — Maestro Automated Flow Tests (iOS)
 
-Same fake server config from planning (same deterministic responses as Android):
-
+Generate iOS-specific Maestro YAML flows from screen-map.json using iOS selector fallback strategy
+(text-based selectors preferred over accessibility IDs — see `../kmm-test/references/maestro-testing.md` §2):
 ```
-Start fake server
-Run mobile-mcp automated flows with iOS selectors (same flows as Android, adapted for iOS accessibility IDs)
+  → maestro test --device $IOS_UDID --platform ios -e APP_ID=$APP_ID e2e-tests/maestro-flows/ios/
   → if fail → DEBUG LOOP (iOS) → fix → rerun
-  → all pass → proceed to manual test
+  → all pass → cross-platform parity check (compare iOS screenshots vs Android screenshots)
+  → proceed to manual test
 ```
 
 #### Step 8 — Summary Table
@@ -809,17 +809,17 @@ For projects using Compose Multiplatform with CocoaPods:
 
 `generateDummyFramework` + `pod install` produces an empty framework with no compose resources. The full build must populate `build/compose/cocoapods/compose-resources` first.
 
-### Runtime Verify (mobile-mcp on simulator, fallback: xcrun)
+### Runtime Verify (Maestro on simulator, fallback: xcrun)
 
 | Tool | Commands |
 |------|----------|
-| mobile-mcp (primary) | `mobile_install_app` → `mobile_launch_app` |
+| Maestro (primary) | `maestro test --device $IOS_UDID --platform ios e2e-tests/maestro-flows/ios/` |
 | xcrun (fallback) | `xcrun simctl install booted <app.app>` → `xcrun simctl launch booted <bundle-id>` |
 
 For each screen:
-- `mobile_take_screenshot` → compare side-by-side with Android screenshot (visual parity)
-- `mobile_list_elements_on_screen` → verify same data fields as Android
-- `mobile_click_on_screen_at_coordinates` → navigate critical paths
+- Maestro `takeScreenshot` + `assertScreenshot` for visual comparison → compare side-by-side with Android screenshot (visual parity)
+- Maestro `assertVisible` for element verification → verify same data fields as Android
+- Maestro `tapOn` for navigation → navigate critical paths
 
 ---
 
