@@ -260,19 +260,21 @@ The orchestrator does NOT attempt to bypass or automate blockers. It pauses, ask
 
 ## Fallback: adb / xcrun
 
+> **⚠️ STRICT RULE:** Every `adb` command MUST include `-s $ANDROID_SERIAL`. Every `xcrun simctl` command MUST use `$IOS_UDID` (never `booted`). Bare commands target whichever device the OS picks first, causing cross-worktree interference.
+
 When Maestro is unavailable, fall back to manual adb/xcrun commands for build verification and log capture. Screenshot comparison must be done manually.
 
 **Android:**
 ```bash
-adb install -r path/to/app.apk
-adb shell am start -n <package>/<activity>
-adb logcat -c && adb logcat -s "Debug<ScreenName>"
+adb -s $ANDROID_SERIAL install -r path/to/app.apk
+adb -s $ANDROID_SERIAL shell am start -n <package>/<activity>
+adb -s $ANDROID_SERIAL logcat -c && adb -s $ANDROID_SERIAL logcat -s "Debug<ScreenName>"
 ```
 
 **iOS:**
 ```bash
-xcrun simctl install booted path/to/App.app
-xcrun simctl launch --console-pty booted <bundle-id> 2>&1 | grep "Debug<ScreenName>"
+xcrun simctl install $IOS_UDID path/to/App.app
+xcrun simctl launch --console-pty $IOS_UDID <bundle-id> 2>&1 | grep "Debug<ScreenName>"
 ```
 
 ---

@@ -345,6 +345,7 @@ For each screen marked `VISUAL_REGRESSION` or functional failure:
 - **One device per worktree.** Never share an emulator or simulator between worktrees. The slot system in `references/device-slot-management.md` guarantees isolation — always follow it.
 - **Clean installs.** Always uninstall before installing a new build. Never install over an existing build — leftover state from the previous build can mask bugs.
 - **Login is required for all flows** unless a flow is explicitly marked `requiresLogin: false` in `screen-map.json`. Generate the login subflow and prepend it to every flow by default.
+- **Device isolation is absolute.** Every `adb` command MUST include `-s $ANDROID_SERIAL` and every `xcrun simctl` command MUST use `$IOS_UDID` (never `booted`). Bare `adb install`, `adb shell`, `adb logcat`, `xcrun simctl install booted`, etc. will target whichever device the OS picks first — which may be another worktree's emulator/simulator. Read the device serial from the PLAN.md header (`<!-- DEVICE: android=... | ios=... -->`) and use it in EVERY command. No exceptions.
 
 ---
 

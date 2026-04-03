@@ -51,17 +51,17 @@ Add logs with a unique tag `[Debug<ScreenName>]` using Napier (KMP logging libra
 
 **Android:**
 ```
-adb uninstall <pkg>
+adb -s $ANDROID_SERIAL uninstall <pkg>
 ./gradlew :app:installDebug
-adb logcat -c
-adb logcat -s "Debug<Name>"
+adb -s $ANDROID_SERIAL logcat -c
+adb -s $ANDROID_SERIAL logcat -s "Debug<Name>"
 ```
 
 **iOS:**
 ```
-xcrun simctl uninstall booted <bundle-id>
-xcrun simctl install booted <app-path>
-xcrun simctl launch --console-pty booted <bundle-id> 2>&1 | grep "Debug<Name>"
+xcrun simctl uninstall $IOS_UDID <bundle-id>
+xcrun simctl install $IOS_UDID <app-path>
+xcrun simctl launch --console-pty $IOS_UDID <bundle-id> 2>&1 | grep "Debug<Name>"
 ```
 
 **Maestro quick smoke (either platform):**

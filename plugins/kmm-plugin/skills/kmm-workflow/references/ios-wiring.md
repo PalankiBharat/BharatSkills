@@ -814,7 +814,7 @@ For projects using Compose Multiplatform with CocoaPods:
 | Tool | Commands |
 |------|----------|
 | Maestro (primary) | `maestro test --device $IOS_UDID --platform ios e2e-tests/maestro-flows/ios/` |
-| xcrun (fallback) | `xcrun simctl install booted <app.app>` → `xcrun simctl launch booted <bundle-id>` |
+| xcrun (fallback) | `xcrun simctl install $IOS_UDID <app.app>` → `xcrun simctl launch $IOS_UDID <bundle-id>` |
 
 For each screen:
 - Maestro `takeScreenshot` + `assertScreenshot` for visual comparison → compare side-by-side with Android screenshot (visual parity)

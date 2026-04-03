@@ -210,15 +210,15 @@ Save screenshots to `e2e-tests/screenshots/android/comparison/`.
 
 ```bash
 # Uninstall first to ensure clean state
-adb uninstall <package>
+adb -s $ANDROID_SERIAL uninstall <package>
 
 # Build & install
 ./gradlew :app:installProductionDebug
 
 # Clear logs, launch, capture errors
-adb logcat -c
-adb shell am start -n <package>/<activity>
-adb logcat -d *:E | grep -E "FATAL|AndroidRuntime|KoinApplication|SKIE|ClassCastException|IllegalStateException|NullPointerException|CoroutineException|JobCancellation"
+adb -s $ANDROID_SERIAL logcat -c
+adb -s $ANDROID_SERIAL shell am start -n <package>/<activity>
+adb -s $ANDROID_SERIAL logcat -d *:E | grep -E "FATAL|AndroidRuntime|KoinApplication|SKIE|ClassCastException|IllegalStateException|NullPointerException|CoroutineException|JobCancellation"
 ```
 
 To find the package and activity: check `AndroidManifest.xml` for the package name and the
@@ -230,7 +230,7 @@ When debugging a specific screen, use Napier log tags for efficient filtering:
 
 ```bash
 # Filter by debug tag (set during debug loop instrumentation)
-adb logcat -s "DebugLoginScreen"
+adb -s $ANDROID_SERIAL logcat -s "DebugLoginScreen"
 
 # After fix confirmed, remove Napier instrumentation before committing
 ```
