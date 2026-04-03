@@ -6,7 +6,7 @@ description: >
   "continue a migration", "port Android to shared code", "move to commonMain", or any work involving
   KMM, Kotlin Multiplatform, shared module migration, or iOS porting.
   Do not attempt KMM migrations directly — use this skill first.
-argument-hint: "[create|continue|improve|audit] <module>"
+argument-hint: "[create|continue|improve|verify] <module>"
 hooks:
   UserPromptSubmit:
     - hooks:
@@ -40,7 +40,7 @@ hooks:
 
 ## THE RULE
 
-1:1 MECHANICAL PORT. Only Android→KMM specifics change.
+1:1 BEHAVIORAL PORT. Same observable behavior, identical public API contract.
 Zero improvisation. Zero combining. Zero signature changes.
 Any behavioral change → REQUIRES_APPROVAL.
 
@@ -51,7 +51,13 @@ On ANY invocation, always ask: Create / Continue / Improve / Audit. Never auto-r
 - **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md, PROGRESS.md, migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. Write session marker. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
 - **Continue** → list all gameplans with status, user picks. Write session marker → read PLAN.md + PROGRESS.md → verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`) → continue from last checkpoint.
 - **Improve** → read open GitHub issues with `skill:kmm-workflow` label, classify learnings, consolidate into existing skill files (NEVER append — rewrite to absorb), measure file growth, raise PR. See `references/self-improvement.md`.
-- **Audit** → verify and fix an already-migrated module. Detects existing gameplan state (v6 / pre-v6 / none), upgrades or reverse-engineers migration-guide.md, runs the full verification pipeline (parity-check.sh → cross-platform parity → phase checklists → optional Appium), presents findings by severity, fixes with understand-first protocol. See `references/audit-protocol.md`.
+- **Verify** → unified verification of a migrated module. Runs 3 layers in order:
+  - Layer 1 (Static): anti-pattern scan, parity-check.sh, cross-platform parity, phase checklists — no devices needed, fast
+  - Layer 2 (Completeness): ViewModel flow inventory audit, callback completeness trace, UI branch audit, DI binding verification — code analysis, no devices. Runs deterministic scripts (flow-collector-check.sh, koin-binding-check.py, screen-coverage-check.sh) plus AI-powered callback and branch analysis.
+  - Layer 3 (Device): Appium E2E flows, screenshot comparison, runtime DI check — needs devices, slow
+  If devices unavailable: Layers 1-2 run fully, Layer 3 reports warning. Always gets useful results.
+  Detects existing gameplan state (v6 / pre-v6 / none), upgrades or reverse-engineers migration-guide.md.
+  See `references/verify-protocol.md`.
 - On completion (all phases done + committed): delete session marker.
 
 ## Workflow
@@ -100,15 +106,18 @@ The skill is file-based — nothing is lost on `/clear`. The orchestrator MUST s
   - Team members communicate about shared-code issues (missing Koin bindings, API mismatches)
 - After both complete: Verification Pipeline (see below) → CHECKPOINT COMMIT
 - Run Phase 4 and Phase 5 checklists (`references/phase-checklists.md`)
-- Read `references/android-wiring.md`, `references/ios-wiring.md`, `references/appium-protocol.md`, `references/cross-platform-parity.md`
+- Read `references/android-wiring.md`, `references/ios-wiring.md`, `references/appium-testing.md`, `references/cross-platform-parity.md`
 
 ## Verification Pipeline
 
 Mandatory at Phase 4/5 boundaries — no skipping, no reordering:
 1. build-verify.sh — build + unit tests
 2. parity-check.sh — static analysis, zero tokens
-3. Appium E2E — verify-first protocol (`references/appium-protocol.md`), both platforms parallel
-4. Manual test — structured checklist from migration-guide.md breaking changes
+3. flow-collector-check.sh — ViewModel flow → iOS collector cross-reference (deterministic)
+4. koin-binding-check.py — DI resolution verification (deterministic)
+5. screen-coverage-check.sh — screen-map vs nav graph coverage (deterministic)
+6. Appium E2E — verify-first protocol (`references/appium-testing.md`), both platforms parallel
+7. Manual test — structured checklist from migration-guide.md breaking changes
 
 If any layer fails → fix → rerun from that layer. If manual testing finds a new check → add it to parity-check.sh.
 
@@ -133,7 +142,8 @@ All agents read `references/agent-protocol.md` before starting.
 | Write characterization tests (standalone) | agent-prompts/test-writer.md | sonnet | TDD_COMPLETE / TDD_BLOCKED |
 | Debug failure | agent-prompts/debugger.md | sonnet | DEBUG_COMPLETE / DEBUG_BLOCKED |
 | UI migration (per screen) | agent-prompts/ui-migrator.md | sonnet | UI_COMPLETE / UI_BLOCKED |
-| Audit code | agent-prompts/auditor.md | sonnet | AUDIT_COMPLETE / AUDIT_BLOCKED |
+| Audit code (Phase 3 inline) | agent-prompts/auditor.md | sonnet | AUDIT_COMPLETE / AUDIT_BLOCKED |
+| Verify module (3-layer) | agent-prompts/verifier-full.md | sonnet | VERIFY_COMPLETE / VERIFY_BLOCKED |
 | Analyze plan | agent-prompts/plan-analyzer.md | sonnet | PLAN_ANALYSIS |
 
 ## References (read ONLY when entering relevant phase)
@@ -150,8 +160,10 @@ All agents read `references/agent-protocol.md` before starting.
 - `references/android-wiring.md` — Phase 4
 - `references/ios-wiring.md` — Phase 5
 - `references/cross-platform-parity.md` — Phases 4, 5: cross-platform verification
-- `references/appium-protocol.md` — Phases 4, 5: verify-first Appium testing
-- `references/audit-protocol.md` — Audit mode: verify and fix already-migrated modules
+- `references/appium-testing.md` — Phases 4, 5, Verify: Appium flow generation, selectors, segmentation, verify-first protocol
+- `references/verify-protocol.md` — Verify mode: 3-layer verification protocol
+- `references/appium-flow-templates.md` — Phases 4, 5, Verify: YAML templates and Python driver
+- `references/device-slot-management.md` — Phases 4, 5, Verify: emulator/simulator allocation
 - `references/self-improvement.md` — Migration retrospective
 
 ## Recovery Protocols
@@ -174,7 +186,7 @@ All agents read `references/agent-protocol.md` before starting.
 6. **No deferring tasks** — complete fully or flag as genuinely blocked; "it's complex" is not a valid reason
 7. **No type casting** — no `as`, `as?`, `as!`; use polymorphism, generics, or protocol conformance
 8. **Device isolation absolute** — `$ANDROID_SERIAL` in every `adb` command, `$IOS_UDID` in every `xcrun simctl`; read from PLAN.md header
-9. **Verify every fix automatically** — rebuild + parity-check.sh + Appium before reporting; never report without verification
+9. **Verify every fix automatically** — rebuild + parity-check.sh + flow-collector-check.sh + koin-binding-check.py + Appium before reporting; never report without verification
 10. **PROGRESS.md is checklist not journal** — one line per task; details belong in findings.md
 11. **Retrospective before /clear** — mandatory and autonomous; skipping means learnings lost permanently
 12. **parity-check.sh before Appium** — static analysis first, device testing second; never skip either layer

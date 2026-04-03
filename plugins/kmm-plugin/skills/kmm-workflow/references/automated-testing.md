@@ -159,7 +159,7 @@ FAKE_PORT=8089 node e2e-tests/fake-server.js &
 
 When multiple gameplans run concurrently on the same machine, their test phases collide: same emulator, same ports, same app install. Each gameplan gets its own dedicated device and ports, allocated during Phase 1.
 
-See `../kmm-test/references/device-slot-management.md` for the full device slot allocation protocol.
+See `device-slot-management.md` for the full device slot allocation protocol.
 
 **Allocate fake server port:**
 ```bash
@@ -179,7 +179,7 @@ echo "Allocated: FAKE_PORT=$FAKE_PORT"
 <!-- PORTS: fake=8091 -->
 ```
 
-**Cleanup on session completion:** See `../kmm-test/references/device-slot-management.md` for teardown commands.
+**Cleanup on session completion:** See `device-slot-management.md` for teardown commands.
 
 The orchestrator reads device/port values from PLAN.md header and exports them as env vars before running any test command.
 
@@ -201,7 +201,7 @@ A checkpoint with failing unit tests is invalid. If tests fail after wiring, the
 
 Drive full user journeys against the real app using the Appium Python driver. This catches visual regressions, runtime crashes, integration issues, and unwired buttons that unit tests miss. Optionally point the app at the fake server for deterministic error-path coverage.
 
-**Flow generation:** Flows are generated from `e2e-tests/screen-map.json` by reading `../kmm-test/references/appium-testing.md` for mapping rules. Each flow in screen-map becomes a Python-driven Appium script per platform, written to `e2e-tests/appium-flows/`.
+**Flow generation:** Flows are generated from `e2e-tests/screen-map.json` by reading `appium-testing.md` for mapping rules. Each flow in screen-map becomes a Python-driven Appium script per platform, written to `e2e-tests/appium-flows/`.
 
 ### Baseline capture protocol
 
@@ -229,7 +229,7 @@ Skip baseline rebuild if `e2e-tests/.cache-key` matches `git rev-parse master`. 
 
 ### Blocker handling
 
-Flows with `blocker` steps are split into segments. Claude's bash loop runs segments sequentially with a user pause between them. See `../kmm-test/references/appium-testing.md` §3 for segmentation rules.
+Flows with `blocker` steps are split into segments. Claude's bash loop runs segments sequentially with a user pause between them. See `appium-testing.md` §3 for segmentation rules.
 
 When a flow step has `"action": "blocker"`:
 

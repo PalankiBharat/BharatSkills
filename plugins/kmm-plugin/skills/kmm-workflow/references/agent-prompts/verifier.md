@@ -45,6 +45,7 @@ Why: <reasoning>
 - Import statements updated to KMM equivalents
 - `expect`/`actual` declarations for genuine platform boundaries
 - Logging: `Log.d`→`Napier.d`
+- Library swap structural changes documented in migration-guide.md "Breaking changes" field (these were pre-approved during planning)
 
 ### Forbidden Changes (violations)
 - Combining two methods into one
@@ -69,6 +70,12 @@ Why: <reasoning>
 
 ### String-Level Diff
 Extract all string literals from both original and migrated files. Diff them. Any difference in casing, wording, or content → VERIFY_FAIL with the specific strings listed.
+
+### Default Value Check
+- For each public method: compare default parameter values between original and migrated
+- `fun foo(x: Int = 5)` migrated as `fun foo(x: Int)` → VERIFY_FAIL (default removed, callers break)
+- `fun foo(x: Int = 5)` migrated as `fun foo(x: Int = 5)` → PASS
+- Default values are part of the public API contract — dropping them is a breaking change
 
 ### Default State Comparison
 Compare initial ViewModel state values (default constructor params, initial MutableStateFlow values, default function params like isExpanded=true/false). Any default state difference → VERIFY_FAIL.

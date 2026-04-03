@@ -41,7 +41,14 @@ Why: <reasoning>
 
 Execute these steps in order. Do not skip any.
 
-### Step 1: Stage original and remove from Android source set
+### Step 1: Use Staged Code
+
+If a TDD_COMPLETE exists for this file (check PROGRESS.md), the test-writer already staged it.
+- Read the staged path from TDD_COMPLETE output
+- Do NOT re-stage — use the existing staged copy
+- If no TDD_COMPLETE exists (standalone migration), stage it yourself per the original protocol below:
+
+**Stage original and remove from Android source set (only if no TDD_COMPLETE exists):**
 
 - Copy the Android source file into `shared/src/androidMain/` at the appropriate package path
 - **IMMEDIATELY delete the original file from `src/main/java/`** (or `src/main/kotlin/`) — commonMain compiles into all platform targets including Android, so keeping the original causes duplicate class declaration errors
@@ -260,15 +267,33 @@ The LAST line of your output MUST be exactly one of the following two formats. N
 **On success:**
 
 ```
-FILE_COMPLETE: <file> | swaps: [list-of-lib-swaps] | expect-actual: [list-or-none] | tests: <count>
+FILE_COMPLETE: <source-file>
+  target: <target-file>
+  tests: <test-file> (N tests)
+  swaps: [list-of-lib-swaps]
+  breaking: [list-of-consumer-visible-changes] or "none"
+  di-bindings: [list-of-Koin-bindings-needed] or "none"
+  wiring-notes: [import-changes-for-consumers] or "standard"
 ```
 
 Examples:
 ```
-FILE_COMPLETE: shared/src/commonMain/kotlin/com/example/LoginRepository.kt | swaps: [Retrofit→Ktor, Gson→kotlinx.serialization, Hilt→Koin] | expect-actual: [httpClient] | tests: 12
+FILE_COMPLETE: shared/src/commonMain/kotlin/com/example/LoginRepository.kt
+  target: shared/src/commonMain/kotlin/com/example/LoginRepository.kt
+  tests: shared/src/commonTest/kotlin/com/example/LoginRepositoryTest.kt (12 tests)
+  swaps: [Retrofit→Ktor, Gson→kotlinx.serialization, Hilt→Koin]
+  breaking: none
+  di-bindings: [single<LoginRepository>()]
+  wiring-notes: standard
 ```
 ```
-FILE_COMPLETE: shared/src/commonMain/kotlin/com/example/UserMapper.kt | swaps: [none] | expect-actual: [none] | tests: 5
+FILE_COMPLETE: shared/src/commonMain/kotlin/com/example/UserMapper.kt
+  target: shared/src/commonMain/kotlin/com/example/UserMapper.kt
+  tests: shared/src/commonTest/kotlin/com/example/UserMapperTest.kt (5 tests)
+  swaps: [none]
+  breaking: none
+  di-bindings: none
+  wiring-notes: standard
 ```
 
 **If migration cannot proceed** (missing dependency source, API surface conflict, platform behavior with no clear KMM equivalent, tests failing after 3 attempts):

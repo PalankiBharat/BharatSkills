@@ -227,6 +227,11 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
   10. Koin binding completeness — every VM constructor param type has binding in both platform modules
   
   The script is project-specific (paths, module names derived from PLAN.md). Run it at every Phase 4/5 checkpoint BEFORE Appium. If any check fails → fix → rerun. Only proceed to Appium after parity-check.sh passes clean.
+
+  Additionally, generate these verification scripts from the project structure:
+  - `flow-collector-check.sh` — customize SHARED_SRC and IOS_SRC paths from the template
+  - `koin-binding-check.py` — customize koin module glob and shared source path from the template
+  - `screen-coverage-check.sh` — customize screen-map path and Android source path from the template
 - **Checkpoint 1** committed in the worktree. Commit message: `chore: begin KMM migration for [module-name]`
 
 ---
@@ -746,6 +751,9 @@ run_check "./gradlew :shared:compileDebugKotlin"
 run_check "./gradlew :shared:compileKotlinIosArm64"
 run_check "./gradlew :app:assembleDebug"
 # run_check "xcodebuild -workspace iosApp/iosApp.xcworkspace -scheme iosApp -destination '...' build"
+
+# DI verification (if project uses Koin)
+./gradlew :shared:checkKoinModules 2>/dev/null || echo "WARN: Koin module check not available — grep-based audit will be used in verify mode"
 
 echo ""
 echo "=== Results: PASS=$PASS FAIL=$FAIL ==="

@@ -11,11 +11,14 @@ This file is the template for `migration-guide.md` — the per-file spec created
 - Source: <androidApp/src/main/java/.../FileName.kt>
 - Target: <shared/src/commonMain/kotlin/.../FileName.kt>
 - Classification: <migrate-swap | migrate-expect-actual | platform-stay | delete>
+- UI Strategy: <CMP | SwiftUI | Hybrid — decided during planning, not by agents | N/A>
 - Public API: <methodA(param: Type): ReturnType, methodB(): Unit, ...>
 - Swaps: <AndroidLib Foo → KMM Bar vX.Y.Z, ...>
 - Platform APIs: <android.util.Log → Napier (line 12, 34), System.currentTimeMillis() → Clock.System.now().toEpochMilliseconds() (line 57) | none>
 - Breaking changes: <Swap X changes constructor from (A, B) to (A, B, C); swap Y changes return type from T to Result<T> | none>
 - Callbacks: <onSuccess: (User) -> Unit in login() → wire to LoginViewModel.onLoginSuccess; onError: (Throwable) -> Unit → wire to LoginViewModel.onLoginError | none>
+- Flows: <state: StateFlow<UiState>, navigation: SharedFlow<NavEvent>, toast: Channel<String> | state-only>
+- UI Branches: <isPremium → PremiumBanner, cart.isEmpty → EmptyCartView/CartList, isLoading → spinner | none>
 - Expected tests: <N tests — 1 per public method + error paths: login email (success, invalid creds, network error), login phone (success, invalid), logout, isLoggedIn>
 - Serialization: <JSON fields: "access_token" (@SerialName("access_token")), "expires_in" (Int, never null), "user" (nullable → default null) | none>
 - Decisions: <Retrofit → Ktor: Replace (KMM-native, same suspend API surface); SharedPreferences → MultiplatformSettings: Replace (drop-in wrapper, no API change needed)>
@@ -39,6 +42,8 @@ This file is the template for `migration-guide.md` — the per-file spec created
 - Platform APIs: android.util.Log → Napier (lines 23, 47, 61), SharedPreferences → MultiplatformSettings (lines 38–42)
 - Breaking changes: Retrofit swap converts login() from callback-based to suspend — callers must be in a coroutine scope; SharedPreferences swap changes constructor to inject Settings instead of Context
 - Callbacks: onLoginResult: (Result<User>) -> Unit in login() → wire to LoginViewModel.handleLoginResult; onTokenExpired: () -> Unit → wire to SessionManager.onTokenExpired
+- Flows: state: StateFlow<LoginUiState>, navigation: SharedFlow<LoginNavEvent>, error: Channel<String>
+- UI Branches: isLoading → CircularProgressIndicator, loginError != null → ErrorBanner | none for LoginRepository (non-UI)
 - Expected tests: 7 tests — login email (success, wrong password, network error), login phone (success, invalid format), logout (clears prefs), isLoggedIn (emits correct state after login/logout)
 - Serialization: JSON fields: "email" (String, never null), "phone" (String, nullable → omit if null), "token" (@SerialName("access_token"), String), "expires_in" (Int, never null)
 - Decisions: Retrofit → Ktor: Replace (suspend API is identical surface, no abstraction needed); SharedPreferences → MultiplatformSettings: Replace (wraps NSUserDefaults on iOS transparently, zero consumer changes)
@@ -71,3 +76,6 @@ This file is the template for `migration-guide.md` — the per-file spec created
 - **Migrate after** — dependency order; the migrator will not start this file until listed files are VERIFY_PASS
 - **Consumers** — files whose imports must be updated after migration completes
 - **Rules** — file-specific constraints that override general behavior; written to prevent the most common agent mistakes (combining, splitting, renaming)
+- **Flows** — every reactive emission point in the file: StateFlow (UI state), SharedFlow (events), Channel (one-shot signals). The iOS wirer must create a `.task {}` collector for each. "state-only" if only the primary UI state flow exists.
+- **UI Strategy** — for `platform-stay` files only: CMP (Compose Multiplatform reuse), SwiftUI (native iOS rewrite), or Hybrid (shared ViewModel + native UI). Decided during Phase 1 planning with user approval — agents must not override this. "N/A" for non-UI files.
+- **UI Branches** — every conditional rendering path in the Android UI: the condition and what it shows/hides. The iOS wirer must implement all branches. The verifier cross-references this list against iOS view code. "none" if the file has no conditional rendering (non-UI files).

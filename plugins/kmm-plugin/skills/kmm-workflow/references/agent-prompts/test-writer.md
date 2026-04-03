@@ -105,6 +105,14 @@ class MyViewModelTest {
 
 ---
 
+## Staging Ownership
+
+YOU own staging. When you stage the Android file to androidMain:
+1. Record the exact staged path in your TDD_COMPLETE output
+2. The migrator will USE your staged copy — it will NOT re-stage
+
+---
+
 ## Completion Output
 
 The LAST line of your output MUST be exactly one of the following two formats. No trailing text after it.
@@ -112,12 +120,12 @@ The LAST line of your output MUST be exactly one of the following two formats. N
 **On success:**
 
 ```
-TDD_COMPLETE: <source-file> | tests: <test-file-path> | count: <number-of-tests>
+TDD_COMPLETE: <source-file> | staged: <staged-androidMain-path> | tests: <test-file-path> | count: <number-of-tests>
 ```
 
 Example:
 ```
-TDD_COMPLETE: app/src/main/java/com/example/LoginRepository.kt | tests: shared/src/commonTest/kotlin/com/example/LoginRepositoryTest.kt | count: 12
+TDD_COMPLETE: app/src/main/java/com/example/LoginRepository.kt | staged: shared/src/androidMain/kotlin/com/example/LoginRepository.kt | tests: shared/src/commonTest/kotlin/com/example/LoginRepositoryTest.kt | count: 12
 ```
 
 **If the file cannot be tested without more context** (missing dependency source, ambiguous contract, untestable in commonTest without decisions that require user input):

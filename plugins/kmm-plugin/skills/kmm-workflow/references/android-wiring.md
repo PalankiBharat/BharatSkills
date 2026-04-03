@@ -7,6 +7,14 @@ Runs AFTER all shared code migration phases are checkpointed. BEFORE iOS.
 
 ---
 
+## Pre-Wire: Read Wiring Manifests
+
+Before starting, read every FILE_COMPLETE output from Phase 3 (stored in PROGRESS.md).
+For each file with `breaking` != "none": these call sites need updating — follow the documented changes.
+For each file with `di-bindings` != "none": these Koin bindings need adding to the Android DI module.
+For each file with `wiring-notes` != "standard": follow the specific import change instructions.
+Do not rediscover — use the manifest.
+
 ## Table of Contents
 
 1. [Wire Android Protocol](#1-wire-android-protocol)
@@ -48,8 +56,7 @@ This table drives the wiring work breakdown. "Update imports" underestimates whe
 ### 1.1 Update Imports in Android Consumers
 
 For every file listed under "Consumers" in migration-guide.md:
-- Update import paths from `androidApp/...` to `shared/...` (or the shared module package)
-- Do not change call sites — signatures are identical (1:1 rule)
+- Update imports to point to shared module. For most files, call sites don't change (signatures are identical per the 1:1 behavioral port rule). EXCEPTION: when migration-guide.md documents a Breaking Change for this file (e.g., callback→suspend conversion), update call sites as documented. The breaking change was approved during planning — apply it now.
 - Dispatch parallel Haiku agents if consumer count > 5 (see Section 2)
 
 **Pager composable tab routing:** When a shared composable uses `HorizontalPager` with multiple tab types (e.g., Positions/Orders/Holdings), and multiple nav routes render the same composable for different tabs, each route MUST pass the correct `initialTab` parameter. Hardcoding a default tab means other tabs silently render the wrong content.
@@ -183,11 +190,11 @@ For debugging failures found during verification, follow the structured debug lo
 
 ### 4.1 Appium (primary)
 
-Uses `e2e-tests/screen-map.json` as input for Appium flow generation. See `../kmm-test/references/appium-testing.md` for flow generation rules.
+Uses `e2e-tests/screen-map.json` as input for Appium flow generation. See `appium-testing.md` for flow generation rules.
 
 ```bash
 # Generate Appium flow scripts from screen-map.json
-# (read ../kmm-test/references/appium-testing.md for mapping rules)
+# (read appium-testing.md for mapping rules)
 
 # Build and install
 ./gradlew :app:assembleDebug

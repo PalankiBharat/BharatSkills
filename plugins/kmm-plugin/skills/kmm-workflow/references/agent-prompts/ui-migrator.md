@@ -156,6 +156,26 @@ struct <ScreenName>: View {
 
 ---
 
+## Flow Collection — Mandatory Enumeration
+
+Read the `Flows:` field from this file's migration-guide.md entry. For EVERY flow listed:
+
+1. `StateFlow` → `.collectAsState()` (CMP) or `@State` + `.task { for await state in viewModel.uiState { ... } }` (SwiftUI)
+2. `SharedFlow` → dedicated `.task { }` block with `for await event in viewModel.<flow>.values { ... }`
+3. `Channel` → dedicated `.task { }` block consuming one-shot signals
+
+After writing the view, VERIFY: count the `.task { }` blocks (or `collectAsState` calls). Count must equal the number of flows in the Flows field. If count < expected → you missed a flow. Find it and add it.
+
+## UI Branches — Mandatory Coverage
+
+Read the `UI Branches:` field. For EVERY branch listed, implement the equivalent conditional in the iOS view. After writing, verify each branch exists with equivalent condition logic.
+
+## UI Strategy — Use What Planning Decided
+
+Read the `UI Strategy:` field. Use that strategy exactly. Do not override it. If Strategy is CMP, follow CMP rules. If SwiftUI, write native SwiftUI. If Hybrid, use shared ViewModel + native UI.
+
+---
+
 ## onClick Audit (mandatory before completion)
 
 Before reporting UI_COMPLETE, you MUST verify every interactive element is wired:

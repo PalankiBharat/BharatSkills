@@ -67,6 +67,7 @@ Run after Android wiring, before Appium.
 - [ ] Koin binding completeness: all VM constructor params AND child composable types have bindings
 - [ ] Build + unit tests pass
 - [ ] parity-check.sh passes (all 10 checks green)
+- [ ] DI binding audit: every constructor-injected dependency has a Koin binding (run koin-binding-check.py)
 - [ ] Appium E2E: all flows pass on Android device (verify-first protocol)
 - [ ] Manual test: structured checklist from migration-guide.md breaking changes
 - [ ] PROGRESS.md updated and committed
@@ -87,6 +88,10 @@ Run after iOS wiring, before final commit.
 - [ ] SDK init parameters: identical parameter lists between platforms
 - [ ] Route mapping: every sealed class/enum variant has explicit mapping (no else→null)
 - [ ] Session fields: every isLoggedIn/isTokenExpired field is written by all save paths
+- [ ] Flow inventory: every SharedFlow/Channel in shared ViewModels has a corresponding iOS `.task {}` collector (run flow-collector-check.sh)
+- [ ] Callback audit: every onClick/onAction in Android UI maps to an equivalent iOS handler
+- [ ] UI branch audit: every conditional rendering path in Android UI exists in iOS view
+- [ ] DI binding audit: every constructor-injected dependency has a Koin binding (run koin-binding-check.py)
 - [ ] Build + unit tests pass
 - [ ] parity-check.sh passes (all 10 checks green)
 - [ ] Appium E2E: all flows pass on iOS simulator (verify-first protocol)
