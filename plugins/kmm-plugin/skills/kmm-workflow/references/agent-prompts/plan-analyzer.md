@@ -127,6 +127,41 @@ The plan must contain all five phases in order. Flag any missing phase as a GAP:
 - `Decisions` field must have a rationale for every library swap — not just the choice, but WHY
 - Flag any "TBD", "N/A if needed", or blank enriched field as a BLOCKER
 
+### 17. Flow Inventory Completeness
+- For each file with Classification `migrate-swap` or `migrate-expect-actual` that contains a ViewModel:
+  - Verify `Flows:` field is populated (not empty, not TBD)
+  - Grep the source file for `StateFlow`, `SharedFlow`, `Channel`, `Flow<` declarations
+  - Every grep hit must appear in the Flows field
+  - Missing flow in the field → BLOCKER (will cause silent feature loss on iOS)
+
+### 18. UI Strategy Decided
+- For each file with Classification `platform-stay`:
+  - Verify `UI Strategy:` field is one of: CMP, SwiftUI, Hybrid
+  - TBD or empty → BLOCKER (ui-migrator cannot proceed without strategy)
+
+### 19. UI Branch Coverage
+- For each UI file (Classification `platform-stay`):
+  - Grep Android source for `if (`, `when (`, `visibility =`, `.isVisible`, `AnimatedVisibility`
+  - Each conditional rendering branch should appear in UI Branches field
+  - Missing branch → HIGH (may cause incomplete iOS rendering)
+
+### 20. Platform API Completeness (substance check)
+- For each file in migration-guide.md:
+  - Grep the SOURCE file for known problematic APIs: Dispatchers.IO, @Synchronized, String.format(), System.currentTimeMillis(), java.util.UUID, android.util.Log, java.net.URL, Thread.sleep, runBlocking
+  - Every hit must appear in the file's "Platform APIs" field
+  - Missing API in field → HIGH (migrator will hit it and improvise)
+
+### 21. Screen Coverage Validation
+- Read screen-map.json
+- Grep the Android project for: Activity classes, Fragment classes, @Composable functions with NavHost/NavGraph routes
+- Every navigable screen should have a corresponding entry in screen-map.json
+- Missing screen → HIGH (zero Appium test coverage for that screen)
+
+### 22. Expected Test Count Validation
+- For each file: count public methods in the source
+- Expected tests should be >= public method count (1 test per method minimum)
+- If Expected tests < public method count → MEDIUM (under-tested migration)
+
 ---
 
 ## Output Format

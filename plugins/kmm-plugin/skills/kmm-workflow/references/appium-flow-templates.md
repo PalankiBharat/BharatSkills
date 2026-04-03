@@ -357,7 +357,8 @@ def resolve_selector(selector, env_vars, platform):
     elif "text" in selector:
         if platform == "android":
             return AppiumBy.XPATH, f'//*[@text="{selector["text"]}"]'
-        return AppiumBy.ACCESSIBILITY_ID, selector["text"]  # iOS: try accessibility first
+        # iOS: text selector → use XPath, not ACCESSIBILITY_ID
+        return AppiumBy.XPATH, f'//*[@label="{selector["text"]}" or @value="{selector["text"]}"]'
     elif "xpath" in selector:
         return AppiumBy.XPATH, selector["xpath"]
     elif "point" in selector:
@@ -552,7 +553,7 @@ def run_audit(driver, screenshot_dir, screen_name):
     os.makedirs(screenshot_dir, exist_ok=True)
     with open(audit_path, "w") as f:
         json.dump(audit_results, f, indent=2)
-    print(f"Audit: found {len(audit_results)} clickable elements -> {audit_path}")
+    print(f"Audit: found {len(audit_results)} results -> {audit_path}")
     return audit_results
 
 

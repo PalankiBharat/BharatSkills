@@ -4,8 +4,12 @@ Read this before starting any task. These rules apply to ALL agents in the KMM m
 
 ## THE RULE
 
-1:1 MECHANICAL PORT. Only Android→KMM specifics change.
-- Zero improvisation, zero combining, zero signature changes
+1:1 BEHAVIORAL PORT. Same observable behavior, identical public API contract.
+- Zero improvisation, zero combining
+- Method names, parameter names, parameter order, return types, and DEFAULT VALUES must match
+- Library swaps MAY change internal structure (callback→suspend, builder→DSL) — this is expected
+- Library swaps MUST NOT change the public API surface visible to consumers
+- If a swap forces a consumer-visible signature change → document in migration-guide.md "Breaking changes" field → REQUIRES_APPROVAL
 - Any behavioral change → REQUIRES_APPROVAL
 - No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
 
@@ -59,6 +63,19 @@ Options:
 Recommended: <A or B> — biased toward correctness and maintainability, NEVER speed.
 Why: <reasoning>
 ```
+
+## REQUIRES_APPROVAL — Unified Trigger Criteria
+
+ALL agents use the same criteria. Escalate when:
+1. A code change alters observable behavior beyond what migration-guide.md documents
+2. A dependency version causes build failure (don't upgrade silently)
+3. A file's migration-guide.md entry is incomplete or contradictory
+4. Root cause is unclear after reading master + migrated + error
+
+Do NOT escalate when:
+1. Library swap changes internal structure (callback→suspend) — this is expected and documented in Breaking changes
+2. Import paths change — this is mechanical
+3. Logging library swaps (Log→Napier) — pre-approved pattern
 
 ## Fresh Evidence
 

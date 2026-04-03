@@ -6,6 +6,13 @@ Runs AFTER Android is committed. Fresh context recommended — tell user to `/cl
 
 ---
 
+## Pre-Wire: Read Wiring Manifests
+
+Before starting, read every FILE_COMPLETE output from Phase 3 (stored in PROGRESS.md).
+For each file with `breaking` != "none": these consumer-visible changes affect iOS wiring.
+For each file with `di-bindings` != "none": these Koin bindings need adding to the iOS DI module.
+Do not rediscover — use the manifest.
+
 ## Table of Contents
 
 1. [Wire iOS Protocol](#1-wire-ios-protocol)
@@ -90,7 +97,7 @@ See [Section 7](#7-build--runtime-verification) for the full verification protoc
 #### Step 7 — Appium Automated Flow Tests (iOS)
 
 Generate iOS-specific Appium flow scripts from screen-map.json using iOS selector fallback strategy
-(text-based selectors preferred over accessibility IDs — see `../kmm-test/references/appium-testing.md` §2):
+(text-based selectors preferred over accessibility IDs — see `appium-testing.md` §2):
 ```
   → python3 e2e-tests/appium_driver.py --device $IOS_UDID --appium-port $APPIUM_PORT --platform ios
   → if fail → DEBUG LOOP (iOS) → fix → rerun
@@ -839,7 +846,7 @@ For each screen:
 
 **Framework linking** — If shared KMM framework is not linked in the iOS target's "Frameworks, Libraries" section, you get `dyld: Library not loaded`. Check Build Phases → Link Binary With Libraries.
 
-**Kotlin/Native memory model** — All shared objects must be accessed from the main thread on iOS unless explicitly annotated. Crashes with `IncorrectDereferenceException` indicate off-thread access to frozen objects. Fix: ensure ViewModel collects flows on main dispatcher.
+**Kotlin/Native memory model** — Modern Kotlin/Native (1.7.20+) uses the new memory model — `IncorrectDereferenceException` no longer applies. Instead, watch for: missing `@Volatile` on shared mutable state, `InvalidMutabilityException` on legacy code, and thread-safety issues with shared collections (use `kotlinx-atomicfu` or `Mutex`).
 
 **SKIE StateFlow observation** — Use `.collect { }` or `ObservingTask` pattern (Section 4). Direct property access on `StateFlow` from Swift does not trigger updates.
 

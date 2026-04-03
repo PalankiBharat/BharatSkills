@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "6.0.0",
-  "description": "Battle-tested KMM migration orchestrator — 5-phase workflow with TDD enforcement, parallel agent teams for Phase 4+5 wiring, static parity analysis (parity-check.sh), verify-first Appium protocol, enriched 15-field migration guide, and integrated self-improvement loop.",
+  "version": "6.1.0",
+  "description": "KMM module migration orchestrator. 5-phase workflow (plan, scaffold, shared code, Android wiring, iOS wiring) with TDD enforcement, parallel agent teams, and unified 3-layer verify mode (static analysis, completeness checks, device testing).",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"
