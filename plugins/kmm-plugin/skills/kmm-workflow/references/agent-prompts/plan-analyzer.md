@@ -1,21 +1,8 @@
 # Plan Analyzer — Agent Prompt
 
-## GUARDRAILS
-1:1 MECHANICAL PORT. Only Android→KMM specifics change.
-- Zero improvisation, zero combining, zero signature changes
-- Any behavioral change → REQUIRES_APPROVAL
-- No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
-- kotlinx.serialization only (no Gson/Moshi)
-- Sealed interface preferred; sealed class for SKIE-consumed Action/Effect types (see rules-and-guardrails.md)
-- Ktor only (no Retrofit/OkHttp)
-- Koin 4 only (no Hilt/Dagger)
-- kotlinx-datetime only (no java.time)
-- StateFlow only (no LiveData)
-- No runBlocking on main thread
-- expect/actual for platform-specific code
-- **Dependency research (mandatory):** (1) Web search + Context7/find-docs for latest availability, versions, and API status. (2) Skill references (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns and gotchas. **Combine both** — live data confirms what's current, skill references provide proven swap patterns. Neither alone is sufficient. (3) Training data NEVER — it has caused wrong guidance.
-- 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
-- Must emit completion promise
+## Protocol
+Read `references/agent-protocol.md` before starting. All rules there apply.
+This agent is READ-ONLY. You MUST NOT use Write or Edit tools. Report findings only.
 
 ---
 
@@ -127,6 +114,19 @@ The plan must contain all five phases in order. Flag any missing phase as a GAP:
 - Flag any library where the plan references a version that might be outdated
 - Check that SKIE version compatibility is confirmed
 
+### 15. Platform API Pre-Check
+- For every file classified as `migrate-swap` or `migrate-expect-actual`, verify the `Platform APIs` field is populated in migration-guide.md
+- Cross-reference each listed API against `references/platform-api-gotchas.md` — verify the replacement is correct
+- Flag any file with an empty `Platform APIs` field as a BLOCKER — migrator agents will encounter these APIs during migration and improvise replacements
+- Flag any file using `Dispatchers.IO`, `@Synchronized`, `String.format()`, `removeFirst()`, `System.currentTimeMillis()`, or `java.util.UUID` that doesn't list these in Platform APIs as a BLOCKER
+
+### 16. Enriched Fields Completeness
+- Every file entry in migration-guide.md must have ALL 15 fields populated (including new fields: Platform APIs, Breaking changes, Callbacks, Expected tests, Serialization, Decisions)
+- `Expected tests` must be >= 1 per public method listed in Public API. Files with 5+ public methods or complex state management should have higher minimums.
+- `Callbacks` field must list every callback/lambda parameter in the file's public API and composable parameters
+- `Decisions` field must have a rationale for every library swap — not just the choice, but WHY
+- Flag any "TBD", "N/A if needed", or blank enriched field as a BLOCKER
+
 ---
 
 ## Output Format
@@ -136,16 +136,16 @@ Return a structured report:
 ```
 ## Plan Analysis Report
 
-### GAPS (must fix before execution)
-- [ ] GAP: <description> | File: <file> | Impact: <what breaks if not fixed>
+### BLOCKER (must fix before execution, blocks all progress)
+- [ ] BLOCKER: <description> | File: <file> | Impact: <what breaks if not fixed>
 ...
 
-### AMBIGUITIES (must clarify before execution)
-- [ ] AMBIGUOUS: <description> | File: <file> | Options: <list options>
+### HIGH (must clarify before execution, blocks affected files)
+- [ ] HIGH: <description> | File: <file> | Options: <list options>
 ...
 
-### WARNINGS (should fix, can proceed)
-- [ ] WARN: <description> | File: <file> | Suggestion: <what to do>
+### MEDIUM (should fix, can proceed with caution)
+- [ ] MEDIUM: <description> | File: <file> | Suggestion: <what to do>
 ...
 
 ### VERIFIED (checks that passed)
@@ -161,7 +161,7 @@ Return a structured report:
 - [x] Test feasibility: N/N files testable in commonTest
 ...
 
-PLAN_ANALYSIS: gaps: N | ambiguities: N | warnings: N | verified: N/N checks
+PLAN_ANALYSIS: blockers: N | high: N | medium: N | verified: N/N checks
 ```
 
 The last line is the completion promise. The orchestrator uses this to decide whether to proceed or fix the plan first.

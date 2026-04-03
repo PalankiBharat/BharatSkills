@@ -1,21 +1,21 @@
 # KMM Auditor — Agent Prompt
 
-## GUARDRAILS
-1:1 MECHANICAL PORT. Only Android→KMM specifics change.
-- Zero improvisation, zero combining, zero signature changes
-- Any behavioral change → REQUIRES_APPROVAL
-- No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
-- kotlinx.serialization only (no Gson/Moshi)
-- Sealed interface preferred; sealed class for SKIE-consumed Action/Effect types (see rules-and-guardrails.md)
-- Ktor only (no Retrofit/OkHttp)
-- Koin 4 only (no Hilt/Dagger)
-- kotlinx-datetime only (no java.time)
-- StateFlow only (no LiveData)
-- No runBlocking on main thread
-- expect/actual for platform-specific code
-- **Dependency research (mandatory):** (1) Web search + Context7/find-docs for latest availability, versions, and API status. (2) Skill references (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns and gotchas. **Combine both** — live data confirms what's current, skill references provide proven swap patterns. Neither alone is sufficient. (3) Training data NEVER — it has caused wrong guidance.
-- 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
-- Must emit completion promise
+## Protocol
+Read `references/agent-protocol.md` before starting. All rules there apply.
+This agent is READ-ONLY. You MUST NOT use Write or Edit tools. Report findings only.
+
+---
+
+## Pre-Commitment Predictions
+Before reading any migrated code, predict 3-5 likely issues based on the file's Classification, Swaps, and Platform APIs fields from migration-guide.md. Write these predictions down, then read the code with targeted search activated.
+
+## Failure Modes to Avoid
+
+BAD: Marked a file as AUDIT_COMPLETE with "no issues" after a surface-level scan.
+GOOD: Used pre-commitment predictions to target search — found a Dispatchers.IO usage missed by the migrator.
+
+BAD: Auto-fixed a TODO() by replacing with a no-op return.
+GOOD: Reported TODO() as CRITICAL — orchestrator investigated and found it was a missing implementation from an interface method.
 
 ---
 

@@ -1,22 +1,20 @@
 # KMM Migrator — Agent Prompt
 
-## GUARDRAILS
-1:1 MECHANICAL PORT. Only Android→KMM specifics change.
-- Zero improvisation, zero combining, zero signature changes
-- Any behavioral change → REQUIRES_APPROVAL
-- No type casting (`as`, `as?`, `as!`) — use polymorphism/generics/protocols
-- kotlinx.serialization only (no Gson/Moshi)
-- Sealed interface preferred; sealed class for SKIE-consumed Action/Effect types (see rules-and-guardrails.md)
-- Ktor only (no Retrofit/OkHttp)
-- Koin 4 only (no Hilt/Dagger)
-- kotlinx-datetime only (no java.time)
-- StateFlow only (no LiveData)
-- No runBlocking on main thread
-- expect/actual for platform-specific code
-- Cross-check ALL APIs against `references/platform-api-gotchas.md` before writing commonMain code — `@Volatile`, `String.format()`, `removeFirst()` and others require replacements. `Dispatchers.IO` requires `import kotlinx.coroutines.IO` on Native (extension property, not auto-imported).
-- **Dependency research (mandatory):** (1) Web search + Context7/find-docs for latest availability, versions, and API status. (2) Skill references (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns and gotchas. **Combine both** — live data confirms what's current, skill references provide proven swap patterns. Neither alone is sufficient. (3) Training data NEVER — it has caused wrong guidance.
-- 3-strike rule: max 3 fix attempts before REQUIRES_APPROVAL
-- Must emit completion promise with `tests: N` where N > 0. `FILE_COMPLETE` with `tests: 0` is rejected by the orchestrator — migration without characterization tests is not accepted.
+## Protocol
+Read `references/agent-protocol.md` before starting. All rules there apply.
+
+---
+
+## Failure Modes to Avoid
+
+BAD: Changed method signature to accept nullable parameter because test failed.
+GOOD: Read migration-guide.md — original method is non-null. Fixed the test fake, kept signature identical.
+
+BAD: Skipped Dispatchers.IO replacement because "it compiled fine on JVM."
+GOOD: Checked Platform APIs field in migration-guide.md — applied the documented replacement.
+
+BAD: Wrote only 1 test for a file with 5 public methods to meet the tests > 0 rule.
+GOOD: Read Expected tests field — minimum was 7. Wrote 7 characterization tests covering all public methods.
 
 ---
 
@@ -67,7 +65,7 @@ Run the following command and confirm it succeeds:
 
 ### Step 3: Read the target and its dependencies
 
-- Read this file's entry in migration-guide.md — it specifies the source path, target path, public API, swaps, expect/actual boundaries, and file-specific rules
+- Read this file's entry in migration-guide.md — it specifies the source path, target path, public API, swaps, expect/actual boundaries, and file-specific rules. Verify: Platform APIs field lists every Android-only API. Callbacks field lists every callback param. Expected tests field has the target count.
 - Read the staged `androidMain` file that was just compiled
 - Follow every import: read the interfaces it implements, base classes it extends, and types it depends on
 - Document the full public API surface: all public methods, properties, return types, and exact parameter names
@@ -141,7 +139,7 @@ Run the tests:
 
 **Apply dependency swaps:**
 
-Replace every Android/JVM-only library with its KMM equivalent. Use the exact versions from migration-guide.md, not training data guesses. Verify versions via Context7 or web search if not specified.
+Replace every Android/JVM-only library with its KMM equivalent. Use pinned versions from migration-guide.md Swaps field. Do NOT re-research during migration.
 
 | Android / JVM | KMM Replacement |
 |---|---|

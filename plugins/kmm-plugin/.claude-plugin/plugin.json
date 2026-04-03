@@ -1,7 +1,7 @@
 {
   "name": "kmm-plugin",
-  "version": "5.1.0",
-  "description": "Battle-tested KMM migration orchestrator — 5-phase workflow (plan, scaffold, shared code, wire Android, wire iOS) with TDD enforcement, autonomous self-improving retrospective, two-layer testing (unit + Appium E2E), comprehensive platform gotchas reference, and dependency decision framework. 1:1 mechanical port with parallel agent execution.",
+  "version": "6.0.0",
+  "description": "Battle-tested KMM migration orchestrator — 5-phase workflow with TDD enforcement, parallel agent teams for Phase 4+5 wiring, static parity analysis (parity-check.sh), verify-first Appium protocol, enriched 15-field migration guide, and integrated self-improvement loop.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"

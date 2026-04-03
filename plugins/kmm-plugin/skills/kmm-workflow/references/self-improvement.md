@@ -87,6 +87,48 @@ Review the issues above and modify if needed.
 
 The user does NOT need to approve individual findings or the issue creation. The retrospective runs end-to-end autonomously. The user reviews the summary and can edit issues afterward if needed.
 
+## Skill-Worthiness Gate
+
+Before adding any learning to the skill, score it:
+
+| Criterion | Points |
+|-----------|--------|
+| Specific to KMM migration (not generic programming) | +30 |
+| Non-obvious (would surprise a senior KMM developer) | +25 |
+| Hard-won (required debugging, caused a real failure) | +25 |
+| Not already covered by existing skill rules | +20 |
+| Generic programming advice ("use error handling") | -30 |
+| Already in platform-api-gotchas.md or similar reference | -20 |
+
+**Threshold: 70 points.** Below 70 → skip or merge into an existing rule. Above 70 → add as a new entry.
+
+The goal is to keep the skill sharp, not long. Every addition must earn its place.
+
+## Lean Output Format
+
+Retrospective findings MUST use this structured format (not verbose prose):
+
+```
+Finding: {
+  category: A|B|C|D|E,
+  target_file: <which skill file should change>,
+  existing_rule: <quote the existing rule to update, or "none" if new>,
+  proposed_change: <1-line description of what to change>,
+  rationale: <1-line why this matters>
+}
+```
+
+When creating GitHub issues, group findings by target_file. Each issue should be actionable by the Improve mode — classify, find home, rewrite to absorb.
+
+## Consolidation Mandate
+
+The Improve mode (invoked via `/kmm-workflow improve`) applies retrospective learnings with these rules:
+
+1. **NEVER append** a new bullet point to an existing list. Find the existing rule that covers this area and REWRITE it to absorb the learning.
+2. **Measure file growth:** if any file grows by more than 10 lines net after applying learnings, consolidate further. The skill should get SHARPER with each iteration, not LONGER.
+3. **One source of truth:** if a learning could go in SKILL.md or a reference doc, always choose the reference doc. SKILL.md stays lean.
+4. **Generalization mandatory:** strip project-specific names, branch names, API endpoints. Extract the reusable pattern.
+
 ## Issue format
 
 Title: `[kmm-retro] <project-name>: <N> learnings from migration`

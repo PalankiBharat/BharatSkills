@@ -13,6 +13,12 @@ This file is the template for `migration-guide.md` — the per-file spec created
 - Classification: <migrate-swap | migrate-expect-actual | platform-stay | delete>
 - Public API: <methodA(param: Type): ReturnType, methodB(): Unit, ...>
 - Swaps: <AndroidLib Foo → KMM Bar vX.Y.Z, ...>
+- Platform APIs: <android.util.Log → Napier (line 12, 34), System.currentTimeMillis() → Clock.System.now().toEpochMilliseconds() (line 57) | none>
+- Breaking changes: <Swap X changes constructor from (A, B) to (A, B, C); swap Y changes return type from T to Result<T> | none>
+- Callbacks: <onSuccess: (User) -> Unit in login() → wire to LoginViewModel.onLoginSuccess; onError: (Throwable) -> Unit → wire to LoginViewModel.onLoginError | none>
+- Expected tests: <N tests — 1 per public method + error paths: login email (success, invalid creds, network error), login phone (success, invalid), logout, isLoggedIn>
+- Serialization: <JSON fields: "access_token" (@SerialName("access_token")), "expires_in" (Int, never null), "user" (nullable → default null) | none>
+- Decisions: <Retrofit → Ktor: Replace (KMM-native, same suspend API surface); SharedPreferences → MultiplatformSettings: Replace (drop-in wrapper, no API change needed)>
 - expect/actual: <none | describe boundary>
 - Migrate after: <FileName1.kt, FileName2.kt | none>
 - Consumers: <FileA.kt, FileB.kt (update imports after)>
@@ -30,6 +36,12 @@ This file is the template for `migration-guide.md` — the per-file spec created
 - Classification: migrate-swap
 - Public API: login(email: String, pwd: String): Result<User>, login(phone: String): Result<User>, logout(): Unit, isLoggedIn(): Flow<Boolean>
 - Swaps: Retrofit Call<T> → suspend fun (Ktor 3.1.0), SharedPreferences → MultiplatformSettings 1.3.0
+- Platform APIs: android.util.Log → Napier (lines 23, 47, 61), SharedPreferences → MultiplatformSettings (lines 38–42)
+- Breaking changes: Retrofit swap converts login() from callback-based to suspend — callers must be in a coroutine scope; SharedPreferences swap changes constructor to inject Settings instead of Context
+- Callbacks: onLoginResult: (Result<User>) -> Unit in login() → wire to LoginViewModel.handleLoginResult; onTokenExpired: () -> Unit → wire to SessionManager.onTokenExpired
+- Expected tests: 7 tests — login email (success, wrong password, network error), login phone (success, invalid format), logout (clears prefs), isLoggedIn (emits correct state after login/logout)
+- Serialization: JSON fields: "email" (String, never null), "phone" (String, nullable → omit if null), "token" (@SerialName("access_token"), String), "expires_in" (Int, never null)
+- Decisions: Retrofit → Ktor: Replace (suspend API is identical surface, no abstraction needed); SharedPreferences → MultiplatformSettings: Replace (wraps NSUserDefaults on iOS transparently, zero consumer changes)
 - expect/actual: none
 - Migrate after: AuthCredentials.kt, TokenManager.kt
 - Consumers: LoginUseCase.kt, LoginViewModel.kt (update imports after)
@@ -49,6 +61,12 @@ This file is the template for `migration-guide.md` — the per-file spec created
   - `delete` — duplicate or dead code; safe to remove after consumers are updated
 - **Public API** — full method signatures the migrator must match exactly; this is the contract
 - **Swaps** — exact library replacements with verified versions (not training data guesses)
+- **Platform APIs** — every Android-only or JVM-only API occurrence in this file (with line numbers) and its exact commonMain replacement from platform-api-gotchas.md; "none" if no prohibited APIs present
+- **Breaking changes** — how each swap changes the visible surface for consumers: constructor signature changes, parameter additions, return type changes, callback → suspend conversions; "none" if no consumer-visible changes
+- **Callbacks** — every callback parameter in the file, its parent caller method, and the exact wiring target in consumer code; "none" if the file has no callback parameters
+- **Expected tests** — minimum test count with explicit list: 1 test per public method plus error paths for methods that can throw or return Result/Flow; used by the reviewer to fail under-tested migrations
+- **Serialization** — wire format requirements if the file touches JSON: exact JSON field names, @SerialName mappings, nullability rules, and default values; "none" if the file has no serialization
+- **Decisions** — for each dependency swap, the chosen strategy (Replace / Port / Abstract) and one-line rationale; Replace = drop-in KMM lib, Port = rewrite logic without a lib, Abstract = hide behind expect/actual or interface
 - **expect/actual** — describe the boundary if needed; "none" if the file has no platform split
 - **Migrate after** — dependency order; the migrator will not start this file until listed files are VERIFY_PASS
 - **Consumers** — files whose imports must be updated after migration completes

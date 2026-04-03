@@ -37,6 +37,15 @@ Two-phase separation: PLAN captures every decision in files. EXECUTE consumes th
 
 After planning is complete, tell the user:
 
+- **Before /clear:** Write a handoff doc to `<gameplan>/handoff-phase-1.md` (10-20 lines max):
+  ```markdown
+  ## Handoff: Phase 1 → Phases 2-3
+  ### Decided: <key decisions — library choices, DI strategy, navigation architecture>
+  ### Risks: <known issues for execution — complex files, uncertain deps, performance concerns>
+  ### Remaining: <what's left — any deferred decisions, user inputs needed>
+  ### Files: <count of files to migrate, dependency levels, estimated parallel batches>
+  ```
+
 ```
 Planning complete. Run /clear then:
 
@@ -194,7 +203,7 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
   3. Only ask if the framework has no recommendation or the user's situation differs from the default
   4. Record all decisions in findings.md with the rationale
 - **Task 1.11:** Android API audit — Before writing migration-guide.md per-file specs, grep all files planned for commonMain migration for Android-only APIs (`android.util.Log`, `System.currentTimeMillis`, `java.util.Date`, `org.joda.time`, `org.json`, `com.google.gson`, `@Synchronized`, `java.util.concurrent`, `Dispatchers.IO`, `GlobalScope`, `@VisibleForTesting`, `android.content.Context`, `android.content.SharedPreferences`). Record EVERY occurrence per file. The per-file spec in migration-guide.md MUST list the specific replacement for each occurrence — never write "should port cleanly" or "minimal changes".
-- **Task 1.12:** Library KMP audit — For every Android-only library being replaced (Paging3, Room, DataStore, Navigation, etc.), web search for official KMP support before planning a manual alternative. AndroidX libraries are rapidly adding KMP support — training data is outdated, always research first. Record findings in findings.md.
+- **Task 1.12:** Library KMP audit — For every Android-only library being replaced (Paging3, Room, DataStore, Navigation, etc.), web search for official KMP support before planning a manual alternative. AndroidX libraries are rapidly adding KMP support — training data is outdated, always research first. Record findings in findings.md. Phase 1 planning pre-verifies ALL library versions and pins them in migration-guide.md Swaps field with exact versions. Migrator agents use these pinned versions — no re-research during Phase 3. This is the single source of truth for dependency versions.
 - **Task 1.13:** Verify build task names — run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names for Android compilation, iOS arm64 compilation, and app assembly. Record verified task names in PLAN.md build verification section. Never write build commands based on assumptions.
 - **Task 1.14:** Generate `build-verify.sh` in the gameplan directory using the verified build commands from Task 1.13. This project-specific script is the single source of truth for build checks throughout all phases — zero LLM tokens on mechanical builds. See [Build Verification Script](#build-verification-script) for the template and usage.
 - **Task 1.15:** Dispatch **Sonnet agent** (`plan-analyzer.md`) to find remaining ambiguity → resolve → user approves.
@@ -205,6 +214,19 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
   - Convert these direct accesses into proper interface methods
   Never estimate the method count — read the code and list every method.
 - **Task 1.16:** Verify the current repo builds clean (in the worktree) by running `<gameplan-dir>/build-verify.sh <worktree-dir>`. If already broken → STOP and escalate.
+- **Task 1.17:** Generate `parity-check.sh` in the gameplan directory alongside `build-verify.sh`. This script runs static analysis checks at Phase 4/5 boundaries BEFORE Appium testing — zero tokens, zero devices, catches 80% of parity bugs in seconds. Template checks:
+  1. Route mapping completeness — every sealed class/enum variant has explicit mapping (no else→null fallback)
+  2. Listener/callback registration parity — every Android callback registration has iOS equivalent
+  3. SDK initialization parameter match — parameter lists identical between platforms
+  4. Session field coverage — every field read by isLoggedIn/isTokenExpired is written by all credential-save paths
+  5. Asset/resource parity — every Image("x") / LottieAnimation.named("x") resolves to actual file
+  6. Info.plist key verification — every Bundle.main.infoDictionary read has matching key in target Info.plist
+  7. String literal diff — all user-visible strings character-for-character identical between original and migrated
+  8. Empty lambda detection — callback params with default `= {}` traced to real actions
+  9. Stub audit — error("…"), TODO(), // TODO, // FIXME in non-test files
+  10. Koin binding completeness — every VM constructor param type has binding in both platform modules
+  
+  The script is project-specific (paths, module names derived from PLAN.md). Run it at every Phase 4/5 checkpoint BEFORE Appium. If any check fails → fix → rerun. Only proceed to Appium after parity-check.sh passes clean.
 - **Checkpoint 1** committed in the worktree. Commit message: `chore: begin KMM migration for [module-name]`
 
 ---
@@ -540,6 +562,17 @@ See `references/agent-prompts/migration-guide-template.md` for the full template
 
 ```markdown
 # Findings: <module-name>
+
+### Decisions Made During Planning
+
+Every planning decision with rationale — survives `/clear` so wiring agents can see WHY choices were made.
+
+| Decision | Options Considered | Chosen | Rationale |
+|----------|-------------------|--------|-----------|
+| AuthService DI | Replace (Koin) / Abstract (expect/actual) | Replace (Koin) | Official KMP support since Koin 4.0, battle-tested |
+| Date handling | kotlinx-datetime / expect/actual wrapper | kotlinx-datetime | 1:1 API parity, no custom code needed |
+
+Every dependency decision from Task 1.10, every library choice from Task 1.12, and any non-obvious architectural decisions go here. If a wiring agent encounters something unexpected, this table is the first place to check for rationale.
 
 ## Known Fixes
 
