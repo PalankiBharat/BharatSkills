@@ -87,12 +87,12 @@ Failures: check `findings.md` Known Fixes first, then 3-strike rule.
 
 See [Section 7](#7-build--runtime-verification) for the full verification protocol.
 
-#### Step 7 — Maestro Automated Flow Tests (iOS)
+#### Step 7 — Appium Automated Flow Tests (iOS)
 
-Generate iOS-specific Maestro YAML flows from screen-map.json using iOS selector fallback strategy
-(text-based selectors preferred over accessibility IDs — see `../kmm-test/references/maestro-testing.md` §2):
+Generate iOS-specific Appium flow scripts from screen-map.json using iOS selector fallback strategy
+(text-based selectors preferred over accessibility IDs — see `../kmm-test/references/appium-testing.md` §2):
 ```
-  → maestro test --device $IOS_UDID --platform ios -e APP_ID=$APP_ID e2e-tests/maestro-flows/ios/
+  → python3 e2e-tests/appium_driver.py --device $IOS_UDID --appium-port $APPIUM_PORT --platform ios
   → if fail → DEBUG LOOP (iOS) → fix → rerun
   → all pass → cross-platform parity check (compare iOS screenshots vs Android screenshots)
   → proceed to manual test
@@ -809,17 +809,17 @@ For projects using Compose Multiplatform with CocoaPods:
 
 `generateDummyFramework` + `pod install` produces an empty framework with no compose resources. The full build must populate `build/compose/cocoapods/compose-resources` first.
 
-### Runtime Verify (Maestro on simulator, fallback: xcrun)
+### Runtime Verify (Appium on simulator, fallback: xcrun)
 
 | Tool | Commands |
 |------|----------|
-| Maestro (primary) | `maestro test --device $IOS_UDID --platform ios e2e-tests/maestro-flows/ios/` |
+| Appium (primary) | `python3 e2e-tests/appium_driver.py --device $IOS_UDID --appium-port $APPIUM_PORT --platform ios` |
 | xcrun (fallback) | `xcrun simctl install $IOS_UDID <app.app>` → `xcrun simctl launch $IOS_UDID <bundle-id>` |
 
 For each screen:
-- Maestro `takeScreenshot` + `assertScreenshot` for visual comparison → compare side-by-side with Android screenshot (visual parity)
-- Maestro `assertVisible` for element verification → verify same data fields as Android
-- Maestro `tapOn` for navigation → navigate critical paths
+- Appium driver captures screenshots → Claude reads baseline and comparison screenshots for visual comparison → compare side-by-side with Android screenshot (visual parity)
+- Appium `assertVisible` for element verification → verify same data fields as Android
+- Appium tap for navigation → navigate critical paths
 
 ---
 

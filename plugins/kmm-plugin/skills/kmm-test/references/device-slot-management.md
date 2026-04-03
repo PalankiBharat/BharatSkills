@@ -21,7 +21,12 @@ Central config lives at `~/.claude/kmm-device-slots.json`.
       "worktree": "/path/to/worktree",
       "android": { "avd_name": "kmm-<name>", "serial": "emulator-5554" },
       "ios": { "sim_name": "kmm-<name>", "udid": "A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6" },
-      "port": 8091,
+      "ports": {
+        "appium": 4723,
+        "system_port": 8200,
+        "mjpeg_port": 9100,
+        "fake_server": 8091
+      },
       "allocated_at": "2026-04-01T10:00:00Z",
       "last_used": "2026-04-03T14:30:00Z"
     }
@@ -41,7 +46,10 @@ Central config lives at `~/.claude/kmm-device-slots.json`.
 | `android.serial` | ADB serial of the running emulator (e.g. `emulator-5554`). Populated after boot. |
 | `ios.sim_name` | Simulator display name in `xcrun simctl list`. |
 | `ios.udid` | UUID assigned by `xcrun simctl create`. Populated at creation. |
-| `port` | Fake server port allocated to this slot. |
+| `ports.appium` | Appium server port for this slot. Range: 4723–4730. |
+| `ports.system_port` | UiAutomator2 systemPort for this slot. Range: 8200–8207. |
+| `ports.mjpeg_port` | MJPEG server port for this slot. Range: 9100–9107. |
+| `ports.fake_server` | Fake server port for this slot. Range: 8089–8189. |
 | `allocated_at` | ISO-8601 timestamp when the slot was first created. |
 | `last_used` | ISO-8601 timestamp, updated each time the slot is used. |
 | `android_image` | System image used for all AVD creation. Global config, not per-slot. |
@@ -90,7 +98,7 @@ AVD_NAME="kmm-$GAMEPLAN_NAME"
 SIM_NAME="kmm-$GAMEPLAN_NAME"
 ```
 
-Create the Android AVD and iOS simulator (see Device Creation section below), allocate a port (see Port Allocation section), write the new slot to config:
+Create the Android AVD and iOS simulator (see Device Creation section below), allocate ports (see Port Allocation section), write the new slot to config:
 
 ```bash
 python3 -c "
@@ -100,7 +108,12 @@ data['slots'].append({
     'worktree': '$WORKTREE',
     'android': {'avd_name': '$AVD_NAME', 'serial': '$ANDROID_SERIAL'},
     'ios': {'sim_name': '$SIM_NAME', 'udid': '$IOS_UDID'},
-    'port': $FAKE_PORT,
+    'ports': {
+        'appium': $APPIUM_PORT,
+        'system_port': $SYSTEM_PORT,
+        'mjpeg_port': $MJPEG_PORT,
+        'fake_server': $FAKE_PORT
+    },
     'allocated_at': datetime.datetime.utcnow().isoformat() + 'Z',
     'last_used': datetime.datetime.utcnow().isoformat() + 'Z'
 })
@@ -158,9 +171,12 @@ fi
 export ANDROID_SERIAL="$ANDROID_SERIAL"
 export IOS_UDID="$IOS_UDID"
 export FAKE_PORT="$FAKE_PORT"
+export APPIUM_PORT="$APPIUM_PORT"
+export SYSTEM_PORT="$SYSTEM_PORT"
+export MJPEG_PORT="$MJPEG_PORT"
 ```
 
-These are required by all subsequent Maestro invocations.
+These are required by all subsequent Appium invocations.
 
 ### Step 6 — Update `last_used`
 
@@ -179,7 +195,7 @@ json.dump(data, open('$CONFIG', 'w'), indent=2)
 
 ## Device Creation
 
-Do NOT use `maestro start-device` — it is too limited for this use case. Use `avdmanager` and `xcrun simctl` directly.
+Do NOT use any framework-managed device startup commands — they are too limited for this use case. Use `avdmanager` and `xcrun simctl` directly.
 
 ### Android AVD Creation
 
@@ -223,7 +239,7 @@ xcrun simctl boot "$IOS_UDID"
 
 Notes:
 - `xcrun simctl create` prints the UDID to stdout. Capture it immediately.
-- The simulator is not visible until `open -a Simulator` is run (not required for headless Maestro runs).
+- The simulator is not visible until `open -a Simulator` is run (not required for headless Appium runs).
 - `iOS-18-0` must match an installed runtime. Verify with `xcrun simctl list runtimes`.
 
 ---
@@ -245,9 +261,29 @@ The agent proceeds regardless — it is the user's responsibility to manage syst
 
 ## Port Allocation
 
-Fake server ports are drawn from the range 8089–8189. Find the first available port:
+Each slot gets four dedicated ports. Ports are assigned sequentially based on slot index (slot 0 gets the base port, slot 1 gets base+1, etc.):
+
+| Port type | Range | Slot 1 | Slot 2 |
+|---|---|---|---|
+| Appium server | 4723–4730 | 4723 | 4724 |
+| UiAutomator2 systemPort | 8200–8207 | 8200 | 8201 |
+| MJPEG server | 9100–9107 | 9100 | 9101 |
+| Fake server | 8089–8189 | first free | first free |
+
+Allocate all four ports when creating a new slot:
 
 ```bash
+# Appium, system, and MJPEG ports — sequential by slot count
+SLOT_INDEX=$(python3 -c "
+import json
+data = json.load(open('$CONFIG'))
+print(len(data['slots']))
+")
+APPIUM_PORT=$((4723 + SLOT_INDEX))
+SYSTEM_PORT=$((8200 + SLOT_INDEX))
+MJPEG_PORT=$((9100 + SLOT_INDEX))
+
+# Fake server port — first available in range
 FAKE_PORT=$(python3 -c "
 import socket
 for p in range(8089, 8189):
@@ -268,32 +304,58 @@ if [ -z "$FAKE_PORT" ]; then
 fi
 ```
 
-Each slot owns one port. The port is recorded in the slot config and in the PLAN.md header so hooks can read it without parsing the full JSON.
+All four ports are recorded in the slot config and in the PLAN.md header so hooks can read them without parsing the full JSON.
 
 ---
 
-## Concurrent Maestro Targeting
+## Concurrent Appium Targeting
 
-Each Maestro invocation must target a specific device using `--device`. This prevents Maestro from defaulting to a random connected device.
+Each Appium server runs on its own port, bound to one device. This prevents any cross-worktree conflicts.
 
 ```bash
-# Android — worktree 1
-maestro test --device emulator-5554 flows/android/
+# Worktree 1: Appium server on port 4723, targeting emulator-5554
+appium --port 4723 --base-path /wd/hub &
+python3 e2e-tests/appium_driver.py --appium-port 4723 --device emulator-5554 --system-port 8200 ...
 
-# Android — worktree 2 (different slot)
-maestro test --device emulator-5556 flows/android/
-
-# iOS — any worktree
-maestro test --device "$IOS_UDID" --platform ios flows/ios/
+# Worktree 2: Appium server on port 4724, targeting emulator-5556
+appium --port 4724 --base-path /wd/hub &
+python3 e2e-tests/appium_driver.py --appium-port 4724 --device emulator-5556 --system-port 8201 ...
 ```
 
-Multiple `maestro test` processes can run concurrently across different devices without conflict, as long as each invocation targets its own device serial/UDID.
+Each Appium server runs on its own port. No conflicts. Fully parallel.
+
+---
+
+## Appium Server Lifecycle
+
+Start the Appium server for this slot before running tests, and stop it when done:
+
+```bash
+# Start Appium server for this slot (background)
+appium --port $APPIUM_PORT --base-path /wd/hub \
+  --allow-insecure chromedriver_autodownload &
+APPIUM_PID=$!
+
+# Verify server is ready
+sleep 3
+curl -s http://localhost:$APPIUM_PORT/wd/hub/status | grep -q '"ready":true'
+
+# Stop when done
+kill $APPIUM_PID
+```
 
 ---
 
 ## Cleanup
 
 When a story or gameplan completes successfully (or is explicitly abandoned), release the slot:
+
+### Kill stale Appium server
+
+```bash
+# Kill stale Appium server on this slot's port
+lsof -ti:$APPIUM_PORT | xargs kill -9 2>/dev/null
+```
 
 ### Delete devices
 
@@ -326,7 +388,7 @@ Record the allocated device identifiers in the PLAN.md comment header so all hoo
 
 ```
 <!-- DEVICE: android=emulator-5558 | ios=A1B2C3D4-E5F6-G7H8-I9J0-K1L2M3N4O5P6 -->
-<!-- PORTS: fake=8091 -->
+<!-- PORTS: fake=8091 | appium=4723 | system=8200 | mjpeg=9100 -->
 ```
 
 ### Reading the header in bash
@@ -336,7 +398,10 @@ PLAN="$(git rev-parse --show-toplevel)/PLAN.md"
 ANDROID_SERIAL=$(grep "DEVICE:" "$PLAN" | sed 's/.*android=\([^ |]*\).*/\1/')
 IOS_UDID=$(grep "DEVICE:" "$PLAN" | sed 's/.*ios=\([^>]*\).*/\1/' | tr -d ' ')
 FAKE_PORT=$(grep "PORTS:" "$PLAN" | sed 's/.*fake=\([0-9]*\).*/\1/')
-export ANDROID_SERIAL IOS_UDID FAKE_PORT
+APPIUM_PORT=$(grep "PORTS:" "$PLAN" | sed 's/.*appium=\([0-9]*\).*/\1/')
+SYSTEM_PORT=$(grep "PORTS:" "$PLAN" | sed 's/.*system=\([0-9]*\).*/\1/')
+MJPEG_PORT=$(grep "PORTS:" "$PLAN" | sed 's/.*mjpeg=\([0-9]*\).*/\1/')
+export ANDROID_SERIAL IOS_UDID FAKE_PORT APPIUM_PORT SYSTEM_PORT MJPEG_PORT
 ```
 
 ### Updating the header after slot allocation
@@ -349,7 +414,7 @@ sed -i '' '/<!-- DEVICE:/d' "$PLAN"
 sed -i '' '/<!-- PORTS:/d' "$PLAN"
 
 # Prepend new lines
-HEADER="<!-- DEVICE: android=$ANDROID_SERIAL | ios=$IOS_UDID -->\n<!-- PORTS: fake=$FAKE_PORT -->"
+HEADER="<!-- DEVICE: android=$ANDROID_SERIAL | ios=$IOS_UDID -->\n<!-- PORTS: fake=$FAKE_PORT | appium=$APPIUM_PORT | system=$SYSTEM_PORT | mjpeg=$MJPEG_PORT -->"
 printf "%s\n$(cat $PLAN)" "$HEADER" > "$PLAN.tmp" && mv "$PLAN.tmp" "$PLAN"
 ```
 

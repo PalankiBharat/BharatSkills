@@ -18,7 +18,7 @@ Runs AFTER all shared code migration phases are checkpointed. BEFORE iOS.
 2. [Parallel Execution](#2-parallel-execution)
 3. [Build & Test](#3-build--test)
 4. [Runtime Verification](#4-runtime-verification)
-   - 4.1 [Maestro (primary)](#41-maestro-primary)
+   - 4.1 [Appium (primary)](#41-appium-primary)
    - 4.2 [adb (fallback)](#42-adb-fallback)
    - 4.3 [Napier Log Tag Filtering](#43-napier-log-tag-filtering)
    - 4.4 [Loop Protocol](#44-loop-protocol)
@@ -156,15 +156,15 @@ Failures:
 - 3-strike rule: max 3 distinct approaches → escalate if still failing
 - Never repeat the same failed fix
 
-**Summary Table** (fill before Maestro automated flows):
+**Summary Table** (fill before Appium automated flows):
 
 | File | Promised API | Actual API | Verify | Tests |
 |------|-------------|------------|--------|-------|
 | LoginRepository.kt | login(email,pwd):Result | ... | PASS | PASS |
 
-Present to user before proceeding to Maestro automated flows.
+Present to user before proceeding to Appium automated flows.
 
-**After Wire Android checkpoint:** proceed to per-screen verification, then Maestro automated flows (`maestro test --device $ANDROID_SERIAL e2e-tests/maestro-flows/android/<screen>.yaml` for affected screen), then manual test. See SKILL.md for phase ordering.
+**After Wire Android checkpoint:** proceed to per-screen verification, then Appium automated flows (`python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT` for affected screen), then manual test. See SKILL.md for phase ordering.
 
 Update PROGRESS.md checkpoint. PLAN.md status block updated.
 
@@ -175,32 +175,30 @@ Update PROGRESS.md checkpoint. PLAN.md status block updated.
 Launch the app after wiring to catch KMM-specific runtime crashes before handing off to manual
 testing.
 
-**Primary tool:** Maestro (structured, screenshot-capable)
-**Fallback:** adb — use when Maestro is unavailable
+**Primary tool:** Appium (structured, screenshot-capable)
+**Fallback:** adb — use when Appium is unavailable
 
 For debugging failures found during verification, follow the structured debug loop in
 `references/agent-prompts/debugger.md`. Do not attempt ad-hoc fixes — use the debug loop.
 
-### 4.1 Maestro (primary)
+### 4.1 Appium (primary)
 
-Uses `e2e-tests/screen-map.json` as input for Maestro flow generation. See `../kmm-test/references/maestro-testing.md` for flow generation rules.
+Uses `e2e-tests/screen-map.json` as input for Appium flow generation. See `../kmm-test/references/appium-testing.md` for flow generation rules.
 
 ```bash
-# Generate Maestro YAML flows from screen-map.json
-# (read ../kmm-test/references/maestro-testing.md for mapping rules)
+# Generate Appium flow scripts from screen-map.json
+# (read ../kmm-test/references/appium-testing.md for mapping rules)
 
 # Build and install
 ./gradlew :app:assembleDebug
 adb -s $ANDROID_SERIAL install -r <apk>
 
-# Run Maestro flows (comparison mode with assertScreenshot)
-maestro test --device $ANDROID_SERIAL \
-  --format junit --test-output-dir e2e-tests/results/comparison/android/ \
-  -e APP_ID=$APP_ID -e PHONE=$PHONE -e OTP=$OTP -e PIN=$PIN \
-  e2e-tests/maestro-flows/android/
+# Run Appium flows (comparison mode)
+python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT \
+  --platform android --mode compare \
+  --output-dir e2e-tests/results/comparison/android/
 
 # Check results: exit 0 = all pass, exit 1 = failures
-# Parse JUnit XML for specific screen failures
 ```
 
 For flows with blocker segments (OTP, payment): run segment 1 → pause, ask user → run segment 2.
@@ -249,7 +247,7 @@ adb -s $ANDROID_SERIAL logcat -s "DebugLoginScreen"
    - Incremental rebuild only — `./gradlew :app:assembleProductionDebug`
    - Re-launch and re-capture logs
    - Repeat until clean launch (**max 3 iterations via debug loop**, then escalate to user)
-6. **If clean launch** → proceed to per-screen verification (navigate, verify data loads, verify CTA, screenshot — use cached screen-map), then Summary Table, then Maestro automated flows (`maestro test --device $ANDROID_SERIAL e2e-tests/maestro-flows/android/<screen>.yaml` for affected screen), then manual test
+6. **If clean launch** → proceed to per-screen verification (navigate, verify data loads, verify CTA, screenshot — use cached screen-map), then Summary Table, then Appium automated flows (`python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT` for affected screen), then manual test
 
 If still crashing after 3 debug loop iterations, **STOP** and escalate: provide full stacktraces
 (not just filtered lines), all fixes attempted, and your recommendation. Do not attempt a 4th fix.

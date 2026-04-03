@@ -5,10 +5,10 @@ Two-layer testing model for KMM migrations. Each layer catches different categor
 | Layer | Tool | Backend | Catches | Token cost |
 |-------|------|---------|---------|------------|
 | 1. Unit/characterization tests | Gradle | N/A | Logic bugs, API parity, regressions | Zero (runs via Gradle) |
-| 2. Maestro automated flows | Maestro CLI | Real app + optional fake server | Visual regressions, runtime crashes, integration bugs, unwired buttons | Near-zero (deterministic YAML, no AI tokens for device interaction) |
+| 2. Appium automated flows | Appium + Python driver | Real app + optional fake server | Visual regressions, runtime crashes, integration bugs, unwired buttons | Near-zero (deterministic scripts, no AI tokens for device interaction) |
 | 3. Manual test | User | Real backend | UX issues, edge cases automation can't cover | Zero |
 
-**Phase ordering:** Unit tests → Maestro flows → Manual test
+**Phase ordering:** Unit tests → Appium flows → Manual test
 
 ---
 
@@ -26,7 +26,7 @@ This becomes the input for the fake server config and screen map.
 
 ## Screen Map
 
-The screen map defines screens and navigation flows. It is consumed by the Maestro flow generator to produce per-platform Maestro YAML files. The `coordinates` field is retained as a fallback for coordinate-based tapping, but primary selectors are `id` (Android) and `text` (iOS).
+The screen map defines screens and navigation flows. It is consumed by the Appium flow generator to produce per-platform Appium scripts. The `coordinates` field is retained as a fallback for coordinate-based tapping, but primary selectors are `id` (Android) and `text` (iOS).
 
 **File location:** `e2e-tests/screen-map.json`
 
@@ -90,7 +90,7 @@ The screen map defines screens and navigation flows. It is consumed by the Maest
 
 ## Fake Server
 
-Generate a deterministic fake server config from the recorded endpoints. Maestro flows can optionally point the app at the fake server for deterministic error-path and edge-case testing.
+Generate a deterministic fake server config from the recorded endpoints. Appium flows can optionally point the app at the fake server for deterministic error-path and edge-case testing.
 
 **File location:** `e2e-tests/fake-server-config.json`
 
@@ -148,7 +148,7 @@ const server = app.listen(process.env.FAKE_PORT || 8089, () => {
 module.exports = server;
 ```
 
-Start the fake server before running Maestro flows against it:
+Start the fake server before running Appium flows against it:
 ```bash
 FAKE_PORT=8089 node e2e-tests/fake-server.js &
 ```
@@ -197,11 +197,11 @@ A checkpoint with failing unit tests is invalid. If tests fail after wiring, the
 
 ---
 
-## Layer 2: Maestro Automated Flows (real app, real device)
+## Layer 2: Appium Automated Flows (real app, real device)
 
-Drive full user journeys against the real app using Maestro CLI. This catches visual regressions, runtime crashes, integration issues, and unwired buttons that unit tests miss. Optionally point the app at the fake server for deterministic error-path coverage.
+Drive full user journeys against the real app using the Appium Python driver. This catches visual regressions, runtime crashes, integration issues, and unwired buttons that unit tests miss. Optionally point the app at the fake server for deterministic error-path coverage.
 
-**Flow generation:** Flows are generated from `e2e-tests/screen-map.json` by reading `../kmm-test/references/maestro-testing.md` for mapping rules. Each flow in screen-map becomes a Maestro YAML file per platform, written to `e2e-tests/maestro-flows/`.
+**Flow generation:** Flows are generated from `e2e-tests/screen-map.json` by reading `../kmm-test/references/appium-testing.md` for mapping rules. Each flow in screen-map becomes a Python-driven Appium script per platform, written to `e2e-tests/appium-flows/`.
 
 ### Baseline capture protocol
 
@@ -211,7 +211,7 @@ Drive full user journeys against the real app using Maestro CLI. This catches vi
    ```
 2. Build from the temp worktree
 3. Install on the allocated device
-4. Run Maestro flows with `takeScreenshot` commands — baseline images saved to `e2e-tests/screenshots/<platform>/baseline/`
+4. Run `python3 e2e-tests/appium_driver.py` with takeScreenshot mode — baseline images saved to `e2e-tests/screenshots/<platform>/baseline/`
 5. Uninstall the app
 6. Write the master commit hash to `e2e-tests/.cache-key`
 7. Clean up the temp worktree
@@ -220,8 +220,8 @@ Drive full user journeys against the real app using Maestro CLI. This catches vi
 
 1. Build from the current branch worktree
 2. Install on the same allocated device
-3. Run Maestro flows with `takeScreenshot` + `assertScreenshot` (97% similarity threshold, `cropOn` to exclude the status bar)
-4. Collect JUnit results from Maestro output
+3. Run `python3 e2e-tests/appium_driver.py` in comparison mode — saves comparison screenshots
+4. Collect results from Appium driver output
 
 ### Baseline caching
 
@@ -229,7 +229,7 @@ Skip baseline rebuild if `e2e-tests/.cache-key` matches `git rev-parse master`. 
 
 ### Blocker handling
 
-Flows with `blocker` steps are split into segments. Claude's bash loop runs segments sequentially with a user pause between them. See `../kmm-test/references/maestro-testing.md` §3 for segmentation rules.
+Flows with `blocker` steps are split into segments. Claude's bash loop runs segments sequentially with a user pause between them. See `../kmm-test/references/appium-testing.md` §3 for segmentation rules.
 
 When a flow step has `"action": "blocker"`:
 
@@ -251,9 +251,8 @@ The orchestrator does NOT attempt to bypass or automate blockers. It pauses, ask
 
 ### Diff and report
 
-- Pixel comparison is handled by Maestro's `assertScreenshot` — zero token cost
-- Only screens that **fail** the 97% threshold are reviewed by Claude vision
-- Claude classifies each failure as: `VISUAL_REGRESSION` / `EXPECTED_CHANGE` / `FALSE_POSITIVE`
+- Screenshot comparison is done by Claude reading baseline and comparison screenshots — no pixel threshold
+- Claude classifies each screen as: `VISUAL_REGRESSION` / `EXPECTED_CHANGE` / `FALSE_POSITIVE`
 - Report written to `e2e-tests/test-report.md`
 
 ---
@@ -262,7 +261,7 @@ The orchestrator does NOT attempt to bypass or automate blockers. It pauses, ask
 
 > **⚠️ STRICT RULE:** Every `adb` command MUST include `-s $ANDROID_SERIAL`. Every `xcrun simctl` command MUST use `$IOS_UDID` (never `booted`). Bare commands target whichever device the OS picks first, causing cross-worktree interference.
 
-When Maestro is unavailable, fall back to manual adb/xcrun commands for build verification and log capture. Screenshot comparison must be done manually.
+When Appium is unavailable, fall back to manual adb/xcrun commands for build verification and log capture. Screenshot comparison must be done manually.
 
 **Android:**
 ```bash
@@ -281,7 +280,7 @@ xcrun simctl launch --console-pty $IOS_UDID <bundle-id> 2>&1 | grep "Debug<Scree
 
 ## Screenshot Comparison
 
-Maestro's `assertScreenshot` handles pixel-level comparison during test execution. For screens that fail, Claude reads the baseline and comparison screenshots to classify the difference. Cross-platform parity: compare Android comparison screenshots against iOS comparison screenshots using Claude vision.
+Claude reads the baseline and comparison screenshots captured by the Appium driver and classifies each difference. There is no pixel threshold — Claude evaluates screenshots directly. Cross-platform parity: compare Android comparison screenshots against iOS comparison screenshots using Claude vision.
 
 ---
 
@@ -289,17 +288,17 @@ Maestro's `assertScreenshot` handles pixel-level comparison during test executio
 
 `e2e-tests/` contains a CI-ready regression suite:
 - `fake-server-config.json` — deterministic backend for error-path coverage
-- `screen-map.json` — flow definitions consumed by Maestro flow generator
-- `maestro-flows/` — generated Maestro YAML files per platform
+- `screen-map.json` — flow definitions consumed by Appium flow generator
+- `appium-flows/` — generated Appium Python scripts per platform
 - `screenshots/` — baseline screenshots for visual diff
 
-Unit tests (`./gradlew :shared:testDebugUnitTest`) run on every PR that touches shared code. Maestro flows are run on-demand or as part of release verification.
+Unit tests (`./gradlew :shared:testDebugUnitTest`) run on every PR that touches shared code. Appium flows are run on-demand or as part of release verification.
 
 ---
 
-## Compose/SwiftUI and Maestro Selectors
+## Compose/SwiftUI and Appium Selectors
 
-Compose screens need `Modifier.testTag("...")` for reliable element targeting in Maestro.
+Compose screens need `Modifier.testTag("...")` for reliable element targeting in Appium.
 SwiftUI screens need `.accessibilityIdentifier("...")`.
 Compose Multiplatform maps `testTag` to `accessibilityIdentifier` automatically on iOS.
 
@@ -307,4 +306,4 @@ If interactive elements don't have test tags, add them during the wiring phase:
 - Kotlin: `Modifier.testTag("submit_btn")`
 - Swift: `.accessibilityIdentifier("submit_btn")`
 
-Maestro iOS prefers text-based selectors (most reliable). ID selectors work when accessibility identifiers are set. Coordinate-based tapping is a last resort.
+Appium iOS prefers text-based selectors (most reliable). ID selectors work when accessibility identifiers are set. Coordinate-based tapping is a last resort.

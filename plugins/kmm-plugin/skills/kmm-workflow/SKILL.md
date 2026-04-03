@@ -149,12 +149,12 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - **Empty lambda audit:** Scan all migrated composables for callback parameters with default `= {}` (e.g., `onClick: () -> Unit = {}`). Trace each one to verify it reaches a real action from the parent composable. Empty lambdas on onClick/callback params are functional stubs that pass compilation but produce dead buttons.
 - **Koin binding completeness check:** for each VM registered in the shared Koin module, verify ALL constructor parameter types AND all types used by child composables/screens have Koin bindings. Missing bindings crash at runtime — check transitively, not just direct constructor params.
 - Build + test
-- **Visual + functional parity testing (Maestro):** Read `../kmm-test/references/maestro-testing.md` for flow generation rules and `../kmm-test/references/device-slot-management.md` for device allocation. The full protocol:
-  1. Generate Maestro YAML flows from `e2e-tests/screen-map.json` — per-platform, with blocker segmentation for OTP/payment steps
-  2. Capture baseline screenshots: create temp worktree for master → build → install on allocated device → run Maestro flows with `takeScreenshot` → uninstall → clean up. Skip if baseline cache key matches `git rev-parse master`.
-  3. Capture comparison screenshots: build current branch → install → run Maestro flows with `assertScreenshot` (97% threshold, `cropOn` to exclude status bar)
-  4. Diff: screens that pass pixel comparison → PASS (zero tokens). Screens that fail → Claude reads both screenshots, classifies as VISUAL_REGRESSION / EXPECTED_CHANGE / FALSE_POSITIVE
-  5. Functional check: any Maestro flow with non-zero exit (tapOn/assertVisible failure) = functional failure
+- **Visual + functional parity testing (Appium):** Read `../kmm-test/references/appium-testing.md` for flow generation rules and `../kmm-test/references/device-slot-management.md` for device allocation. The full protocol:
+  1. Generate Appium flows from `e2e-tests/screen-map.json` — per-platform, with blocker segmentation for OTP/payment steps
+  2. Capture baseline screenshots: create temp worktree for master → build → install on allocated device → run Appium flows with `python3 e2e-tests/appium_driver.py` (takeScreenshot) → uninstall → clean up. Skip if baseline cache key matches `git rev-parse master`.
+  3. Capture comparison screenshots: build current branch → install → run `python3 e2e-tests/appium_driver.py` (comparison mode)
+  4. Diff: Claude reads both baseline and comparison screenshots to classify each screen as VISUAL_REGRESSION / EXPECTED_CHANGE / FALSE_POSITIVE (no pixel threshold)
+  5. Functional check: any Appium flow with non-zero exit (tap/assertVisible failure) = functional failure
   6. On failure: debug loop → fix → rebuild → rerun only the failing screen's flow. Max 3 iterations.
 - **Manual test** — user tests remaining edge cases that automation couldn't cover. Bug → DEBUG LOOP → fix → retest. All flows pass → COMMIT.
 - CHECKPOINT COMMIT, update PROGRESS.md
@@ -166,16 +166,16 @@ The orchestrator MUST stop after these phases and instruct the user to `/clear`.
 - Wire navigation + pbxproj
 - **Stub audit + Koin completeness check** (same as Phase 4, for iOS bindings). Extended for iOS: in addition to Kotlin stubs (`error("…")`, `TODO()`, `TODO("…")`), scan all `.swift` files for `// TODO:`, `// FIXME:`, and `// HACK:` comments. Swift TODOs in non-test code indicate unwired functionality that will silently produce dead UI.
 - **Empty lambda audit** (same as Phase 4 — for any CMP screens shared with iOS)
-- **Visual + functional parity testing (Maestro):** Read `../kmm-test/references/maestro-testing.md` for flow generation rules and `../kmm-test/references/device-slot-management.md` for device allocation. The full protocol:
-  1. Generate Maestro YAML flows from `e2e-tests/screen-map.json` — per-platform, with blocker segmentation for OTP/payment steps
-  2. Capture baseline screenshots: create temp worktree for master → build → install on allocated device → run Maestro flows with `takeScreenshot` → uninstall → clean up. Skip if baseline cache key matches `git rev-parse master`.
-  3. Capture comparison screenshots: build current branch → install → run Maestro flows with `assertScreenshot` (97% threshold, `cropOn` to exclude status bar)
-  4. Diff: screens that pass pixel comparison → PASS (zero tokens). Screens that fail → Claude reads both screenshots, classifies as VISUAL_REGRESSION / EXPECTED_CHANGE / FALSE_POSITIVE
-  5. Functional check: any Maestro flow with non-zero exit (tapOn/assertVisible failure) = functional failure
+- **Visual + functional parity testing (Appium):** Read `../kmm-test/references/appium-testing.md` for flow generation rules and `../kmm-test/references/device-slot-management.md` for device allocation. The full protocol:
+  1. Generate Appium flows from `e2e-tests/screen-map.json` — per-platform, with blocker segmentation for OTP/payment steps
+  2. Capture baseline screenshots: create temp worktree for master → build → install on allocated device → run Appium flows with `python3 e2e-tests/appium_driver.py` (takeScreenshot) → uninstall → clean up. Skip if baseline cache key matches `git rev-parse master`.
+  3. Capture comparison screenshots: build current branch → install → run `python3 e2e-tests/appium_driver.py` (comparison mode)
+  4. Diff: Claude reads both baseline and comparison screenshots to classify each screen as VISUAL_REGRESSION / EXPECTED_CHANGE / FALSE_POSITIVE (no pixel threshold)
+  5. Functional check: any Appium flow with non-zero exit (tap/assertVisible failure) = functional failure
   6. On failure: debug loop → fix → rebuild → rerun only the failing screen's flow. Max 3 iterations.
-  - iOS flows use text-based selectors as primary, accessibility ID as secondary (see `../kmm-test/references/maestro-testing.md` iOS Selector Fallback Strategy)
-  - Cross-platform parity: after both Android and iOS Maestro tests pass, compare Android vs iOS screenshots for structural equivalence using Claude vision
-  - Additionally for iOS: verify no stale data sections ("loading", "NC", placeholder values) — add `assertVisible` checks for real data in the Maestro flows
+  - iOS flows use text-based selectors as primary, accessibility ID as secondary (see `../kmm-test/references/appium-testing.md` iOS Selector Fallback Strategy)
+  - Cross-platform parity: after both Android and iOS Appium tests pass, compare Android vs iOS screenshots for structural equivalence using Claude vision
+  - Additionally for iOS: verify no stale data sections ("loading", "NC", placeholder values) — add `assertVisible` checks for real data in the Appium flows
 - **Manual test** — user tests remaining edge cases that automation couldn't cover. Bug → DEBUG LOOP → fix → retest. All flows pass → COMMIT.
 - CHECKPOINT COMMIT, update PROGRESS.md
 - Read `references/ios-wiring.md` before this phase
@@ -219,7 +219,7 @@ The retrospective is NOT optional and NOT interactive — it runs automatically 
 - `references/android-wiring.md` — Phase 4 (WIRE ANDROID)
 - `references/ios-wiring.md` — Phase 5 (WIRE iOS)
 - `references/automated-testing.md` — Phases 4, 5 (testing)
-- `../kmm-test/references/maestro-testing.md` — Phases 4, 5: Maestro flow generation, iOS selectors, blocker segmentation
+- `../kmm-test/references/appium-testing.md` — Phases 4, 5: Appium flow generation, iOS selectors, blocker segmentation
 - `../kmm-test/references/device-slot-management.md` — Phase 1 (device allocation), Phases 4, 5 (device targeting)
 - `references/dependency-decision-framework.md` — Phase 1 (PLAN): dependency Replace/Port/Abstract decisions
 - `references/self-improvement.md` — Migration retrospective (post-Phase 1 and post-completion)
@@ -260,7 +260,7 @@ On Continue, when listing gameplans:
 - Auto-continue between phases — do NOT pause to ask "should I continue?" or "Phase X complete, proceed?". Continue automatically to the next phase unless: (a) a mandatory `/clear` point is reached, (b) REQUIRES_APPROVAL items need user decision, or (c) a build/test failure blocks progress. Status updates are fine ("Starting Phase N"), confirmation prompts are not.
 - **Always create a worktree — even for non-migration work.** ALL work done via this skill must use git worktrees. This includes E2E test setup, Appium configuration, SDK wiring — not just migration phases. Working directly on the base branch risks polluting it with experimental changes.
 - **Rate limit awareness in E2E testing.** Login OTP has rate limits (max 2-3 resends → 10-min block). Each test run counts. Plan E2E runs carefully and use a fake server for repeated iterations during development.
-- Maestro automated flows are MANDATORY after build verification in Phases 4 and 5. The orchestrator MUST NEVER skip them. Phase order is: Wire → build + unit tests → Maestro flows (baseline capture + comparison + diff) → Manual Test. No exceptions.
+- Appium automated flows are MANDATORY after build verification in Phases 4 and 5. The orchestrator MUST NEVER skip them. Phase order is: Wire → build + unit tests → Appium flows (baseline capture + comparison + diff) → Manual Test. No exceptions.
 - When a worktree exists, ALL agent prompts must include the worktree path as the target directory for file creation and edits
 - Orchestrator NEVER writes migration code — only agents do
 - Tests MUST pass on original BEFORE migration proceeds
@@ -284,7 +284,7 @@ On Continue, when listing gameplans:
 - **Retrospective before /clear is mandatory and autonomous.** The orchestrator MUST run the migration retrospective (`references/self-improvement.md`) BEFORE instructing the user to `/clear`. Context is erased on clear — if the retrospective hasn't run, all session learnings are permanently lost. The retrospective runs end-to-end without user input: scan → deduplicate → create/comment issues → summarize. Sequence: finish phase → run retrospective → present summary → THEN instruct `/clear`.
 - **PROGRESS.md is a checklist, not a journal.** Each checkbox should be ONE line describing *what* was done, not *how*. Implementation details (file names, version numbers, build flags, workarounds) belong in findings.md or commit messages. If a task needs sub-bullets, limit to 2-3 short items max.
 - **No CoroutineScope lifecycle changes in 1:1 ports.** Migration agents MUST NOT add `CoroutineScope.cancel()` or scope recreation (`coroutineScope = CoroutineScope(...)`) to classes that manage their own scope lifecycle. If the original only cancels individual jobs in `disconnect()`, the migration must do the same. Scope lifecycle changes are behavioral changes that REQUIRES_APPROVAL. Specifically: changing `val coroutineScope` to `var coroutineScope` to enable cancel/recreate is a red flag — the original used `val` for a reason.
-- **Verify every fix automatically.** After making any code fix, the orchestrator MUST rebuild, install, and run the specific Maestro flow for the affected screen. Iterate until the fix is verified working. Never report a fix to the user without Maestro verification passing first.
+- **Verify every fix automatically.** After making any code fix, the orchestrator MUST rebuild, install, and run the specific Appium flow for the affected screen. Iterate until the fix is verified working. Never report a fix to the user without Appium verification passing first.
 - **Scaffold backgroundColor on all CMP Scaffolds.** Every `Scaffold` in shared CMP screens MUST set `backgroundColor` explicitly (e.g., your app's background color token). The default is `MaterialTheme.colors.background` which is white when no dark MaterialTheme is configured. This applies to all sub-screens in nav hosts, not just the top-level screen.
 - **No TODO placeholders in migrated code.** Migrated composables MUST NOT contain `// TODO` comments with placeholder content (emoji text, empty Box, commented-out Image). If a drawable resource is needed, copy it from Android `res/drawable/` to `shared/src/commonMain/composeResources/drawable/` during migration. The stub audit at phase boundaries MUST also scan for `// TODO` comments in view files.
 - **Version resolution check (mandatory, Phase 4/5):** After updating the SDK version in a consumer project, run `./gradlew :app:dependencies --configuration <config>Classpath | grep <artifact>` to confirm the resolved version matches. Use `--refresh-dependencies` on the first build. Gradle caches can silently serve stale versions, making the build "pass" against the old SDK.
