@@ -129,6 +129,7 @@ The Improve mode (invoked via `/kmm-workflow improve`) applies retrospective lea
 3. **One source of truth:** if a learning could go in SKILL.md or a reference doc, always choose the reference doc. SKILL.md stays lean.
 4. **Generalization mandatory:** strip project-specific names, branch names, API endpoints. Extract the reusable pattern.
 5. **Edit source, not installation:** All file edits during Improve mode MUST target the skill's source repository (the git clone used for development), NOT the local plugin installation under `~/.claude/plugins/`. The local installation is a read-only deployment artifact — changes there are lost on plugin updates and bypass code review.
+6. **Bump semver on every Improve run:** Each Improve invocation MUST bump the patch version in `plugin.json` (e.g., `6.1.0` → `6.1.1`). Use patch for learnings/fixes, minor for new capabilities, major for breaking workflow changes. Do NOT update the `description` field in `plugin.json` or SKILL.md frontmatter — it stays stable unless the user explicitly requests a change.
 
 ## Issue format
 

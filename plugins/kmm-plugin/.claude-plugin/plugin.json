@@ -1,6 +1,6 @@
 {
   "name": "kmm-plugin",
-  "version": "6.1.0",
+  "version": "6.1.1",
   "description": "KMM module migration orchestrator. 5-phase workflow (plan, scaffold, shared code, Android wiring, iOS wiring) with TDD enforcement, parallel agent teams, and unified 3-layer verify mode (static analysis, completeness checks, device testing).",
   "author": {
     "name": "PunchHQ",
