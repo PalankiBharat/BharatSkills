@@ -128,6 +128,7 @@ The Improve mode (invoked via `/kmm-workflow improve`) applies retrospective lea
 2. **Measure file growth:** if any file grows by more than 10 lines net after applying learnings, consolidate further. The skill should get SHARPER with each iteration, not LONGER.
 3. **One source of truth:** if a learning could go in SKILL.md or a reference doc, always choose the reference doc. SKILL.md stays lean.
 4. **Generalization mandatory:** strip project-specific names, branch names, API endpoints. Extract the reusable pattern.
+5. **Edit source, not installation:** All file edits during Improve mode MUST target the skill's source repository (the git clone used for development), NOT the local plugin installation under `~/.claude/plugins/`. The local installation is a read-only deployment artifact — changes there are lost on plugin updates and bypass code review.
 
 ## Issue format
 

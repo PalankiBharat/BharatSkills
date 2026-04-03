@@ -50,7 +50,7 @@ On ANY invocation, always ask: Create / Continue / Improve / Audit. Never auto-r
 
 - **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md, PROGRESS.md, migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. Write session marker. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
 - **Continue** → list all gameplans with status, user picks. Write session marker → read PLAN.md + PROGRESS.md → verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`) → continue from last checkpoint.
-- **Improve** → read open GitHub issues with `skill:kmm-workflow` label, classify learnings, consolidate into existing skill files (NEVER append — rewrite to absorb), measure file growth, raise PR. See `references/self-improvement.md`.
+- **Improve** → read open GitHub issues with `skill:kmm-workflow` label, classify learnings, create a branch on the skill source repo (e.g., `~/dev/claude-code-skills`), consolidate into existing skill files (NEVER append — rewrite to absorb), measure file growth, raise PR. All edits happen on the skill source repo — NEVER edit the local plugin installation under `~/.claude/plugins/`. See `references/self-improvement.md`.
 - **Verify** → unified verification of a migrated module. Runs 3 layers in order:
   - Layer 1 (Static): anti-pattern scan, parity-check.sh, cross-platform parity, phase checklists — no devices needed, fast
   - Layer 2 (Completeness): ViewModel flow inventory audit, callback completeness trace, UI branch audit, DI binding verification — code analysis, no devices. Runs deterministic scripts (flow-collector-check.sh, koin-binding-check.py, screen-coverage-check.sh) plus AI-powered callback and branch analysis.
@@ -66,7 +66,7 @@ On ANY invocation, always ask: Create / Continue / Improve / Audit. Never auto-r
 Phase 1 (PLAN) → /clear → Phases 2-3 (scaffold + migrate) → /clear → Phases 4-5 (wiring + testing) → Retrospective → DONE
 ```
 
-The skill is file-based — nothing is lost on `/clear`. The orchestrator MUST stop after Phase 1 and Phase 3 to instruct `/clear`. Run retrospective before each `/clear`. Do not continue into the next phase group without clearing.
+The skill is file-based — nothing is lost on `/clear`. The orchestrator MUST stop after Phase 1 and Phase 3. Before instructing `/clear`, the orchestrator MUST run the migration retrospective — this is a BLOCKING prerequisite, not optional. If the retrospective has not run, do NOT tell the user to `/clear`. Do not continue into the next phase group without clearing.
 
 | Stop after | Why |
 |------------|-----|
@@ -123,7 +123,7 @@ If any layer fails → fix → rerun from that layer. If manual testing finds a 
 
 ## Migration Retrospective
 
-Auto-triggers after Phase 1 approval and after final phase — runs **autonomously**:
+BLOCKING gate before every `/clear` instruction. The orchestrator MUST run this autonomously — if it has not run, the `/clear` instruction MUST NOT be given:
 1. Read `references/self-improvement.md` for full protocol
 2. Scan conversation + findings.md; cross-reference existing skill files; deduplicate
 3. Create/update GitHub issues on skill repo with label `skill:kmm-workflow`
