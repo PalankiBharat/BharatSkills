@@ -76,11 +76,11 @@
     {
       "name": "kmm-plugin",
       "source": "./plugins/kmm-plugin",
-      "description": "Battle-tested KMM migration orchestrator — 5-phase workflow (plan, scaffold, shared code, wire Android, wire iOS) with TDD enforcement, autonomous self-improving retrospective, two-layer testing (unit + Maestro E2E), comprehensive platform gotchas reference, and dependency decision framework.",
-      "version": "5.0.0",
+      "description": "Battle-tested KMM migration orchestrator — 5-phase workflow (plan, scaffold, shared code, wire Android, wire iOS) with TDD enforcement, autonomous self-improving retrospective, two-layer testing (unit + Appium E2E), comprehensive platform gotchas reference, and dependency decision framework.",
+      "version": "5.1.0",
       "category": "migration",
-      "tags": ["kmm", "kotlin-multiplatform", "migration", "tdd", "swiftui", "skie", "ios", "android", "maestro"],
-      "keywords": ["kmm", "migrate", "kotlin", "multiplatform", "swift", "skie", "kmp", "ios", "maestro"]
+      "tags": ["kmm", "kotlin-multiplatform", "migration", "tdd", "swiftui", "skie", "ios", "android", "appium"],
+      "keywords": ["kmm", "migrate", "kotlin", "multiplatform", "swift", "skie", "kmp", "ios", "appium"]
     },
     {
       "name": "gameplan",

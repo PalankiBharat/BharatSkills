@@ -162,11 +162,11 @@ Phase 1: PLAN (BLOCKING)
 Phase 2: SCAFFOLD                     — create KMM module skeleton, expect/actual stubs
 Phase 3: SHARED CODE MIGRATION (TDD)  — per-file, bottom-up dependency order
   ── /clear (mandatory) ──
-Phase 4: WIRE ANDROID                 — imports, DI, delete originals, build, runtime verify, Maestro flows, manual test
-Phase 5: WIRE iOS                     — UI screens, navigation, Koin iOS, build, runtime verify, Maestro flows, manual test
+Phase 4: WIRE ANDROID                 — imports, DI, delete originals, build, runtime verify, Appium flows, manual test
+Phase 5: WIRE iOS                     — UI screens, navigation, Koin iOS, build, runtime verify, Appium flows, manual test
 ```
 
-Wire Android and Wire iOS are always distinct named phases, always in that order. Maestro automated flows and manual testing are embedded in each Wire phase.
+Wire Android and Wire iOS are always distinct named phases, always in that order. Appium automated flows and manual testing are embedded in each Wire phase.
 
 **Mandatory /clear points** are shown above. Phase 3 (shared code migration) is the heaviest phase — per-file TDD loops, agent outputs, and debug traces can bloat context by 300K+ tokens. Clearing before wiring prevents stale-reference errors. After each `/clear`, run `/kmm-workflow` → Continue to resume from the last checkpoint. The orchestrator MUST stop after these phases — do not continue without clearing.
 
@@ -182,7 +182,7 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.4:** Write PROGRESS.md to the gameplan directory with empty checkboxes for every task — filled during execution.
 - **Task 1.5:** Write migration-guide.md using the template in `references/agent-prompts/migration-guide-template.md` — one entry per file.
 - **Task 1.6:** Write findings.md with assessment data (see findings.md Structure below).
-- **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Generate `e2e-tests/screen-map.json` — record every screen in scope with navigation steps, key elements to verify, CTA targets, and known blockers (OTP, login, personal details). Define user journey flows in the screen map for Maestro automated testing.
+- **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Generate `e2e-tests/screen-map.json` — record every screen in scope with navigation steps, key elements to verify, CTA targets, and known blockers (OTP, login, personal details). Define user journey flows in the screen map for Appium automated testing.
 - **Task 1.7b:** Generate fake server: `e2e-tests/fake-server.js`. See `references/automated-testing.md` for template. Commit `e2e-tests/` to the worktree.
 - **Task 1.7c:** Allocate dedicated device and ports for this gameplan (prevents collisions with concurrent gameplans). See `references/automated-testing.md` § Device & Port Isolation. Auto-allocate by scanning for free ports and existing emulators/simulators. Record allocated device serials and FAKE_PORT in PLAN.md header (`<!-- DEVICE: ... -->`, `<!-- PORTS: ... -->`).
 - **Note:** All e2e-tests files (Tasks 1.7, 1.7b) MUST be created inside the worktree path established in Task 1.2, not the main repo working directory.
@@ -283,42 +283,42 @@ Run the project-specific build script (zero LLM tokens):
   → BUILD_VERIFY_FAIL → check findings.md → DEBUG LOOP → FIX → rerun script
 ```
 
-**Step 5: Runtime Verify (Maestro, fallback: adb)**
+**Step 5: Runtime Verify (Appium, fallback: adb)**
 
 | Tool | Commands |
 |------|----------|
-| Maestro (primary) | `maestro test --device $ANDROID_SERIAL e2e-tests/maestro-flows/android/<screen>.yaml` |
+| Appium (primary) | `python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT --platform android` |
 | adb (fallback) | `adb -s $ANDROID_SERIAL install -r <apk>` → `adb -s $ANDROID_SERIAL shell am start` |
 
 "App launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates (see `references/automated-testing.md`). For each migrated screen in migration-guide.md:
-1. Navigate to the screen using Maestro flow from screen-map (first time: generate flow yaml from screen-map entries and populate cache)
-2. Verify data loads — not stuck on spinner (screenshot via Maestro `takeScreenshot` command, NOT re-querying elements on cached screens)
-3. Verify primary CTA works (tap using Maestro flow, confirm expected result)
-4. Save Maestro screenshot to `e2e-tests/screenshots/android/`
+1. Navigate to the screen using Appium flow from screen-map (first time: generate flow scripts from screen-map entries and populate cache)
+2. Verify data loads — not stuck on spinner (screenshot via Appium driver, NOT re-querying elements on cached screens)
+3. Verify primary CTA works (tap using Appium flow, confirm expected result)
+4. Save Appium screenshot to `e2e-tests/screenshots/android/`
 
-If Maestro tap fails (element moved) → update flow yaml with new selectors, update screen-map, retry.
+If Appium tap fails (element moved) → update flow scripts with new selectors, update screen-map, retry.
 
 If crash → DEBUG LOOP (Android): instrument with Napier `[DebugScreenName]` → `adb -s $ANDROID_SERIAL logcat -s DebugScreenName`
 
 **Step 6: Summary Table** (promised vs achieved per file — see Summary Table Step)
 
-**Step 7: Maestro Automated Flows (real app, real device)**
+**Step 7: Appium Automated Flows (real app, real device)**
 
 Drive full user journeys against the real app using `e2e-tests/screen-map.json`:
 
-1. Install and launch app via Maestro (`maestro test --device $ANDROID_SERIAL`)
+1. Install and launch app via Appium (`python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT`)
 2. Execute each flow from screen-map sequentially:
-   - Use generated Maestro yaml flows from screen-map — do NOT re-query elements on unchanged screens
+   - Use generated Appium flow scripts from screen-map — do NOT re-query elements on unchanged screens
    - On `blocker` steps (OTP, payment, personal details): STOP and ask user to complete the step on device, wait for confirmation, then resume
-   - On tap failure (element moved): update flow yaml selectors, update screen-map cache, retry
-   - After each screen transition: Maestro `takeScreenshot` → save to `e2e-tests/screenshots/android/`
+   - On tap failure (element moved): update flow script selectors, update screen-map cache, retry
+   - After each screen transition: Appium driver captures screenshot → save to `e2e-tests/screenshots/android/`
 3. On failure: screenshot + update selectors + DEBUG LOOP
 4. All flows pass → proceed to manual test
 
 **Step 8: Manual Test**
 ```
 User tests remaining edge cases that automation couldn't cover
-Bug → DEBUG LOOP → Maestro smoke after each fix
+Bug → DEBUG LOOP → Appium smoke after each fix
 All flows pass → COMMIT (Wire Android + flows complete)
 ```
 
@@ -345,30 +345,30 @@ Run the project-specific build script (zero LLM tokens):
   → BUILD_VERIFY_FAIL → DEBUG LOOP (iOS) → fix → rerun script
 ```
 
-**Step 5: Runtime Verify (Maestro on simulator, fallback: xcrun)**
+**Step 5: Runtime Verify (Appium on simulator, fallback: xcrun)**
 
 | Tool | Commands |
 |------|----------|
-| Maestro (primary) | `maestro test --device $IOS_DEVICE_ID e2e-tests/maestro-flows/ios/<screen>.yaml` |
+| Appium (primary) | `python3 e2e-tests/appium_driver.py --device $IOS_UDID --appium-port $APPIUM_PORT --platform ios` |
 | xcrun (fallback) | `xcrun simctl install $IOS_UDID <app>` → `xcrun simctl launch $IOS_UDID <bundle-id>` |
 
 "App launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates. For each migrated screen in migration-guide.md:
-1. Navigate to the screen using Maestro flow from screen-map (first time: generate flow yaml from screen-map entries and populate cache)
-2. Verify data loads — not stuck on spinner (Maestro `takeScreenshot`, NOT re-querying elements on cached screens)
-3. Verify primary CTA works (tap using Maestro flow, confirm expected result)
-4. Save Maestro screenshot to `e2e-tests/screenshots/ios/`, compare with Android screenshot (visual parity check)
+1. Navigate to the screen using Appium flow from screen-map (first time: generate flow scripts from screen-map entries and populate cache)
+2. Verify data loads — not stuck on spinner (Appium driver screenshot, NOT re-querying elements on cached screens)
+3. Verify primary CTA works (tap using Appium flow, confirm expected result)
+4. Save Appium screenshot to `e2e-tests/screenshots/ios/`, compare with Android screenshot (visual parity check)
 
-If Maestro tap fails OR screen source file was modified in this phase → update flow yaml selectors, update screen-map, retry.
+If Appium tap fails OR screen source file was modified in this phase → update flow script selectors, update screen-map, retry.
 
 If crash → DEBUG LOOP (iOS): `xcrun simctl launch --console-pty $IOS_UDID <bundle-id> 2>&1 | grep DebugScreenName`
 
 **Step 6: Summary Table** (promised vs achieved — compare Android vs iOS columns)
 
-**Step 7: Maestro Automated Flows (iOS, real device)**
+**Step 7: Appium Automated Flows (iOS, real device)**
 
 Same protocol as Wire Android Step 7, but on iOS simulator:
 
-1. Install and launch via Maestro on iOS simulator (`maestro test --device $IOS_DEVICE_ID`)
+1. Install and launch via Appium on iOS simulator (`python3 e2e-tests/appium_driver.py --device $IOS_UDID --appium-port $APPIUM_PORT --platform ios`)
 2. Execute each flow from screen-map, handle blockers (ask user)
 3. Compare screenshots with Android parity (`e2e-tests/screenshots/android/` vs `ios/`)
 4. On failure: screenshot + update selectors + DEBUG LOOP (iOS)
@@ -404,8 +404,8 @@ Include this table in PLAN.md so agents know their roles.
 | 1: PLAN | Setup: PLAN.md, PROGRESS.md, migration-guide.md, findings.md, fake server config, screen-map | Sonnet | Sequential |
 | 2: SCAFFOLD | Create KMM module skeleton, expect/actual stubs | Sonnet | Sequential |
 | 3: SHARED CODE MIGRATION | Migrate → verify (Haiku) → Gradle test, per layer | Sonnet + Haiku verifier | Parallel per file at same dependency level, then sequential test |
-| 4: WIRE ANDROID | Update imports, DI, delete originals, Android build, runtime verify, Summary Table, Maestro flows, manual test | Sonnet | Sequential |
-| 5: WIRE iOS | iOS screens, navigation, Koin iOS, iOS build, runtime verify, Summary Table, Maestro flows, manual test | Sonnet | Sequential |
+| 4: WIRE ANDROID | Update imports, DI, delete originals, Android build, runtime verify, Summary Table, Appium flows, manual test | Sonnet | Sequential |
+| 5: WIRE iOS | iOS screens, navigation, Koin iOS, iOS build, runtime verify, Summary Table, Appium flows, manual test | Sonnet | Sequential |
 
 ---
 
@@ -467,7 +467,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 4.4 Android build + unit test — ALL tests pass
 - [ ] 4.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot
 - [ ] 4.6 Summary Table
-- [ ] 4.7 Maestro automated flows (generated from screen-map, baseline diff, blocker→ask user)
+- [ ] 4.7 Appium automated flows (generated from screen-map, baseline diff, blocker→ask user)
 - [ ] 4.8 Manual test (remaining edge cases only)
 - [ ] Checkpoint: Phase 4 Wire Android committed
 - [ ] PROGRESS.md committed
@@ -479,7 +479,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 5.4 iOS build + unit test — ALL tests pass
 - [ ] 5.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot + Android parity
 - [ ] 5.6 Summary Table
-- [ ] 5.7 Maestro automated flows (iOS, generated from screen-map, blocker→ask user, Android parity check)
+- [ ] 5.7 Appium automated flows (iOS, generated from screen-map, blocker→ask user, Android parity check)
 - [ ] 5.8 Manual test (remaining edge cases only)
 - [ ] Checkpoint: Phase 5 Wire iOS committed
 - [ ] PROGRESS.md committed

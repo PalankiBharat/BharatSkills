@@ -64,13 +64,13 @@ xcrun simctl install $IOS_UDID <app-path>
 xcrun simctl launch --console-pty $IOS_UDID <bundle-id> 2>&1 | grep "Debug<Name>"
 ```
 
-**Maestro quick smoke (either platform):**
+**Appium quick smoke (either platform):**
 ```bash
 adb -s $ANDROID_SERIAL uninstall <pkg>
 ./gradlew :app:installDebug
-maestro test --device $ANDROID_SERIAL e2e-tests/maestro-flows/android/<specific-screen>.yaml
+python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT --platform android --flow <specific-screen>
 ```
-Maestro is preferred for smoke tests — deterministic, no token cost. Fall back to adb/xcrun if Maestro is unavailable.
+Appium is preferred for smoke tests — deterministic, no token cost. Fall back to adb/xcrun if Appium is unavailable.
 
 ### Step 3: WAIT
 Tell the user exactly what to do:
