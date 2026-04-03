@@ -288,7 +288,7 @@ Run the project-specific build script (zero LLM tokens):
 | Tool | Commands |
 |------|----------|
 | Maestro (primary) | `maestro test --device $ANDROID_SERIAL e2e-tests/maestro-flows/android/<screen>.yaml` |
-| adb (fallback) | `adb install -r <apk>` → `adb shell am start` |
+| adb (fallback) | `adb -s $ANDROID_SERIAL install -r <apk>` → `adb -s $ANDROID_SERIAL shell am start` |
 
 "App launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates (see `references/automated-testing.md`). For each migrated screen in migration-guide.md:
 1. Navigate to the screen using Maestro flow from screen-map (first time: generate flow yaml from screen-map entries and populate cache)
@@ -298,7 +298,7 @@ Run the project-specific build script (zero LLM tokens):
 
 If Maestro tap fails (element moved) → update flow yaml with new selectors, update screen-map, retry.
 
-If crash → DEBUG LOOP (Android): instrument with Napier `[DebugScreenName]` → `adb logcat -s DebugScreenName`
+If crash → DEBUG LOOP (Android): instrument with Napier `[DebugScreenName]` → `adb -s $ANDROID_SERIAL logcat -s DebugScreenName`
 
 **Step 6: Summary Table** (promised vs achieved per file — see Summary Table Step)
 
@@ -350,7 +350,7 @@ Run the project-specific build script (zero LLM tokens):
 | Tool | Commands |
 |------|----------|
 | Maestro (primary) | `maestro test --device $IOS_DEVICE_ID e2e-tests/maestro-flows/ios/<screen>.yaml` |
-| xcrun (fallback) | `xcrun simctl install booted <app>` → `xcrun simctl launch booted <bundle-id>` |
+| xcrun (fallback) | `xcrun simctl install $IOS_UDID <app>` → `xcrun simctl launch $IOS_UDID <bundle-id>` |
 
 "App launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates. For each migrated screen in migration-guide.md:
 1. Navigate to the screen using Maestro flow from screen-map (first time: generate flow yaml from screen-map entries and populate cache)
@@ -360,7 +360,7 @@ Run the project-specific build script (zero LLM tokens):
 
 If Maestro tap fails OR screen source file was modified in this phase → update flow yaml selectors, update screen-map, retry.
 
-If crash → DEBUG LOOP (iOS): `xcrun simctl launch --console-pty booted <bundle-id> 2>&1 | grep DebugScreenName`
+If crash → DEBUG LOOP (iOS): `xcrun simctl launch --console-pty $IOS_UDID <bundle-id> 2>&1 | grep DebugScreenName`
 
 **Step 6: Summary Table** (promised vs achieved — compare Android vs iOS columns)
 
