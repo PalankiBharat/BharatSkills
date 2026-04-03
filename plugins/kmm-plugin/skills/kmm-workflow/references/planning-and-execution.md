@@ -196,7 +196,6 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.7b:** Generate fake server: `e2e-tests/fake-server.js`. See `references/automated-testing.md` for template. Commit `e2e-tests/` to the worktree.
 - **Task 1.7c:** Allocate dedicated device and ports for this gameplan (prevents collisions with concurrent gameplans). See `references/automated-testing.md` § Device & Port Isolation. Auto-allocate by scanning for free ports and existing emulators/simulators. Record allocated device serials and FAKE_PORT in PLAN.md header (`<!-- DEVICE: ... -->`, `<!-- PORTS: ... -->`).
 - **Note:** All e2e-tests files (Tasks 1.7, 1.7b) MUST be created inside the worktree path established in Task 1.2, not the main repo working directory.
-- **Task 1.3b:** Ask about Android UI parity expectations — before writing migration-guide.md for any UI component, ask: "Do you require pixel-perfect Android parity for migrated UI components, or is a functionally equivalent CMP implementation acceptable?" Pixel-perfect → expect/actual wrapping the existing Android widget; functionally equivalent → direct CMP implementation. Record the answer in findings.md.
 - **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases.
 - **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md.
 - **Task 1.10:** Dependency decision framework — Read `references/dependency-decision-framework.md`. For each Android-only dependency in the module:
@@ -450,7 +449,6 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.1 Create gameplan directory
 - [ ] 1.2 Create worktree + copy local.properties
 - [ ] 1.3 Write PLAN.md
-- [ ] 1.3b Ask about Android UI parity expectations
 - [ ] 1.4 Write PROGRESS.md
 - [ ] 1.5 Write migration-guide.md
 - [ ] 1.6 Write findings.md

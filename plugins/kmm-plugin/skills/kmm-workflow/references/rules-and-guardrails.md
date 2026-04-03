@@ -26,7 +26,7 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
 
 > **Inject this entire section verbatim into every agent prompt system block. ~500 tokens.**
 
-**1:1 MECHANICAL PORT.** THE rule. Only Android→KMM specifics change. Any behavioral change → REQUIRES_APPROVAL.
+**1:1 MECHANICAL PORT.** THE rule. Only Android→KMM specifics change. Any behavioral change → REQUIRES_APPROVAL. Migrated screens MUST be pixel-perfect and 1:1 in functionality and UX — CMP on Android uses the same Compose runtime, so visual parity is the default, not an option. Never ask whether parity is required; enforce it.
 
 - **REQUIRES_APPROVAL.** Any change altering observable behavior → stop and present: (1) The problem — what you found and why it matters, (2) Options — each with detailed explanation, pros/cons, long-term implications, (3) Recommended option — biased toward correctness and long-term maintenance, NEVER toward speed or convenience, (4) Why — explain the recommendation reasoning. Wait for user choice.
 - **Every decision in files.** After /clear, only files survive. Never leave decisions only in chat.
