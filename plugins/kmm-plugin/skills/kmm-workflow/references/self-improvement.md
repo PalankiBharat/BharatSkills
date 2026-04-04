@@ -122,15 +122,26 @@ When creating GitHub issues, group findings by target_file. Each issue should be
 
 ## Consolidation Mandate
 
-The Improve mode (invoked via `/kmm-workflow improve`) applies retrospective learnings with these rules:
+### CRITICAL: Source Repo Gate (execute FIRST — before ANY file edit)
 
-1. **NEVER append** a new bullet point to an existing list. Find the existing rule that covers this area and REWRITE it to absorb the learning.
-2. **Measure file growth:** if any file grows by more than 10 lines net after applying learnings, consolidate further. The skill should get SHARPER with each iteration, not LONGER.
-3. **One source of truth:** if a learning could go in SKILL.md or a reference doc, always choose the reference doc. SKILL.md stays lean.
-4. **Generalization mandatory:** strip project-specific names, branch names, API endpoints. Extract the reusable pattern.
-5. **Edit source, not installation:** All file edits during Improve mode MUST target the skill's source repository (the git clone used for development), NOT the local plugin installation under `~/.claude/plugins/`. The local installation is a read-only deployment artifact — changes there are lost on plugin updates and bypass code review.
-6. **Bump semver on every Improve run:** Each Improve invocation MUST bump the patch version in `plugin.json` (e.g., `6.1.0` → `6.1.1`). Use patch for learnings/fixes, minor for new capabilities, major for breaking workflow changes. Do NOT update the `description` field in `plugin.json` or SKILL.md frontmatter — it stays stable unless the user explicitly requests a change.
-7. **Self-review before presenting PR:** After raising the PR, read the full diff (`gh pr diff`) and verify every change against rules 1–6: no appended bullets (rewrites only), net file growth ≤10 lines, no content in SKILL.md that belongs in a reference doc, no project-specific names, all edits on source repo, version bumped, description untouched. If any violation is found, fix it and push before presenting the PR to the user.
+All Improve-mode edits MUST target `~/dev/claude-code-skills/` — the skill's source repository. NEVER edit files under `~/.claude/plugins/` (the read-only plugin installation — changes there are lost on updates and bypass review).
+
+**Pre-flight checklist (mandatory before the first Edit/Write call):**
+1. Resolve source path: `SOURCE=~/dev/claude-code-skills/plugins/kmm-plugin/skills/kmm-workflow`
+2. Verify it exists: `ls $SOURCE/SKILL.md`
+3. Create branch THERE: `cd ~/dev/claude-code-skills && git checkout -b <branch>`
+4. ALL subsequent Read/Edit/Write calls use absolute paths starting with `~/dev/claude-code-skills/`
+
+**Self-check:** If any file path in an Edit/Write call contains `.claude/plugins` → STOP immediately. Wrong location. This is the #1 recurring Improve-mode failure.
+
+### Consolidation Rules
+
+1. **NEVER append** — find the existing rule and REWRITE it to absorb the learning.
+2. **Measure file growth:** net >10 lines after applying learnings → consolidate further. Sharper, not longer.
+3. **One source of truth:** learning goes in reference doc, not SKILL.md. SKILL.md stays lean.
+4. **Generalization mandatory:** strip project-specific names. Extract reusable patterns.
+5. **Bump semver:** patch for learnings/fixes, minor for new capabilities, major for breaking changes. Do NOT update `description` in `plugin.json` or SKILL.md frontmatter.
+6. **Self-review before presenting PR:** `gh pr diff` → verify rules 1–5 + source repo paths. Fix violations before presenting.
 
 ## Issue format
 

@@ -533,11 +533,11 @@ func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
 
 ## KMM/Kotlin Gotchas
 
-### Enum Case Sensitivity
-- "CONTROL" vs "control" breaks feature flags silently
-- Kotlin is case-sensitive. If Android sends "control" and KMM expects "CONTROL", the enum won't match
-- `@SerialName` annotations and case-insensitive comparison can help
-- Always verify enum string values match between Android and KMM
+### Enum Case Sensitivity (Serialization AND Cross-Module)
+Two distinct failure modes when migrating enums:
+1. **Serialization mismatch:** Android sends `"control"`, KMM expects `"CONTROL"` → silent failure. Fix: `@SerialName` annotations or case-insensitive comparison.
+2. **Cross-module naming divergence:** Android enum uses `ALL_CAPS`, shared module uses PascalCase. Compiler catches the type mismatch, but `.name` comparison silently fails (`"CALL" != "Call"`). Fix: exhaustive `when` mapping in adapters — never use `.name` for cross-module enum mapping when conventions differ.
+- During Phase 2 interface design, document enum naming conventions and plan adapter mappings.
 
 ### Lost Concurrency During Migration
 - Android code using async/await for parallel uploads can silently become sequential in KMM
@@ -652,6 +652,11 @@ val loginModule = module { includes(bottomPanelModule) }
 - Missing bindings on one platform cascade — one missing dep crashes ALL VM resolution on that platform via Koin startup failure
 - Pattern: Android builds/runs first, so Android Koin bindings get verified implicitly. iOS Koin is only tested at the very end. Missing iOS-side bindings are the #1 source of iOS runtime crashes after migration.
 - Post-migration check: for each constructor parameter of a newly registered VM, grep `di.kt` + platform DI modules to confirm a binding exists on both platforms. Report any MISSING bindings immediately.
+
+### Adapter Preparation: Placement and Field Audit
+When writing Android adapters that wrap app-module classes for shared interfaces:
+1. **Placement:** Adapters importing app-module types cannot live in `shared/src/androidMain/` (compiles as `shared` module, can't depend on `app`). Place them in `app/src/main/java/.../bridge/<feature>/`.
+2. **Field audit:** Cross-reference every shared interface property against the wrapped class in Phase 2. If any required field is `private`, add a public getter BEFORE writing the adapter.
 
 ### Pre-Existing Test Failures Are Not Your Problem
 - If tests were failing BEFORE your changes, they are not your responsibility
