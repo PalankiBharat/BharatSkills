@@ -204,7 +204,7 @@ Steps 1-4 run first (fast, deterministic, zero tokens). Step 5 runs only after s
 - Do NOT allocate device slots via kmm-device-slots.json — appium-mcp manages sessions
 - Do NOT start/stop Appium servers manually — appium-mcp handles server lifecycle
 - Do NOT use coordinate-based tapping as primary strategy — use vision-based finding
-- Do NOT use mobile-mcp tools — they conflict with appium-mcp sessions
+- Do NOT use mobile-mcp tools (any tool prefixed with `mcp__mobile-mcp__`) — they conflict with appium-mcp sessions and will corrupt device state. If these tools appear in your available tools, ignore them entirely during E2E testing.
 - Do NOT read screenshot images in main context for batch comparison — use subagents
 - Always run deterministic checks (steps 1-4) BEFORE appium-mcp E2E
 - Always delete sessions after testing (`delete_session`)

@@ -91,6 +91,8 @@ Every agent must emit exactly ONE of these on its final line:
 - `NEEDS_CONTEXT: <what's missing>` — cannot proceed without additional information
 - `BLOCKED: <reason>` — tried max attempts, escalating with full error context
 
+**Agent-specific tokens:** Individual agent prompts define task-specific completion tokens (FILE_VERIFIED, UI_VERIFIED, TDD_COMPLETE, VERIFY_PASS, DEBUG_COMPLETE, AUDIT_COMPLETE, PLAN_ANALYSIS) that supersede the generic tokens above. Use the agent-specific token when one is defined in your prompt. The generic tokens (DONE/BLOCKED) are the fallback for agents without a task-specific format.
+
 3-strike rule: max 3 fix attempts on the same error before emitting BLOCKED.
 
 ## Pre-Completion Checklist

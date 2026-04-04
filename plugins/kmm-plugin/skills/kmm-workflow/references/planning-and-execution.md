@@ -117,7 +117,6 @@ The first 15 lines of PLAN.md are injected by hooks on every message and before 
 <!-- VERIFY: <build verification command> -->
 <!-- CHECKPOINT: <last checkpoint commit or "none yet"> -->
 <!-- DEVICE: android=<emulator-serial> | ios=<simulator-UDID> -->
-<!-- PORTS: fake=<port> -->
 ## KMM Migration: <module-name>
 ## Rules (always in scope)
 - 1:1 MECHANICAL PORT: only Android→KMM specifics change, any behavioral change → REQUIRES_APPROVAL
@@ -435,6 +434,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.15b Mandatory gap analysis — fix BLOCKER/HIGH before approval
 - [ ] 1.15c Interface completeness check
 - [ ] 1.16 Verify clean build baseline
+- [ ] 1.17 Generate parity-check.sh, flow-collector-check.sh, koin-binding-check.py
 - [ ] 1.18 Generate manual-test-checklist.md
 - [ ] Checkpoint 1 committed
 

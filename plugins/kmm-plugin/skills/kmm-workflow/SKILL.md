@@ -93,7 +93,7 @@ The skill is file-based — nothing is lost on `/clear`. The orchestrator MUST s
 
 - Build DAG from migration-guide.md "Migrate after" fields
 - PARALLEL subagents per file (full TDD pipeline) — agents read `references/agent-protocol.md`
-- TDD enforcement: FILE_COMPLETE with tests >= Expected tests from migration-guide.md; `tests: 0` is rejected
+- TDD enforcement: FILE_VERIFIED with tests >= Expected tests from migration-guide.md; `tests: 0` is rejected
 - Original deletion (two-step): orchestrator deletes before dispatch, verifies after all agents complete
 - After all levels: full test suite, auditor sweep, Phase 3 checklist (`references/phase-checklists.md`)
 - CHECKPOINT COMMIT — Read `references/dependency-replacements.md`, `references/rules-and-guardrails.md`, `references/platform-api-gotchas.md`
@@ -141,7 +141,7 @@ All agents read `references/agent-protocol.md` before starting.
 | Verify migration (structural diff) | agent-prompts/verifier.md | haiku | VERIFY_PASS / VERIFY_FAIL |
 | Write characterization tests (standalone — Verify mode and pre-characterization only) | agent-prompts/test-writer.md | sonnet | TDD_COMPLETE / TDD_BLOCKED |
 | Debug failure | agent-prompts/debugger.md | sonnet | DEBUG_COMPLETE / DEBUG_BLOCKED |
-| UI migration (per screen) | agent-prompts/ui-migrator.md | sonnet | UI_COMPLETE / UI_BLOCKED |
+| UI migration (per screen) | agent-prompts/ui-migrator.md | sonnet | UI_VERIFIED / UI_BLOCKED |
 | Audit code (Phase 3 inline) | agent-prompts/auditor.md | sonnet | AUDIT_COMPLETE / AUDIT_BLOCKED |
 | Verify module (3-layer) | agent-prompts/verifier-full.md | sonnet | VERIFY_COMPLETE / VERIFY_BLOCKED |
 | Analyze plan | agent-prompts/plan-analyzer.md | sonnet | PLAN_ANALYSIS |
@@ -160,6 +160,7 @@ All agents read `references/agent-protocol.md` before starting.
 - `references/ios-wiring.md` — Phase 5
 - `references/cross-platform-parity.md` — Phases 4, 5: cross-platform verification
 - `references/appium-mcp-testing.md` — Phases 4, 5, Verify: appium-mcp E2E, vision-based element finding, 3-build comparison
+- `references/automated-testing.md` — Phases 4, 5: testing model overview, deterministic verification scripts, adb/xcrun fallback
 - `references/verify-protocol.md` — Verify mode: 3-layer verification protocol
 - `references/self-improvement.md` — Migration retrospective
 
@@ -179,7 +180,7 @@ All agents read `references/agent-protocol.md` before starting.
 2. **All decisions through user** — REQUIRES_APPROVAL batched at phase boundaries, not one-by-one
 3. **Always create worktree** — ALL work in worktrees, including E2E setup and SDK wiring; never on base branch
 4. **Orchestrator never writes migration code** — only agents do
-5. **TDD non-negotiable** — tests must pass on original AND migrated; FILE_COMPLETE with `tests: 0` is rejected
+5. **TDD non-negotiable** — tests must pass on original AND migrated; FILE_VERIFIED with `tests: 0` is rejected
 6. **No deferring tasks** — complete fully or flag as genuinely blocked; "it's complex" is not a valid reason
 7. **No type casting** — no `as`, `as?`, `as!`; use polymorphism, generics, or protocol conformance
 8. **Device targeting explicit** — `$ANDROID_SERIAL` in every `adb` command, `$IOS_UDID` in every `xcrun simctl`; appium-mcp sessions target specific device serials; read from PLAN.md header
@@ -187,4 +188,4 @@ All agents read `references/agent-protocol.md` before starting.
 10. **PROGRESS.md is checklist not journal** — one line per task; details belong in findings.md
 11. **Retrospective before /clear** — mandatory and autonomous; skipping means learnings lost permanently
 12. **parity-check.sh before appium-mcp E2E** — static analysis first, device testing second; never skip either layer
-13. **Verified output, not just completed output** — every agent must produce evidence of verification (deterministic scan + adversarial self-review) before reporting completion; the orchestrator rejects completion signals without evidence fields; see `references/agent-protocol.md` Verified-Output Protocol
+13. **Verified output, not just completed output** — every agent must produce evidence of verification (deterministic scan + adversarial self-review) before reporting completion; the orchestrator rejects completion signals without evidence fields; see `references/agent-protocol.md` Verified-Output Protocol; orchestrator reads evidence fields from agent output — if deterministic_scan or peer_review fields are absent or critical > 0, re-dispatch the agent with rejection reason

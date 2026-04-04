@@ -56,14 +56,14 @@ Why: <reasoning>
 - The migration order derived from the DAG matches the order in PLAN.md
 - Flag any file whose dependencies are not yet migrated at the point it is scheduled
 
-### 7. File Coverage
+### 6. File Coverage
 - Every file in migration-guide.md has a corresponding task in PLAN.md
 - Every file classified as `migrate-swap` has its replacement library and exact version specified
 - Every file classified as `migrate-expect-actual` has the expect/actual boundary defined
 - No orphan files (files in the module not mentioned in migration-guide.md or PLAN.md)
 - Consumer files that import from the module are listed for update
 
-### 8. All 5 Phases Present
+### 7. All 5 Phases Present
 The plan must contain all five phases in order. Flag any missing phase as a GAP:
 1. **Plan** — migration-guide.md authored, all files classified, dependency DAG populated, scaffolding interfaces identified
 2. **Scaffold** — all commonMain interfaces and expect/actual stubs created, fakes verified writable in commonTest
@@ -71,24 +71,24 @@ The plan must contain all five phases in order. Flag any missing phase as a GAP:
 4. **Wire Android** — Android app wired to shared module, Android build green, checkpoint commit
 5. **Wire iOS** — iOS app wired to shared module, iOS build green, checkpoint commit
 
-### 9. Dependency Completeness
+### 8. Dependency Completeness
 - Every external dependency used by migrating files is in the dependency map
 - Libraries not in `references/migration-reference.md` are flagged as GAPS
 - For each gap: search latest docs (Context7/find-docs/web search) and suggest the KMM replacement
 - Internal dependencies between migrating files match the migration order (no file migrated before its dependencies)
 
-### 10. Test Feasibility
+### 9. Test Feasibility
 - For each file in Phase C: can characterization tests be written in commonTest?
 - Files that use Android-only APIs in their public interface may not be testable in commonTest — flag these
 - Files that require mocking complex infrastructure (databases, network) — flag and suggest fake patterns
 
-### 11. Platform Screen Decisions
+### 10. Platform Screen Decisions
 - Every `platform-stay` file has a UI strategy assigned (CMP, SwiftUI, Hybrid)
 - For Compose screens: has the user been asked about CMP vs native?
 - For XML screens: SwiftUI is the only option — confirm this is in the plan
 - Performance-critical screens are flagged and strategy confirmed with user
 
-### 12. Protocol Compliance
+### 11. Protocol Compliance
 - Phase boundaries are by layer, not task count
 - Wire Android and Wire iOS are named as distinct phases (Android committed before iOS begins)
 - Build verification commands are specified for each phase
@@ -96,60 +96,60 @@ The plan must contain all five phases in order. Flag any missing phase as a GAP:
 - A Summary Table step exists before manual testing in each platform phase
 - PROGRESS.md is listed as a planning output (created during planning with empty checkboxes)
 
-### 13. Ambiguity Detection
+### 12. Ambiguity Detection
 - Any task description that says "if needed", "as appropriate", "when applicable" — these are ambiguous. Replace with concrete criteria
 - Any file with unclear classification — flag for orchestrator review
 - Any dependency where the KMM replacement is uncertain — flag for user decision
 - Any expect/actual boundary that could be defined multiple ways — list options
 
-### 14. Latest Docs Verification
+### 13. Latest Docs Verification
 - For every library swap in the plan: verify the target library version via Context7/find-docs/web search
 - Flag any library where the plan references a version that might be outdated
 - Check that SKIE version compatibility is confirmed
 
-### 15. Platform API Pre-Check
+### 14. Platform API Pre-Check
 - For every file classified as `migrate-swap` or `migrate-expect-actual`, verify the `Platform APIs` field is populated in migration-guide.md
 - Cross-reference each listed API against `references/platform-api-gotchas.md` — verify the replacement is correct
 - Flag any file with an empty `Platform APIs` field as a BLOCKER — migrator agents will encounter these APIs during migration and improvise replacements
 - Flag any file using `Dispatchers.IO`, `@Synchronized`, `String.format()`, `removeFirst()`, `System.currentTimeMillis()`, or `java.util.UUID` that doesn't list these in Platform APIs as a BLOCKER
 
-### 16. Enriched Fields Completeness
-- Every file entry in migration-guide.md must have ALL 15 fields populated (including new fields: Platform APIs, Breaking changes, Callbacks, Expected tests, Serialization, Decisions)
+### 15. Enriched Fields Completeness
+- Every file entry in migration-guide.md must have ALL 16 fields populated (including: Platform APIs, Breaking changes, Callbacks, Expected tests, Serialization, Decisions, Test strategy)
 - `Expected tests` must be >= 1 per public method listed in Public API. Files with 5+ public methods or complex state management should have higher minimums.
 - `Callbacks` field must list every callback/lambda parameter in the file's public API and composable parameters
 - `Decisions` field must have a rationale for every library swap — not just the choice, but WHY
 - Flag any "TBD", "N/A if needed", or blank enriched field as a BLOCKER
 
-### 17. Flow Inventory Completeness
+### 16. Flow Inventory Completeness
 - For each file with Classification `migrate-swap` or `migrate-expect-actual` that contains a ViewModel:
   - Verify `Flows:` field is populated (not empty, not TBD)
   - Grep the source file for `StateFlow`, `SharedFlow`, `Channel`, `Flow<` declarations
   - Every grep hit must appear in the Flows field
   - Missing flow in the field → BLOCKER (will cause silent feature loss on iOS)
 
-### 18. UI Strategy Decided
+### 17. UI Strategy Decided
 - For each file with Classification `platform-stay`:
   - Verify `UI Strategy:` field is one of: CMP, SwiftUI, Hybrid
   - TBD or empty → BLOCKER (ui-migrator cannot proceed without strategy)
 
-### 19. UI Branch Coverage
+### 18. UI Branch Coverage
 - For each UI file (Classification `platform-stay`):
   - Grep Android source for `if (`, `when (`, `visibility =`, `.isVisible`, `AnimatedVisibility`
   - Each conditional rendering branch should appear in UI Branches field
   - Missing branch → HIGH (may cause incomplete iOS rendering)
 
-### 20. Platform API Completeness (substance check)
+### 19. Platform API Completeness (substance check)
 - For each file in migration-guide.md:
   - Grep the SOURCE file for known problematic APIs: Dispatchers.IO, @Synchronized, String.format(), System.currentTimeMillis(), java.util.UUID, android.util.Log, java.net.URL, Thread.sleep, runBlocking
   - Every hit must appear in the file's "Platform APIs" field
   - Missing API in field → BLOCKER (migrator will hit it and improvise)
 
-### 22. Expected Test Count Validation
+### 20. Expected Test Count Validation
 - For each file: count public methods in the source
 - Expected tests should be >= public method count (1 test per method minimum)
 - If Expected tests < public method count → MEDIUM (under-tested migration)
 
-### 23. Test Strategy Completeness
+### 21. Test Strategy Completeness
 - For each file with complex infrastructure dependencies (database, network, WebSocket, DI-injected repositories):
   - Verify `Test strategy` field is populated in migration-guide.md
   - Field should specify: which interfaces to fake, how to handle enum serialization, whether expect/actual test wrapper is needed

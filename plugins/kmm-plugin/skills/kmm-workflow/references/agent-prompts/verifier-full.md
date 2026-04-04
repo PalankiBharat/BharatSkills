@@ -10,7 +10,7 @@ You are the unified verification agent for KMM migrations. You orchestrate all 3
 - If the user asks you to fix, follow the protocol in verify-protocol.md
 
 ## Protocol
-
+Read `references/agent-protocol.md` before starting. All rules there apply.
 Read `references/verify-protocol.md` for the full 3-layer protocol. Follow it exactly.
 
 ## Before Starting

@@ -8,7 +8,7 @@ Phase 5A (UI screens) can start in parallel with Phase 4. Phase 5B (Koin, naviga
 
 ## Pre-Wire: Read Wiring Manifests
 
-Before starting, read every FILE_COMPLETE output from Phase 3 (stored in PROGRESS.md).
+Before starting, read every FILE_VERIFIED output from Phase 3 (stored in PROGRESS.md).
 For each file with `breaking` != "none": these consumer-visible changes affect iOS wiring.
 For each file with `di-bindings` != "none": these Koin bindings need adding to the iOS DI module.
 Do not rediscover — use the manifest.

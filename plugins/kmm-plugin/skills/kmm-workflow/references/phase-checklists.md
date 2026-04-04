@@ -40,7 +40,7 @@ Run after scaffold commit, before Phase 3.
 
 Run after all dependency levels complete, before /clear.
 
-- [ ] Every file: FILE_COMPLETE with tests >= Expected tests from migration-guide.md
+- [ ] Every file: FILE_VERIFIED with tests >= Expected tests from migration-guide.md
 - [ ] Test fixture sync: all fake/stub classes in commonTest match current public API of migrated classes (no stale enum names, parameter counts, or field types)
 - [ ] Every file: VERIFY_PASS from haiku verifier
 - [ ] No FILE_BLOCKED remaining (all resolved or escalated)

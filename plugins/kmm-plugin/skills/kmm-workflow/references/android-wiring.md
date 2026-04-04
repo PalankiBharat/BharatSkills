@@ -9,7 +9,7 @@ Runs AFTER all shared code migration phases are checkpointed. BEFORE iOS.
 
 ## Pre-Wire: Read Wiring Manifests
 
-Before starting, read every FILE_COMPLETE output from Phase 3 (stored in PROGRESS.md).
+Before starting, read every FILE_VERIFIED output from Phase 3 (stored in PROGRESS.md).
 For each file with `breaking` != "none": these call sites need updating — follow the documented changes.
 For each file with `di-bindings` != "none": these Koin bindings need adding to the Android DI module.
 For each file with `wiring-notes` != "standard": follow the specific import change instructions.
