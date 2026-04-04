@@ -93,6 +93,55 @@ Every agent must emit exactly ONE of these on its final line:
 
 3-strike rule: max 3 fix attempts on the same error before emitting BLOCKED.
 
+## Pre-Completion Checklist
+
+Before emitting any completion signal (`DONE` or equivalent), verify:
+
+1. Read the task list assigned to this agent (from the orchestrator prompt or PROGRESS.md)
+2. Confirm each task has `[x]` status — not `[ ]` or `[~]`
+3. If any task is incomplete: complete it now, or emit `BLOCKED: <task> incomplete — <reason>`
+
+**Never commit with incomplete tasks.** A commit that leaves tasks unchecked is a silent failure — the orchestrator sees "committed" and moves on, and the uncompleted task is discovered only during final verification. Common pattern: agents complete 4/5 tasks, commit because "the build passes," but the 5th task (e.g., deleting original files) creates import ambiguity later.
+
+## Tool-Call Budget (Anti-Spin)
+
+Every agent has an implicit tool-call budget per task:
+
+- **50 tool calls on a single task** → pause, re-read task description and reference files, try a fundamentally different approach
+- **100 tool calls on a single task** → emit `BLOCKED` with full context: what was tried, what failed, current best hypothesis
+- **Never exceed 150 tool calls without escalating**
+
+**Signs of spinning (stop immediately):**
+- Trying the same approach with minor variations
+- Reading the same files repeatedly without extracting new information
+- Retrying a command that has failed 3+ times with the same error
+- Building automation for something the project may already have (check first)
+
+## Context Compaction Recovery
+
+Long-running agents are subject to context compaction (conversation history summarized, earlier details lost). Treat compaction as a likely event — prepare recovery documents proactively.
+
+### Mandatory handoff document
+
+At every task boundary (each `[x]` checkpoint in PROGRESS.md), update `<gameplan-dir>/HANDOFF.md`:
+
+```markdown
+# Handoff: <AgentRole> — <Timestamp>
+## Current task: <exact task from PROGRESS.md>
+## Completed: <list with commit hashes>
+## Remaining: <list>
+## Critical context: <non-obvious decisions, build state, pending REQUIRES_APPROVAL>
+```
+
+### On context loss detection
+
+If an agent cannot recall what it has done or what's next:
+1. STOP all code changes immediately
+2. Read PROGRESS.md → determine current task
+3. Read HANDOFF.md → recover context
+4. Confirm current state (`git status`, build check) before proceeding
+5. Never reconstruct context from guesses — read the files
+
 ## Failure Modes to Avoid
 
 BAD: Patched the composable to skip the null check because it crashed on iOS.

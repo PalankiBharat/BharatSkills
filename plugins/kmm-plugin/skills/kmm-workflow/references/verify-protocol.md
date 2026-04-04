@@ -132,19 +132,13 @@ Run `koin-binding-check.py`:
 - Traces one level of transitive deps
 - Missing binding → BLOCKER (runtime crash)
 
-### 2.3 Screen Coverage Check (deterministic)
-Run `screen-coverage-check.sh`:
-- Parses Android nav graph / Compose NavHost for routes
-- Diffs against screen-map.json entries
-- Missing screen → HIGH (zero Appium test coverage)
-
-### 2.4 Callback Completeness Trace (AI-powered)
+### 2.3 Callback Completeness Trace (AI-powered)
 For each onClick/onAction/callback parameter in Android UI code:
 - Trace to the shared ViewModel action it invokes
 - Verify iOS view has equivalent handler invoking the same action
 - Dead-end callback (no-op closure = {} or missing) → BLOCKER
 
-### 2.5 UI Branch Audit (AI-powered)
+### 2.4 UI Branch Audit (AI-powered)
 For every if/when/switch in Android UI that controls visibility/rendering:
 - Verify iOS view has equivalent conditional branch
 - Missing branch → HIGH (conditional content not rendered on iOS)
@@ -155,39 +149,37 @@ For every if/when/switch in Android UI that controls visibility/rendering:
 
 ## Layer 3: Device Testing (needs emulator/simulator)
 
-Runtime verification using Appium.
+Runtime verification using appium-mcp.
 
 ### 3.0 Environment Check
 Check prerequisites:
 - `which appium` → installed?
+- `npx appium-mcp@latest --version` → appium-mcp available?
 - `appium driver list --installed` → uiautomator2, xcuitest present?
-- `python3 -c "import appium"` → Python deps available?
 If any missing → **skip Layer 3 with explicit warning**, report Layers 1-2 results only.
 
-### 3.1 Device Slot Allocation
-Follow `references/device-slot-management.md`:
-- Allocate or reuse dedicated emulator + simulator
-- Record device serials and ports in PLAN.md header
-- Start Appium servers per device
+### 3.1 Session Setup
+- Boot emulator and/or simulator
+- Create appium-mcp sessions (Android + iOS)
+- Record device identifiers
 
-### 3.2 Appium Flow Execution
-Follow `references/appium-testing.md`:
-- Generate YAML flows from screen-map.json (verify-first: dump hierarchy before writing selectors)
-- Capture baseline screenshots from master branch
-- Capture comparison screenshots from migration branch
-- Run all flows on both platforms
+### 3.2 3-Build Comparison
+Follow `references/appium-mcp-testing.md` Section 4:
+- Build 1: Master Android APK → navigate screens → screenshot
+- Build 2: Migrated Android APK → navigate screens → screenshot
+- Build 3: iOS app → navigate screens → screenshot
+- Claude Vision compares all 3 per screen
 
-### 3.3 Screenshot Comparison
-Claude vision compares baseline vs comparison screenshots:
-- Classify each difference as VISUAL_REGRESSION, EXPECTED_CHANGE, or FALSE_POSITIVE
-- VISUAL_REGRESSION → BLOCKER
-- Cross-platform parity: Android vs iOS screenshots must be functionally equivalent
+### 3.3 Functional Verification
+Follow `references/appium-mcp-testing.md` Section 5:
+- Per-screen element verification
+- Interactive element testing
+- Flow triggering and validation
 
 ### 3.4 Cleanup
-- Stop Appium servers
-- Deallocate device slot (or keep for re-runs)
+- Delete all appium-mcp sessions (`delete_session`)
 
-**Layer 3 output:** `LAYER_3: screens_passed: N/N | regressions: N | skipped: true/false`
+**Layer 3 output:** `LAYER_3: screens_passed: N/N | regressions: N | parity_gaps: N | skipped: true/false`
 
 ---
 

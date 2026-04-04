@@ -96,14 +96,7 @@ See [Section 7](#7-build--runtime-verification) for the full verification protoc
 
 #### Step 7 — Appium Automated Flow Tests (iOS)
 
-Generate iOS-specific Appium flow scripts from screen-map.json using iOS selector fallback strategy
-(text-based selectors preferred over accessibility IDs — see `appium-testing.md` §2):
-```
-  → python3 e2e-tests/appium_driver.py --device $IOS_UDID --appium-port $APPIUM_PORT --platform ios
-  → if fail → DEBUG LOOP (iOS) → fix → rerun
-  → all pass → cross-platform parity check (compare iOS screenshots vs Android screenshots)
-  → proceed to manual test
-```
+Run appium-mcp E2E on iOS simulator per `appium-mcp-testing.md`. Create iOS session, navigate screens, compare screenshots with Android for cross-platform parity (3-build comparison).
 
 #### Step 8 — Summary Table
 
@@ -816,17 +809,17 @@ For projects using Compose Multiplatform with CocoaPods:
 
 `generateDummyFramework` + `pod install` produces an empty framework with no compose resources. The full build must populate `build/compose/cocoapods/compose-resources` first.
 
-### Runtime Verify (Appium on simulator, fallback: xcrun)
+### Runtime Verify (appium-mcp on simulator, fallback: xcrun)
 
-| Tool | Commands |
+| Tool | Protocol |
 |------|----------|
-| Appium (primary) | `python3 e2e-tests/appium_driver.py --device $IOS_UDID --appium-port $APPIUM_PORT --platform ios` |
-| xcrun (fallback) | `xcrun simctl install $IOS_UDID <app.app>` → `xcrun simctl launch $IOS_UDID <bundle-id>` |
+| appium-mcp (primary) | Create iOS session → navigate screens → verify elements → screenshot → 3-build comparison |
+| xcrun (fallback) | `xcrun simctl install/launch` for log capture only |
 
 For each screen:
-- Appium driver captures screenshots → Claude reads baseline and comparison screenshots for visual comparison → compare side-by-side with Android screenshot (visual parity)
-- Appium `assertVisible` for element verification → verify same data fields as Android
-- Appium tap for navigation → navigate critical paths
+- Navigate using vision-based element finding
+- Verify elements and interactive flows
+- Screenshot for 3-build comparison with Android
 
 ---
 
@@ -909,6 +902,16 @@ case .navigateToNext:   // Effect.NavigateToNext in Kotlin
 
 ### ComposeUIViewController Theme Wrapping
 Every `ComposeUIViewController` factory function MUST wrap its content in your app's theme composable (e.g., `AppTheme { ... }`). Unlike Android where the Activity's theme propagates, iOS ComposeUIViewControllers start with no theme context. Missing theme = wrong fonts + light mode colors.
+
+### Composable Wrapper Layer Preservation
+When porting a composable screen to shared CMP, port ALL wrapper layers — not just the screen's main content. Common wrappers frequently missed:
+- **Tab bar containers** — the screen may live inside a `TabRow` / `HorizontalPager` wrapper
+- **Scaffold wrappers** — top bar, bottom bar, FAB host composables
+- **Theme/surface wrappers** — `MaterialTheme` or `Surface` providing background color
+
+**How to verify:** Before porting, identify the OUTERMOST composable called by the NavHost. Port from that outer boundary inward — not from the inner content outward.
+
+**Symptom:** Screen renders content but appears visually different — missing tabs, wrong background, missing top/bottom bars.
 
 ### iOS Safe Area Insets
 When the SwiftUI wrapper uses `.ignoresSafeArea(.all)`, CMP composables get the full screen. The root composable MUST apply:

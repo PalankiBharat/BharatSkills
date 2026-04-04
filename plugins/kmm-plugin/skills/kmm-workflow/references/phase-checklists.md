@@ -16,12 +16,11 @@ Run before presenting plan to user.
 - [ ] findings.md: Decisions table populated with all planning decisions + rationale
 - [ ] findings.md: Library versions verified via web search (not training data)
 - [ ] PLAN.md: Build commands use verified Gradle task names (from Task 1.13)
-- [ ] PLAN.md: Device serial and ports allocated and recorded in header
+- [ ] PLAN.md: Device serials recorded in header
 - [ ] Dependency DAG: no cycles, topological order matches PLAN.md task order
 - [ ] plan-analyzer: zero BLOCKERs, zero HIGH issues remaining
 - [ ] build-verify.sh generated with verified build commands
 - [ ] parity-check.sh generated with all 10 static checks
-- [ ] screen-map.json and fake-server-config.json committed in worktree
 - [ ] Worktree builds clean (build-verify.sh passes)
 
 ## Phase 2: SCAFFOLD — Post-Scaffold Gate
@@ -61,7 +60,7 @@ Run after all dependency levels complete, before /clear.
 
 ## Phase 4: WIRE ANDROID — Post-Wiring Gate
 
-Run after Android wiring, before Appium.
+Run after Android wiring, before appium-mcp E2E.
 
 - [ ] All imports updated to use shared module paths
 - [ ] DI rewired (Hilt→Koin) — all VM bindings registered
@@ -72,7 +71,7 @@ Run after Android wiring, before Appium.
 - [ ] Build + unit tests pass
 - [ ] parity-check.sh passes (all 10 checks green)
 - [ ] DI binding audit: every constructor-injected dependency has a Koin binding (run koin-binding-check.py)
-- [ ] Appium E2E: all flows pass on Android device (verify-first protocol)
+- [ ] appium-mcp E2E: all screens pass on Android device (3-build comparison)
 - [ ] Manual test: structured checklist from migration-guide.md breaking changes
 - [ ] PROGRESS.md updated and committed
 - [ ] Checkpoint committed
@@ -98,8 +97,8 @@ Run after iOS wiring, before final commit.
 - [ ] DI binding audit: every constructor-injected dependency has a Koin binding (run koin-binding-check.py)
 - [ ] Build + unit tests pass
 - [ ] parity-check.sh passes (all 10 checks green)
-- [ ] Appium E2E: all flows pass on iOS simulator (verify-first protocol)
-- [ ] Cross-platform parity: Android vs iOS screenshots compared for structural equivalence
+- [ ] appium-mcp E2E: all screens pass on iOS simulator (3-build comparison)
+- [ ] Cross-platform parity: 3-build comparison (master Android vs migrated Android vs iOS) — all screens classified
 - [ ] Manual test: structured checklist — should find zero issues if above passed
 - [ ] PROGRESS.md updated and committed
 - [ ] Checkpoint committed

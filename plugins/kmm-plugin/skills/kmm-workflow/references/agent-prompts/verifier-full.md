@@ -31,16 +31,15 @@ Read `references/verify-protocol.md` for the full 3-layer protocol. Follow it ex
 ### Layer 2: Completeness
 - Run flow-collector-check.sh (deterministic)
 - Run koin-binding-check.py (deterministic)
-- Run screen-coverage-check.sh (deterministic)
 - Trace callbacks: for each onClick in Android UI → verify iOS equivalent exists and is wired
 - Audit UI branches: for each conditional rendering in Android → verify iOS has equivalent
 
 ### Layer 3: Device
-- Check Appium prerequisites — if unavailable, skip with warning
-- Allocate device slot (references/device-slot-management.md)
-- Generate and run Appium flows (references/appium-testing.md)
-- Compare screenshots using Claude vision
-- Clean up
+- Check appium-mcp prerequisites (`which appium`, `npx appium-mcp@latest --version`, drivers installed) — if unavailable, skip with warning
+- Boot emulator/simulator, create appium-mcp sessions
+- Run 3-build comparison per `references/appium-mcp-testing.md` (master Android vs migrated Android vs iOS)
+- Compare screenshots using Claude Vision — classify as REGRESSION / EXPECTED / FALSE_POSITIVE
+- Delete appium-mcp sessions
 
 ## Output
 
@@ -61,6 +60,6 @@ VERIFY_BLOCKED: <reason — e.g., "cannot read migration-guide.md", "gameplan no
 - Never skip a layer (except Layer 3 when devices unavailable — report as skipped, not passed)
 - Run layers in order: 1 → 2 → 3
 - If Layer 1 has BLOCKERs, still run Layer 2 and 3 — report all findings
-- Deterministic scripts (flow-collector-check.sh, koin-binding-check.py, screen-coverage-check.sh) always run before AI-powered checks in Layer 2
+- Deterministic scripts (flow-collector-check.sh, koin-binding-check.py) always run before AI-powered checks in Layer 2
 - Present findings by severity, not by layer
 - Include file:line references for every finding

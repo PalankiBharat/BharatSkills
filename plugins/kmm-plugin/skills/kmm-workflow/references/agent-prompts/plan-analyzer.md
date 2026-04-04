@@ -56,13 +56,6 @@ Why: <reasoning>
 - The migration order derived from the DAG matches the order in PLAN.md
 - Flag any file whose dependencies are not yet migrated at the point it is scheduled
 
-### 6. Screen Map & Flow Definitions
-- screen-map.json exists and defines every critical user flow identified during planning
-- A fake server config exists at `e2e-tests/fake-server-config.json` with deterministic responses for all API endpoints identified during planning
-- Every screen in migration-guide.md classified as `platform-stay` has at least one corresponding flow defined in screen-map.json
-- Flows in screen-map.json are defined for BOTH Android (post-wire) and iOS (post-wire) phases — not just one platform
-- screen-map.json is committed to the repo (not just drafted)
-
 ### 7. File Coverage
 - Every file in migration-guide.md has a corresponding task in PLAN.md
 - Every file classified as `migrate-swap` has its replacement library and exact version specified
@@ -151,12 +144,6 @@ The plan must contain all five phases in order. Flag any missing phase as a GAP:
   - Every hit must appear in the file's "Platform APIs" field
   - Missing API in field → HIGH (migrator will hit it and improvise)
 
-### 21. Screen Coverage Validation
-- Read screen-map.json
-- Grep the Android project for: Activity classes, Fragment classes, @Composable functions with NavHost/NavGraph routes
-- Every navigable screen should have a corresponding entry in screen-map.json
-- Missing screen → HIGH (zero Appium test coverage for that screen)
-
 ### 22. Expected Test Count Validation
 - For each file: count public methods in the source
 - Expected tests should be >= public method count (1 test per method minimum)
@@ -189,7 +176,6 @@ Return a structured report:
 - [x] migration-guide.md: N/N files fully resolved (no TBD fields)
 - [x] TDD flow documented: N/N files have stage→test→migrate→verify documented
 - [x] Dependency DAG: N/N files have dependency order populated, no cycles
-- [x] Screen-map flows: N/N critical flows defined in screen-map.json (Android + iOS)
 - [x] File coverage: N/N files have tasks
 - [x] All 5 phases present: Plan, Scaffold, Shared Migration, Wire Android, Wire iOS
 - [x] Dependency map: N/N deps have KMM replacements

@@ -192,10 +192,8 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.4:** Write PROGRESS.md to the gameplan directory with empty checkboxes for every task — filled during execution.
 - **Task 1.5:** Write migration-guide.md using the template in `references/agent-prompts/migration-guide-template.md` — one entry per file.
 - **Task 1.6:** Write findings.md with assessment data (see findings.md Structure below).
-- **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes → write fake server config (`e2e-tests/fake-server-config.json`). Generate `e2e-tests/screen-map.json` — record every screen in scope with navigation steps, key elements to verify, CTA targets, and known blockers (OTP, login, personal details). Define user journey flows in the screen map for Appium automated testing.
-- **Task 1.7b:** Generate fake server: `e2e-tests/fake-server.js`. See `references/automated-testing.md` for template. Commit `e2e-tests/` to the worktree.
-- **Task 1.7c:** Allocate dedicated device and ports for this gameplan (prevents collisions with concurrent gameplans). See `references/automated-testing.md` § Device & Port Isolation. Auto-allocate by scanning for free ports and existing emulators/simulators. Record allocated device serials and FAKE_PORT in PLAN.md header (`<!-- DEVICE: ... -->`, `<!-- PORTS: ... -->`).
-- **Note:** All e2e-tests files (Tasks 1.7, 1.7b) MUST be created inside the worktree path established in Task 1.2, not the main repo working directory.
+- **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes in findings.md.
+- **Task 1.7b:** Boot an Android emulator and iOS simulator for this gameplan. Record device serials in PLAN.md header (`<!-- DEVICE: android=<serial> | ios=<UDID> -->`). Verify appium-mcp is available (`npx appium-mcp@latest --version`). No port allocation needed — appium-mcp manages sessions internally.
 - **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases.
 - **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md.
 - **Task 1.10:** Dependency decision framework — Read `references/dependency-decision-framework.md`. For each Android-only dependency in the module:
@@ -233,7 +231,6 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
   Additionally, generate these verification scripts from the project structure:
   - `flow-collector-check.sh` — customize SHARED_SRC and IOS_SRC paths from the template
   - `koin-binding-check.py` — customize koin module glob and shared source path from the template
-  - `screen-coverage-check.sh` — customize screen-map path and Android source path from the template
 - **Checkpoint 1** committed in the worktree. Commit message: `chore: begin KMM migration for [module-name]`
 
 ---
@@ -312,37 +309,17 @@ Run the project-specific build script (zero LLM tokens):
   → BUILD_VERIFY_FAIL → check findings.md → DEBUG LOOP → FIX → rerun script
 ```
 
-**Step 5: Runtime Verify (Appium, fallback: adb)**
+**Step 5: Runtime Verify (appium-mcp, fallback: adb)**
 
-| Tool | Commands |
-|------|----------|
-| Appium (primary) | `python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT --platform android` |
-| adb (fallback) | `adb -s $ANDROID_SERIAL install -r <apk>` → `adb -s $ANDROID_SERIAL shell am start` |
-
-"App launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates (see `references/automated-testing.md`). For each migrated screen in migration-guide.md:
-1. Navigate to the screen using Appium flow from screen-map (first time: generate flow scripts from screen-map entries and populate cache)
-2. Verify data loads — not stuck on spinner (screenshot via Appium driver, NOT re-querying elements on cached screens)
-3. Verify primary CTA works (tap using Appium flow, confirm expected result)
-4. Save Appium screenshot to `e2e-tests/screenshots/android/`
-
-If Appium tap fails (element moved) → update flow scripts with new selectors, update screen-map, retry.
+appium-mcp E2E per `appium-mcp-testing.md` — create session, navigate screens, verify elements, screenshot for 3-build comparison.
 
 If crash → DEBUG LOOP (Android): instrument with Napier `[DebugScreenName]` → `adb -s $ANDROID_SERIAL logcat -s DebugScreenName`
 
 **Step 6: Summary Table** (promised vs achieved per file — see Summary Table Step)
 
-**Step 7: Appium Automated Flows (real app, real device)**
+**Step 7: appium-mcp E2E (real app, real device)**
 
-Drive full user journeys against the real app using `e2e-tests/screen-map.json`:
-
-1. Install and launch app via Appium (`python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT`)
-2. Execute each flow from screen-map sequentially:
-   - Use generated Appium flow scripts from screen-map — do NOT re-query elements on unchanged screens
-   - On `blocker` steps (OTP, payment, personal details): STOP and ask user to complete the step on device, wait for confirmation, then resume
-   - On tap failure (element moved): update flow script selectors, update screen-map cache, retry
-   - After each screen transition: Appium driver captures screenshot → save to `e2e-tests/screenshots/android/`
-3. On failure: screenshot + update selectors + DEBUG LOOP
-4. All flows pass → proceed to manual test
+Run 3-build comparison per `appium-mcp-testing.md`. On blocker: pause and ask user.
 
 **Step 8: Manual Test**
 ```
@@ -374,34 +351,17 @@ Run the project-specific build script (zero LLM tokens):
   → BUILD_VERIFY_FAIL → DEBUG LOOP (iOS) → fix → rerun script
 ```
 
-**Step 5: Runtime Verify (Appium on simulator, fallback: xcrun)**
+**Step 5: Runtime Verify (appium-mcp on simulator, fallback: xcrun)**
 
-| Tool | Commands |
-|------|----------|
-| Appium (primary) | `python3 e2e-tests/appium_driver.py --device $IOS_UDID --appium-port $APPIUM_PORT --platform ios` |
-| xcrun (fallback) | `xcrun simctl install $IOS_UDID <app>` → `xcrun simctl launch $IOS_UDID <bundle-id>` |
-
-"App launches cleanly" is NOT sufficient. Uses `e2e-tests/screen-map.json` for cached element coordinates. For each migrated screen in migration-guide.md:
-1. Navigate to the screen using Appium flow from screen-map (first time: generate flow scripts from screen-map entries and populate cache)
-2. Verify data loads — not stuck on spinner (Appium driver screenshot, NOT re-querying elements on cached screens)
-3. Verify primary CTA works (tap using Appium flow, confirm expected result)
-4. Save Appium screenshot to `e2e-tests/screenshots/ios/`, compare with Android screenshot (visual parity check)
-
-If Appium tap fails OR screen source file was modified in this phase → update flow script selectors, update screen-map, retry.
+appium-mcp E2E per `appium-mcp-testing.md` — create session, navigate screens, verify elements, screenshot for 3-build comparison.
 
 If crash → DEBUG LOOP (iOS): `xcrun simctl launch --console-pty $IOS_UDID <bundle-id> 2>&1 | grep DebugScreenName`
 
 **Step 6: Summary Table** (promised vs achieved — compare Android vs iOS columns)
 
-**Step 7: Appium Automated Flows (iOS, real device)**
+**Step 7: appium-mcp E2E (iOS simulator)**
 
-Same protocol as Wire Android Step 7, but on iOS simulator:
-
-1. Install and launch via Appium on iOS simulator (`python3 e2e-tests/appium_driver.py --device $IOS_UDID --appium-port $APPIUM_PORT --platform ios`)
-2. Execute each flow from screen-map, handle blockers (ask user)
-3. Compare screenshots with Android parity (`e2e-tests/screenshots/android/` vs `ios/`)
-4. On failure: screenshot + update selectors + DEBUG LOOP (iOS)
-5. All flows pass → proceed to manual test
+Run 3-build comparison per `appium-mcp-testing.md`. On blocker: pause and ask user.
 
 **Step 8: Manual Test**
 ```
@@ -431,11 +391,11 @@ Include this table in PLAN.md so agents know their roles.
 
 | Phase | Work Type | Agent | Parallelism |
 |-------|-----------|-------|-------------|
-| 1: PLAN | Setup: PLAN.md, PROGRESS.md, migration-guide.md, findings.md, fake server config, screen-map | Sonnet | Sequential |
+| 1: PLAN | Setup: PLAN.md, PROGRESS.md, migration-guide.md, findings.md | Sonnet | Sequential |
 | 2: SCAFFOLD | Create KMM module skeleton, expect/actual stubs | Sonnet | Sequential |
 | 3: SHARED CODE MIGRATION | Migrate → verify (Haiku) → Gradle test, per layer | Sonnet + Haiku verifier | Parallel per file at same dependency level, then sequential test |
-| 4: WIRE ANDROID | Update imports, DI, delete originals, Android build, runtime verify, Summary Table, Appium flows, manual test | Sonnet | Sequential |
-| 5: WIRE iOS | iOS screens, navigation, Koin iOS, iOS build, runtime verify, Summary Table, Appium flows, manual test | Sonnet | Sequential |
+| 4: WIRE ANDROID | Update imports, DI, delete originals, Android build, runtime verify, Summary Table, appium-mcp E2E, manual test | Sonnet | Sequential |
+| 5: WIRE iOS | iOS screens, navigation, Koin iOS, iOS build, runtime verify, Summary Table, appium-mcp E2E, manual test | Sonnet | Sequential |
 
 ---
 
@@ -453,9 +413,8 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.4 Write PROGRESS.md
 - [ ] 1.5 Write migration-guide.md
 - [ ] 1.6 Write findings.md
-- [ ] 1.7 Write fake server config + screen-map.json
-- [ ] 1.7b Generate fake server (fake-server.js), commit e2e-tests/
-- [ ] 1.7c Allocate dedicated device + FAKE_PORT (auto), record in PLAN.md header
+- [ ] 1.7 Write findings with API endpoints
+- [ ] 1.7b Boot emulator/simulator, record device serials in PLAN.md header
 - [ ] 1.8 Verify platform navigation architecture
 - [ ] 1.9 Verify SDK availability
 - [ ] 1.10 Dependency decision framework (references/dependency-decision-framework.md)
@@ -498,7 +457,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 4.4 Android build + unit test — ALL tests pass
 - [ ] 4.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot
 - [ ] 4.6 Summary Table
-- [ ] 4.7 Appium automated flows (generated from screen-map, baseline diff, blocker→ask user)
+- [ ] 4.7 appium-mcp E2E (3-build comparison)
 - [ ] 4.8 Manual test (remaining edge cases only)
 - [ ] Checkpoint: Phase 4 Wire Android committed
 - [ ] PROGRESS.md committed
@@ -510,14 +469,13 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 5.4 iOS build + unit test — ALL tests pass
 - [ ] 5.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot + Android parity
 - [ ] 5.6 Summary Table
-- [ ] 5.7 Appium automated flows (iOS, generated from screen-map, blocker→ask user, Android parity check)
+- [ ] 5.7 appium-mcp E2E (3-build comparison)
 - [ ] 5.8 Manual test (remaining edge cases only)
 - [ ] Checkpoint: Phase 5 Wire iOS committed
 - [ ] PROGRESS.md committed
 
 ## Final Verify
 - [ ] All PROGRESS.md checkboxes marked [x]
-- [ ] fake-server-config and screen-map in e2e-tests/ committed
 - [ ] findings.md saved for next migration
 ```
 
@@ -699,7 +657,6 @@ This technique found the `platform` header root cause in 5 minutes after 2+ hour
 ## Session Completion
 
 - All phases in PROGRESS.md marked `[x]`
-- fake-server-config and screen-map in `e2e-tests/` committed
 - `findings.md` saved for next migration (Known Fixes, Gotchas, Library Versions)
 - `migration-guide.md` and `PLAN.md` kept for reference or deleted per user preference
 - **Device cleanup:** delete dedicated emulator AVD (`avdmanager delete avd -n <name>`) and iOS simulator (`xcrun simctl delete <UDID>`) that were allocated for this gameplan. Release ports.
