@@ -162,17 +162,31 @@ abstract class BaseViewModel<State, Action, Effect>(
     private val _state = MutableStateFlow(initialState)
     val state: StateFlow<State> = _state.asStateFlow()
 
-    private val _effects = MutableSharedFlow<Effect>(extraBufferCapacity = 16)
+    // extraBufferCapacity = 64 handles burst scenarios (high-frequency UI events).
+    // tryEmit() is synchronous — no coroutine allocation, no async gap with state updates.
+    private val _effects = MutableSharedFlow<Effect>(extraBufferCapacity = 64)
     val effects: SharedFlow<Effect> = _effects.asSharedFlow()
+
+    private val stateMutex = Mutex()
 
     protected var currentState: State
         get() = _state.value
         set(value) { _state.value = value }
 
+    // Preferred over currentState setter for concurrent mutations.
+    // Holds a mutex across read-modify-write to prevent clobbering.
+    protected fun updateState(reducer: (State) -> State) {
+        viewModelScope.launch {
+            stateMutex.withLock {
+                _state.value = reducer(_state.value)
+            }
+        }
+    }
+
     abstract fun processAction(action: Action)
 
     protected fun emitEffect(effect: Effect) {
-        viewModelScope.launch { _effects.emit(effect) }
+        _effects.tryEmit(effect)
     }
 }
 ```
@@ -201,7 +215,7 @@ class CounterViewModel : BaseViewModel<CounterState, CounterAction, CounterEffec
 ) {
     override fun processAction(action: CounterAction) {
         when (action) {
-            CounterAction.Increment -> currentState = currentState.copy(count = currentState.count + 1)
+            CounterAction.Increment -> updateState { it.copy(count = it.count + 1) }
             CounterAction.Decrement -> {
                 if (currentState.count == 0) {
                     emitEffect(CounterEffect.ShowToast("Already at zero"))

@@ -40,11 +40,12 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
 - **No `runBlocking` on the main thread.** Use structured concurrency; `runBlocking` only in tests or background entry points.
 - **`expect`/`actual` for platform-specific code.** Never use `#ifdef`, runtime platform checks, or conditional imports as a substitute.
 - **One collector per SharedFlow/Channel.** When migrating NavHost-based screens to state-machine navigation, ensure only ONE composable collects from each `SharedFlow`/`Channel`. Child composables must NOT have their own effect collectors if a parent already collects. Multiple concurrent collectors on `SharedFlow(replay=0)` silently swallow effects — this compiles fine but breaks at runtime.
+- **SharedFlow buffer sizing.** Declare effects with `extraBufferCapacity = 64` and use `tryEmit()` for synchronous, non-suspending delivery. `launch { emit() }` creates unnecessary coroutine allocation and async gaps. Only fall back to `launch { emit() }` if you explicitly need back-pressure behavior.
 - **Preserve original default values.** When porting `remember { mutableStateOf(X) }` calls (or equivalent state initialization), verify the default value `X` matches the original exactly. A `true`↔`false` flip is a behavioral change that REQUIRES_APPROVAL.
 - **Context-first.** Before modifying any file, read the target, all its dependencies (imports, interfaces, base classes), and all its consumers. Never modify with partial context.
 - **Escalate unclear failures — never suppress.** If a build fails and the cause is unclear: stop, present the problem, list options with pros/cons, give a recommendation, wait for the user. Never add no-op stubs or use `--no-verify` / `@Suppress` to force a pass.
 - **Completion promise required.** Every agent must emit a completion promise string as its last output. No promise = work not accepted.
-- **Tests are immutable after baseline.** Once the orchestrator runs baseline and tests pass, test files must not be modified. If tests fail after migration, fix the migration.
+- **Tests are immutable after baseline.** Once the orchestrator runs baseline and tests pass, test files must not be modified. If tests fail after migration, fix the migration. **Pre-baseline exception:** before baseline is established, test fixtures (fakes, stubs) MUST be kept in sync with the migrated API. A stale fake signature (wrong enum name, parameter count, or field type) is a missing migration step — update the fake to match the new API. A wrong fake *behavior* means the migration is wrong — fix the migration.
 - **API signature parity.** Migrated KMM code must have identical method signatures to Android — same method names, parameter names, parameter order, return types.
 - **Dependency research (mandatory):** When looking up ANY dependency, library version, API compatibility, or KMM availability: (0) **Check existing project usage first** — grep the project's `build.gradle.kts` and source files for the library before any web search. If already used in the project, read the version and API from live code — always more accurate than external sources. (1) **Web search + Context7/find-docs** for latest availability, versions, and API status — this step is NOT optional. (2) **Skill references** (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns, swap code examples, and known gotchas. **Combine both** — live data confirms what's current, skill references provide proven patterns and caveats learned from past migrations. Neither alone is sufficient. (3) **Provenance check** — before recommending any library not already in the project, verify maintainer count, GitHub stars, and backing org (Google, JetBrains, Square, etc.). Single-maintainer or sub-500-star libraries are NOT acceptable for production-critical infrastructure. Flag as a risk and present a battle-tested alternative. (4) **Training data NEVER** — it has caused incorrect guidance (Dispatchers.IO, Paging3 KMP, library versions). If web search is unavailable, explicitly state "unable to verify via live search" rather than falling back to training data silently.
 - **Latest stable deps.** When adding new dependencies, check the latest stable version via web search or Context7, not training data or skill reference files (which may have outdated version numbers).
@@ -341,37 +342,64 @@ fun handle(event: AppEvent) {
 
 ---
 
-### Leaked CoroutineScopes
+### Coroutine Lifecycle Violations
 
-**What to look for:** `CoroutineScope(Dispatchers.IO).launch { }` or `GlobalScope.launch { }` created inline without being stored and cancelled.
+Four variants of the same root cause: coroutine work outliving its intended lifecycle.
 
-**Why it's a problem:** The scope is never cancelled, so coroutines run until the process dies. On iOS, this causes unbounded memory growth — background work accumulates across navigation pushes.
+**Variant A — Unscoped CoroutineScope (original "leaked scopes"):**
+`CoroutineScope(Dispatchers.IO).launch { }` or `GlobalScope.launch { }` created inline without being stored and cancelled. The scope is never cancelled, so coroutines run until the process dies. On iOS, this causes unbounded memory growth across navigation pushes. Fix: use `viewModelScope`.
 
-**How to fix:** Tie the scope to the ViewModel lifecycle using `viewModelScope`, or store the scope as a property and cancel it in `onCleared()`.
+**Variant B — ViewModel instantiated as a field (nested ViewModel):**
+A class extending `ViewModel` created as a `val` field inside another ViewModel. Its `viewModelScope` is never cleared by the framework — only garbage collection (non-deterministic) ends it. Fix: either promote to a top-level DI-registered ViewModel (if it has distinct state) or refactor to a plain class that accepts `CoroutineScope` from the parent.
 
-**Code example:**
-
-Bad:
 ```kotlin
-class UserViewModel : ViewModel() {
-    fun loadUser(id: String) {
-        CoroutineScope(Dispatchers.IO).launch { // never cancelled
-            val user = userRepository.fetch(id)
-            _state.value = _state.value.copy(user = user)
-        }
-    }
+// Bad — inner VM's viewModelScope is never cleared
+class ParentViewModel : BaseViewModel<...>() {
+    private val helper = HelperViewModel()  // extends ViewModel
+}
+
+// Good — plain class, scope from parent
+class HelperUseCase(private val scope: CoroutineScope) {
+    fun start() { scope.launch { ... } }
+}
+class ParentViewModel : BaseViewModel<...>() {
+    private val helper = HelperUseCase(viewModelScope)
 }
 ```
 
-Good:
+**Variant C — UseCase with self-created scope:**
+A UseCase or helper class that creates its own `CoroutineScope(Dispatchers.IO)` internally rather than accepting one from its caller. Fix: accept `scope: CoroutineScope` as a constructor parameter — the caller (ViewModel) owns the lifecycle. Note: `withContext(Dispatchers.IO)` inside a properly-scoped suspend function is fine — that's not a leak.
+
+**Variant D — Untracked jobs (jobGroup pattern):**
+`val job = viewModelScope.launch { }` where the job is stored but never added to a `jobGroup` for targeted cancellation. The job runs until `viewModelScope` cancels — which may be too late (e.g., stop syncing on logout). Fix: track all significant jobs in `jobGroup` and cancel in `handleDispose()`.
+
 ```kotlin
-class UserViewModel : ViewModel() {
-    fun loadUser(id: String) {
-        viewModelScope.launch {
-            val user = userRepository.fetch(id)
-            _state.value = _state.value.copy(user = user)
-        }
-    }
+// Bad — job is untracked, can't cancel on logout
+val syncJob = viewModelScope.launch { startSync() }
+
+// Good — tracked, cancelled in handleDispose
+init { jobGroup += viewModelScope.launch { startSync() } }
+override fun handleDispose() {
+    super.handleDispose()
+    jobGroup.cancelChildren()
+}
+```
+
+---
+
+### Undisposed Interactors/Collaborators
+
+**What to look for:** Classes with a `dispose()`, `close()`, or `cancel()` method stored as ViewModel fields but NOT called in `handleDispose()` / `onCleared()`.
+
+**Why it's a problem:** The collaborator may hold database cursors, active Flow subscriptions, or child coroutine scopes not freed when the ViewModel clears. On iOS, memory grows across navigation pushes.
+
+**How to fix:** Call `collaborator.dispose()` inside `handleDispose()`. Audit every non-primitive `val` field on a ViewModel — if it has `dispose()`, `close()`, or `cancel()`, it must be called.
+
+```kotlin
+override fun handleDispose() {
+    super.handleDispose()
+    presetInteractor.dispose()
+    connectionManager.close()
 }
 ```
 
@@ -640,6 +668,30 @@ Text(label)
 
 **How to fix:** Extract to a shared utility function or extension on `BaseViewModel`.
 
+**Common occurrence — mapper/converter classes:** Data transformation classes (`*Mapper`, `*Converter`, `toX()` extensions) are the most common duplication in KMM migrations because each ViewModel is ported independently. Grep for duplicate class names across commonMain and extract to a shared file.
+
+---
+
+### Nested Launch Inside Collect
+
+**What to look for:** `viewModelScope.launch { }` calls nested inside a `flow.collect { }` lambda.
+
+**Why it's a problem:** Unnecessary coroutine allocation per emission. The inner jobs are siblings under `viewModelScope` (not children of the outer launch), breaking structured concurrency. If `processValue` is a suspend function, call it directly — `collect` already provides a suspending context.
+
+```kotlin
+// Bad — migration artifact from non-suspending Android listener callbacks
+viewModelScope.launch {
+    ordersFlow.collect { orders ->
+        viewModelScope.launch { processOrders(orders) }
+    }
+}
+
+// Good — direct call in suspending context
+viewModelScope.launch {
+    ordersFlow.collect { orders -> processOrders(orders) }
+}
+```
+
 ---
 
 ### Lost Concurrency
@@ -732,3 +784,11 @@ var biometryLabel: String {
 When migrating models that store colors as `Long` (packed ARGB), verify all color fields have non-zero values. `0L` in packed ARGB means alpha=0 (fully transparent) — text renders but is invisible.
 
 **Check during Phase 3E (CMP screens):** Grep for `Color = 0L` or `color = 0` in migrated model data classes. Verify against the original Android code's actual color values.
+
+### Intentional divergence protocol
+
+When an audit item is investigated and found to be an intentional business logic decision (not a bug), record it in FINDINGS.md under "Intentional Decisions" with a one-line rationale. This prevents re-flagging in future audits. Common example: multiple sort operations in sequence (ViewModel sorts + UseCase sorts) are often intentional — one creates groups, the other orders within each group. Verify whether sorts operate on the same or different dimensions before flagging.
+
+### Priority test targets
+
+Strategy, calculator, algorithm, resolver, and selector classes are the highest-value test targets — pure logic, no mocks, fast execution. If audit finds any of these with zero tests, treat as MEDIUM regardless of perceived complexity. Planners tend to undercount these in `Expected tests` because they don't show up as obvious targets like ViewModels or repositories.
