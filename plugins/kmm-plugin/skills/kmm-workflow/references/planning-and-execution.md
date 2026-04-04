@@ -421,6 +421,7 @@ Files at the same dependency level (no ordering constraint between them) run as 
 - Mark tasks `(parallelizable)` in PLAN.md when they touch no shared files.
 - The orchestrator launches these concurrently via separate Sonnet agents.
 - Tasks that share files or have dependency order execute sequentially.
+- **Within each level, sort by complexity (LOC ascending).** `wc -l` each file before Phase 3. Flag >300 LOC with a complexity note; flag >500 LOC as "dedicated agent, longest runtime" for time budgeting.
 
 ---
 
