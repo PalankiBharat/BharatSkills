@@ -350,25 +350,10 @@ Four variants of the same root cause: coroutine work outliving its intended life
 `CoroutineScope(Dispatchers.IO).launch { }` or `GlobalScope.launch { }` created inline without being stored and cancelled. The scope is never cancelled, so coroutines run until the process dies. On iOS, this causes unbounded memory growth across navigation pushes. Fix: use `viewModelScope`.
 
 **Variant B — ViewModel instantiated as a field (nested ViewModel):**
-A class extending `ViewModel` created as a `val` field inside another ViewModel. Its `viewModelScope` is never cleared by the framework — only garbage collection (non-deterministic) ends it. Fix: either promote to a top-level DI-registered ViewModel (if it has distinct state) or refactor to a plain class that accepts `CoroutineScope` from the parent.
-
-```kotlin
-// Bad — inner VM's viewModelScope is never cleared
-class ParentViewModel : BaseViewModel<...>() {
-    private val helper = HelperViewModel()  // extends ViewModel
-}
-
-// Good — plain class, scope from parent
-class HelperUseCase(private val scope: CoroutineScope) {
-    fun start() { scope.launch { ... } }
-}
-class ParentViewModel : BaseViewModel<...>() {
-    private val helper = HelperUseCase(viewModelScope)
-}
-```
+A class extending `ViewModel` created as a `val` field inside another ViewModel. Its `viewModelScope` is never cleared by the framework — only GC (non-deterministic) ends it. Fix: refactor to a plain class accepting `CoroutineScope` from the parent, or promote to a DI-registered ViewModel.
 
 **Variant C — UseCase with self-created scope:**
-A UseCase or helper class that creates its own `CoroutineScope(Dispatchers.IO)` internally rather than accepting one from its caller. Fix: accept `scope: CoroutineScope` as a constructor parameter — the caller (ViewModel) owns the lifecycle. Note: `withContext(Dispatchers.IO)` inside a properly-scoped suspend function is fine — that's not a leak.
+A UseCase/helper that creates its own `CoroutineScope(Dispatchers.IO)` internally rather than accepting one from its caller. Fix: accept `scope: CoroutineScope` as a constructor parameter — the caller owns the lifecycle. Note: `withContext(Dispatchers.IO)` inside a properly-scoped suspend function is fine.
 
 **Variant D — Untracked jobs (jobGroup pattern):**
 `val job = viewModelScope.launch { }` where the job is stored but never added to a `jobGroup` for targeted cancellation. The job runs until `viewModelScope` cancels — which may be too late (e.g., stop syncing on logout). Fix: track all significant jobs in `jobGroup` and cancel in `handleDispose()`.
@@ -398,7 +383,7 @@ override fun handleDispose() {
 ```kotlin
 override fun handleDispose() {
     super.handleDispose()
-    presetInteractor.dispose()
+    interactor.dispose()
     connectionManager.close()
 }
 ```
@@ -785,9 +770,13 @@ When migrating models that store colors as `Long` (packed ARGB), verify all colo
 
 **Check during Phase 3E (CMP screens):** Grep for `Color = 0L` or `color = 0` in migrated model data classes. Verify against the original Android code's actual color values.
 
+---
+
 ### Intentional divergence protocol
 
 When an audit item is investigated and found to be an intentional business logic decision (not a bug), record it in FINDINGS.md under "Intentional Decisions" with a one-line rationale. This prevents re-flagging in future audits. Common example: multiple sort operations in sequence (ViewModel sorts + UseCase sorts) are often intentional — one creates groups, the other orders within each group. Verify whether sorts operate on the same or different dimensions before flagging.
+
+---
 
 ### Priority test targets
 
