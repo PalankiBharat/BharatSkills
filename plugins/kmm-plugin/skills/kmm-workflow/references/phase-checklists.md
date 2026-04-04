@@ -41,13 +41,17 @@ Run after scaffold commit, before Phase 3.
 Run after all dependency levels complete, before /clear.
 
 - [ ] Every file: FILE_COMPLETE with tests >= Expected tests from migration-guide.md
+- [ ] Test fixture sync: all fake/stub classes in commonTest match current public API of migrated classes (no stale enum names, parameter counts, or field types)
 - [ ] Every file: VERIFY_PASS from haiku verifier
 - [ ] No FILE_BLOCKED remaining (all resolved or escalated)
 - [ ] Full unit test suite passes: ./gradlew :shared:testDebugUnitTest
 - [ ] API surface diff recorded in findings.md (Breaking Changes for Consumers)
 - [ ] SharedFlow collector audit: no SharedFlow with multiple concurrent collectors on replay=0
+- [ ] Interactor disposal: every ViewModel field with a `dispose()`/`close()`/`cancel()` method is called in `handleDispose()`
+- [ ] Mapper dedup: grep for duplicate class names (*Mapper, *Converter) across commonMain — extract any duplicates to shared files
+- [ ] Strategy/algorithm coverage: every *Strategy, *Calculator, *Algorithm, *Resolver, *Selector class has at least one test per public method
 - [ ] Cross-platform Koin binding verification: every VM constructor param has binding in BOTH androidBridgeModule AND iosBridgeModule
-- [ ] Auditor sweep: AUDIT_COMPLETE with zero CRITICAL issues
+- [ ] Auditor sweep: AUDIT_COMPLETE with zero CRITICAL issues; HIGH/MEDIUM items either fixed or documented as intentional in FINDINGS.md
 - [ ] No staged androidMain copies remaining (all deleted after migration)
 - [ ] String literal diff: all user-visible strings identical to originals
 - [ ] PROGRESS.md updated and committed
