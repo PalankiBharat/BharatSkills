@@ -2,7 +2,7 @@
 
 Consolidated reference for wiring the iOS phase of a KMM migration. Covers the full protocol from first screen to commit, component mapping, SKIE interop patterns, and build/runtime verification.
 
-Runs AFTER Android is committed. Fresh context recommended — tell user to `/clear` before starting.
+Phase 5A (UI screens) can start in parallel with Phase 4. Phase 5B (Koin, navigation, build, verify) runs AFTER Android is committed. Fresh context recommended — tell user to `/clear` before starting.
 
 ---
 
@@ -41,6 +41,14 @@ Do not rediscover — use the manifest.
 ### Goal
 
 Create iOS screens per `migration-guide.md`, wire shared module into the iOS app (Koin iOS module, navigation, SKIE StateFlow observations), build passes, app verified working on simulator and real device.
+
+### Parallelization
+
+iOS wiring splits into two segments:
+- **Phase 5A (UI migration):** Can start in parallel with Phase 4 (Android wiring). UI screens only depend on the shared ViewModel API from Phase 3 — they do not need Android wiring to be complete.
+- **Phase 5B (Koin + navigation + build):** Must wait for Phase 4 to complete. Koin iOS bindings need confirmed Android bindings as reference. Navigation wiring and build verification require both platforms.
+
+Steps 1-2 (UI migration, Koin module) map to 5A. Steps 3-7 (navigation, pbxproj, build, verify) map to 5B.
 
 ### Steps
 

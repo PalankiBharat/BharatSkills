@@ -142,12 +142,18 @@ The plan must contain all five phases in order. Flag any missing phase as a GAP:
 - For each file in migration-guide.md:
   - Grep the SOURCE file for known problematic APIs: Dispatchers.IO, @Synchronized, String.format(), System.currentTimeMillis(), java.util.UUID, android.util.Log, java.net.URL, Thread.sleep, runBlocking
   - Every hit must appear in the file's "Platform APIs" field
-  - Missing API in field → HIGH (migrator will hit it and improvise)
+  - Missing API in field → BLOCKER (migrator will hit it and improvise)
 
 ### 22. Expected Test Count Validation
 - For each file: count public methods in the source
 - Expected tests should be >= public method count (1 test per method minimum)
 - If Expected tests < public method count → MEDIUM (under-tested migration)
+
+### 23. Test Strategy Completeness
+- For each file with complex infrastructure dependencies (database, network, WebSocket, DI-injected repositories):
+  - Verify `Test strategy` field is populated in migration-guide.md
+  - Field should specify: which interfaces to fake, how to handle enum serialization, whether expect/actual test wrapper is needed
+  - Empty `Test strategy` on a file with 3+ constructor dependencies → BLOCKER (agents will independently reinvent fake patterns)
 
 ---
 

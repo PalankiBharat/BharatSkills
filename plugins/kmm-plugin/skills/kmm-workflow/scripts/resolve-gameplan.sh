@@ -20,8 +20,11 @@ case "$MODE" in
     echo "[kmm-workflow] ACTIVE: $GAMEPLAN_NAME"
     head -15 "$PLAN_DIR/PLAN.md" 2>/dev/null
     echo ""
-    echo "=== recent progress ==="
-    tail -5 "$PLAN_DIR/PROGRESS.md" 2>/dev/null
+    echo "=== next task ==="
+    grep -m 1 '^\- \[ \]' "$PLAN_DIR/PROGRESS.md" 2>/dev/null || echo "(all tasks complete)"
+    echo ""
+    echo "=== last commit ==="
+    git log --oneline -1 2>/dev/null || echo "(no commits yet)"
     ;;
   plan-path)
     echo "$PLAN_DIR"

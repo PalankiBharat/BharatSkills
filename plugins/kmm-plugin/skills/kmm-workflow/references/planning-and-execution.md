@@ -231,6 +231,12 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
   Additionally, generate these verification scripts from the project structure:
   - `flow-collector-check.sh` — customize SHARED_SRC and IOS_SRC paths from the template
   - `koin-binding-check.py` — customize koin module glob and shared source path from the template
+- **Task 1.18:** Generate `manual-test-checklist.md` in the gameplan directory from migration-guide.md. For each platform-stay screen:
+  1. Navigate to: <screen name> (navigation path from parent)
+  2. Verify visually: <key visual elements from UI Branches field>
+  3. Test interactions: <each callback from Callbacks field — tap X, verify Y happens>
+  4. Verify data: <expected data elements from Public API field>
+  This turns the manual test gate from a vague "test the app" into a specific, reproducible checklist.
 - **Checkpoint 1** committed in the worktree. Commit message: `chore: begin KMM migration for [module-name]`
 
 ---
@@ -272,6 +278,8 @@ For each file, execute this loop in order:
 7. Verify     — Haiku diff: API surface, method signatures, return types all match exactly
 8. Delete staged — remove the staging copy; original is replaced by migrated
 ```
+
+The migrator agent owns the full TDD pipeline (stage → tests → migrate → verify). A separate test-writer agent is dispatched ONLY for: (a) retroactive characterization testing in Verify mode, (b) pre-characterization when a file's tests must be written by a different agent due to dependency chain constraints.
 
 Verifier (step 7) is a fast pre-filter — diffs migrated output vs original source:
 - API surface: every method, param, return type matches exactly
@@ -427,6 +435,7 @@ Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.
 - [ ] 1.15b Mandatory gap analysis — fix BLOCKER/HIGH before approval
 - [ ] 1.15c Interface completeness check
 - [ ] 1.16 Verify clean build baseline
+- [ ] 1.18 Generate manual-test-checklist.md
 - [ ] Checkpoint 1 committed
 
 ## Phase 2: SCAFFOLD

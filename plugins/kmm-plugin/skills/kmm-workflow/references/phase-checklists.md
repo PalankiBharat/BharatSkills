@@ -18,6 +18,7 @@ Run before presenting plan to user.
 - [ ] PLAN.md: Build commands use verified Gradle task names (from Task 1.13)
 - [ ] PLAN.md: Device serials recorded in header
 - [ ] Dependency DAG: no cycles, topological order matches PLAN.md task order
+- [ ] manual-test-checklist.md generated with per-screen test steps
 - [ ] plan-analyzer: zero BLOCKERs, zero HIGH issues remaining
 - [ ] build-verify.sh generated with verified build commands
 - [ ] parity-check.sh generated with all 10 static checks
@@ -51,6 +52,7 @@ Run after all dependency levels complete, before /clear.
 - [ ] Strategy/algorithm coverage: every *Strategy, *Calculator, *Algorithm, *Resolver, *Selector class has at least one test per public method
 - [ ] Cross-platform Koin binding verification: every VM constructor param has binding in BOTH androidBridgeModule AND iosBridgeModule
 - [ ] Auditor sweep: AUDIT_COMPLETE with zero CRITICAL issues; HIGH/MEDIUM items either fixed or documented as intentional in FINDINGS.md
+  (The above checklist items are checked BOTH by the migrator's self-verification AND by the auditor sweep. The auditor should find zero new issues — if it does, the migrator's self-verification was incomplete.)
 - [ ] No staged androidMain copies remaining (all deleted after migration)
 - [ ] String literal diff: all user-visible strings identical to originals
 - [ ] PROGRESS.md updated and committed

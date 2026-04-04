@@ -49,7 +49,7 @@ Any behavioral change → REQUIRES_APPROVAL.
 On ANY invocation, always ask: Create / Continue / Improve / Audit. Never auto-resume. Never assume.
 
 - **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md, PROGRESS.md, migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. Write session marker. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
-- **Continue** → list all gameplans with status, user picks. Write session marker → read PLAN.md + PROGRESS.md → verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`) → continue from last checkpoint.
+- **Continue** → if exactly one non-stale gameplan exists, auto-resume it (report: "Resuming <name> — Phase N: <description>. Say STOP to switch."). If multiple gameplans exist, list all with status, user picks. Write session marker → read PLAN.md + PROGRESS.md → verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`) → continue from last checkpoint.
 - **Improve** → **FIRST: `cd ~/dev/claude-code-skills`** — ALL file edits use paths under that directory (NEVER `~/.claude/plugins/`). Then: read open GitHub issues with `skill:kmm-workflow` label, classify learnings, create branch, consolidate into skill files (NEVER append — rewrite to absorb), measure file growth, bump patch version in `plugin.json`, raise PR, self-review (Consolidation Mandate rule 6). See `references/self-improvement.md`.
 - **Verify** → unified verification of a migrated module. Runs 3 layers in order:
   - Layer 1 (Static): anti-pattern scan, parity-check.sh, cross-platform parity, phase checklists — no devices needed, fast
@@ -98,11 +98,12 @@ The skill is file-based — nothing is lost on `/clear`. The orchestrator MUST s
 - After all levels: full test suite, auditor sweep, Phase 3 checklist (`references/phase-checklists.md`)
 - CHECKPOINT COMMIT — Read `references/dependency-replacements.md`, `references/rules-and-guardrails.md`, `references/platform-api-gotchas.md`
 
-### Phase 4+5: WIRE ANDROID + iOS (parallel team)
+### Phase 4+5: WIRE ANDROID + iOS (parallel where possible)
 
 - Spawn agent team if available (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1), else parallel subagents
   - Android-wirer: imports, DI (Hilt→Koin), delete originals, build+tests
-  - iOS-wirer: SwiftUI, Koin iOS, navigation+pbxproj, build+tests
+  - iOS UI migration (Phase 5A): can start in parallel with Phase 4 — UI screens only depend on shared ViewModel API from Phase 3, not on Android wiring
+  - iOS wiring (Phase 5B): Koin iOS, navigation+pbxproj, build+tests — must wait for Phase 4 to complete (needs confirmed bindings)
   - Team members communicate about shared-code issues (missing Koin bindings, API mismatches)
 - After both complete: Verification Pipeline (see below) → CHECKPOINT COMMIT
 - Run Phase 4 and Phase 5 checklists (`references/phase-checklists.md`)
@@ -136,9 +137,9 @@ All agents read `references/agent-protocol.md` before starting.
 
 | Task | Prompt | Model | Returns |
 |------|--------|-------|---------|
-| Migrate file (full TDD pipeline) | agent-prompts/migrator.md | sonnet | FILE_COMPLETE / FILE_BLOCKED |
+| Migrate file (full TDD pipeline: stage, test, migrate, verify) | agent-prompts/migrator.md | sonnet | FILE_VERIFIED / FILE_BLOCKED |
 | Verify migration (structural diff) | agent-prompts/verifier.md | haiku | VERIFY_PASS / VERIFY_FAIL |
-| Write characterization tests (standalone) | agent-prompts/test-writer.md | sonnet | TDD_COMPLETE / TDD_BLOCKED |
+| Write characterization tests (standalone — Verify mode and pre-characterization only) | agent-prompts/test-writer.md | sonnet | TDD_COMPLETE / TDD_BLOCKED |
 | Debug failure | agent-prompts/debugger.md | sonnet | DEBUG_COMPLETE / DEBUG_BLOCKED |
 | UI migration (per screen) | agent-prompts/ui-migrator.md | sonnet | UI_COMPLETE / UI_BLOCKED |
 | Audit code (Phase 3 inline) | agent-prompts/auditor.md | sonnet | AUDIT_COMPLETE / AUDIT_BLOCKED |
@@ -186,3 +187,4 @@ All agents read `references/agent-protocol.md` before starting.
 10. **PROGRESS.md is checklist not journal** — one line per task; details belong in findings.md
 11. **Retrospective before /clear** — mandatory and autonomous; skipping means learnings lost permanently
 12. **parity-check.sh before appium-mcp E2E** — static analysis first, device testing second; never skip either layer
+13. **Verified output, not just completed output** — every agent must produce evidence of verification (deterministic scan + adversarial self-review) before reporting completion; the orchestrator rejects completion signals without evidence fields; see `references/agent-protocol.md` Verified-Output Protocol

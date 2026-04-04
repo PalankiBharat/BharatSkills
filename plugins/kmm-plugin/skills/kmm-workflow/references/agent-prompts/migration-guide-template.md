@@ -22,6 +22,7 @@ This file is the template for `migration-guide.md` — the per-file spec created
 - Expected tests: <N tests — 1 per public method + error paths: login email (success, invalid creds, network error), login phone (success, invalid), logout, isLoggedIn>
 - Serialization: <JSON fields: "access_token" (@SerialName("access_token")), "expires_in" (Int, never null), "user" (nullable → default null) | none>
 - Decisions: <Retrofit → Ktor: Replace (KMM-native, same suspend API surface); SharedPreferences → MultiplatformSettings: Replace (drop-in wrapper, no API change needed)>
+- Test strategy: <FakeRepository implements Repository from commonMain; enum test context: test within parent @Serializable class; ViewModel: use expect/actual test wrapper | "straightforward — standard fakes">
 - expect/actual: <none | describe boundary>
 - Migrate after: <FileName1.kt, FileName2.kt | none>
 - Consumers: <FileA.kt, FileB.kt (update imports after)>
@@ -47,6 +48,7 @@ This file is the template for `migration-guide.md` — the per-file spec created
 - Expected tests: 7 tests — login email (success, wrong password, network error), login phone (success, invalid format), logout (clears prefs), isLoggedIn (emits correct state after login/logout)
 - Serialization: JSON fields: "email" (String, never null), "phone" (String, nullable → omit if null), "token" (@SerialName("access_token"), String), "expires_in" (Int, never null)
 - Decisions: Retrofit → Ktor: Replace (suspend API is identical surface, no abstraction needed); SharedPreferences → MultiplatformSettings: Replace (wraps NSUserDefaults on iOS transparently, zero consumer changes)
+- Test strategy: FakeApiService implements ApiService from commonMain; FakeSettings implements Settings (multiplatform-settings); enum serialization: test within parent LoginResponse context; ViewModel: direct instantiation (no expect/actual needed)
 - expect/actual: none
 - Migrate after: AuthCredentials.kt, TokenManager.kt
 - Consumers: LoginUseCase.kt, LoginViewModel.kt (update imports after)
@@ -79,3 +81,4 @@ This file is the template for `migration-guide.md` — the per-file spec created
 - **Flows** — every reactive emission point in the file: StateFlow (UI state), SharedFlow (events), Channel (one-shot signals). The iOS wirer must create a `.task {}` collector for each. "state-only" if only the primary UI state flow exists.
 - **UI Strategy** — for `platform-stay` files only: CMP (Compose Multiplatform reuse), SwiftUI (native iOS rewrite), or Hybrid (shared ViewModel + native UI). Decided during Phase 1 planning with user approval — agents must not override this. "N/A" for non-UI files.
 - **UI Branches** — every conditional rendering path in the Android UI: the condition and what it shows/hides. The iOS wirer must implement all branches. The verifier cross-references this list against iOS view code. "none" if the file has no conditional rendering (non-UI files).
+- **Test strategy** — how to construct fakes for this file's dependencies in commonTest. For files with complex infrastructure (database bridges, WebSocket clients, DI-heavy repositories): specify which commonMain interface each fake implements, how to handle enum serialization in tests, and whether the expect/actual test wrapper pattern is needed for ViewModel instantiation. For simple files with straightforward dependencies: "straightforward — standard fakes"

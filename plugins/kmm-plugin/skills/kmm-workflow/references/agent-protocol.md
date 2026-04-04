@@ -142,6 +142,37 @@ If an agent cannot recall what it has done or what's next:
 4. Confirm current state (`git status`, build check) before proceeding
 5. Never reconstruct context from guesses — read the files
 
+## Verified-Output Protocol
+
+Every agent must produce **evidence of verification**, not just evidence of completion. "It compiles and tests pass" is necessary but not sufficient.
+
+### Two-layer verification
+
+**Layer 1 — Deterministic scans (known patterns, fast, free):**
+Grep your own output file for known CRITICAL/HIGH patterns from `references/rules-and-guardrails.md`:
+- CRITICAL: `runBlocking` outside test code, `TODO()`, type casts (`as `, `as?`, `as!`), hardcoded secrets
+- HIGH: inline `CoroutineScope(`, undisposed fields with `dispose()`/`close()`/`cancel()`, `setState(getState().copy(` (non-atomic), callback params with default `= {}`
+
+Report counts in your completion signal. Any CRITICAL > 0 → fix before completing.
+
+**Layer 2 — Adversarial peer review (unknown patterns, AI judgment):**
+After your deterministic scan, re-read the original source AND your migrated output side by side. Look for ANY difference that changes behavior or appearance — not from a checklist, but with the mindset: "what could go wrong here that nobody anticipated?"
+
+Focus on:
+- Default values that silently changed
+- String literals that differ in casing or wording
+- Conditional branches present in original but absent in migrated
+- Error handling paths removed or altered
+- Concurrency that was parallel in original but sequential in migrated
+
+### Evidence format
+
+Every completion signal must include structured evidence. The orchestrator validates this — missing fields or non-zero CRITICAL counts cause rejection.
+
+Agent-specific formats are defined in each agent prompt, but all must include at minimum:
+- `deterministic_scan: N issues` (0 = clean)
+- `peer_review: PASS | FAIL | N/A` (self-review of own output)
+
 ## Failure Modes to Avoid
 
 BAD: Patched the composable to skip the null check because it crashed on iOS.

@@ -26,7 +26,7 @@ PLAN_DIR="$HOME/dev/gameplans/$(cat "$ACTIVE_FILE")"
 # ---------------------------------------------------------------------------
 # 3. Define the set of valid completion promise tokens
 # ---------------------------------------------------------------------------
-PROMISES="FILE_COMPLETE|FILE_BLOCKED|TDD_COMPLETE|TDD_BLOCKED|VERIFY_PASS|VERIFY_FAIL|DEBUG_COMPLETE|DEBUG_BLOCKED|UI_COMPLETE|UI_BLOCKED|AUDIT_COMPLETE|AUDIT_BLOCKED|REQUIRES_APPROVAL|PLAN_ANALYSIS"
+PROMISES="FILE_COMPLETE|FILE_VERIFIED|FILE_BLOCKED|TDD_COMPLETE|TDD_BLOCKED|VERIFY_PASS|VERIFY_FAIL|DEBUG_COMPLETE|DEBUG_BLOCKED|UI_COMPLETE|UI_VERIFIED|UI_BLOCKED|AUDIT_COMPLETE|AUDIT_BLOCKED|REQUIRES_APPROVAL|PLAN_ANALYSIS"
 
 # ---------------------------------------------------------------------------
 # 4. Extract agent output text from the hook JSON payload.
