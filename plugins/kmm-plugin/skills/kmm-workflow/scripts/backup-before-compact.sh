@@ -16,4 +16,7 @@ TS=$(date +%s)
 for f in PLAN.md PROGRESS.md findings.md migration-guide.md; do
   [ -f "$PLAN_DIR/$f" ] && cp "$PLAN_DIR/$f" "$PLAN_DIR/backups/${f%.md}_$TS.md"
 done
-echo "[kmm-workflow] Plan files backed up. Re-read PLAN.md + PROGRESS.md now."
+echo "[kmm-workflow] CONTEXT COMPACTION IMMINENT."
+echo "[kmm-workflow] BEFORE continuing: write your current state to $PLAN_DIR/HANDOFF.md"
+echo "[kmm-workflow] Include: current task, what you just completed, next step, any pending decisions."
+echo "[kmm-workflow] Then re-read PLAN.md + PROGRESS.md + HANDOFF.md to recover context."

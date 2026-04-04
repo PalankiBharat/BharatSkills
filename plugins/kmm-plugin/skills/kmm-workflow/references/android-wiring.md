@@ -9,7 +9,7 @@ Runs AFTER all shared code migration phases are checkpointed. BEFORE iOS.
 
 ## Pre-Wire: Read Wiring Manifests
 
-Before starting, read every FILE_COMPLETE output from Phase 3 (stored in PROGRESS.md).
+Before starting, read every FILE_VERIFIED output from Phase 3 (stored in PROGRESS.md).
 For each file with `breaking` != "none": these call sites need updating — follow the documented changes.
 For each file with `di-bindings` != "none": these Koin bindings need adding to the Android DI module.
 For each file with `wiring-notes` != "standard": follow the specific import change instructions.
@@ -26,10 +26,10 @@ Do not rediscover — use the manifest.
 2. [Parallel Execution](#2-parallel-execution)
 3. [Build & Test](#3-build--test)
 4. [Runtime Verification](#4-runtime-verification)
-   - 4.1 [Appium (primary)](#41-appium-primary)
-   - 4.2 [adb (fallback)](#42-adb-fallback)
+   - 4.1 [appium-mcp (primary)](#41-appium-mcp-primary)
+   - 4.2 [adb (fallback)](#42-adb-fallback--log-capture-only)
    - 4.3 [Napier Log Tag Filtering](#43-napier-log-tag-filtering)
-   - 4.4 [Loop Protocol](#44-loop-protocol)
+   - 4.4 [Debug Protocol](#44-debug-protocol)
 5. [Crash Patterns](#5-crash-patterns)
 6. [REQUIRES_APPROVAL Triggers](#6-requires_approval-triggers)
 
@@ -171,7 +171,7 @@ Failures:
 
 Present to user before proceeding to Appium automated flows.
 
-**After Wire Android checkpoint:** proceed to per-screen verification, then Appium automated flows (`python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT` for affected screen), then manual test. See SKILL.md for phase ordering.
+**After Wire Android checkpoint:** proceed to per-screen verification, then appium-mcp E2E per `appium-mcp-testing.md`, then manual test. See SKILL.md for phase ordering.
 
 Update PROGRESS.md checkpoint. PLAN.md status block updated.
 
@@ -182,52 +182,35 @@ Update PROGRESS.md checkpoint. PLAN.md status block updated.
 Launch the app after wiring to catch KMM-specific runtime crashes before handing off to manual
 testing.
 
-**Primary tool:** Appium (structured, screenshot-capable)
-**Fallback:** adb — use when Appium is unavailable
+**Primary tool:** appium-mcp
+**Fallback:** adb — for log capture only
 
 For debugging failures found during verification, follow the structured debug loop in
 `references/agent-prompts/debugger.md`. Do not attempt ad-hoc fixes — use the debug loop.
 
-### 4.1 Appium (primary)
+### 4.1 appium-mcp (primary)
 
-Uses `e2e-tests/screen-map.json` as input for Appium flow generation. See `appium-testing.md` for flow generation rules.
+Uses migration-guide.md as the test plan. See `appium-mcp-testing.md` for full protocol.
 
-```bash
-# Generate Appium flow scripts from screen-map.json
-# (read appium-testing.md for mapping rules)
+1. Create appium-mcp Android session targeting `$ANDROID_SERIAL`
+2. For each screen in migration-guide.md (platform-stay files):
+   a. Navigate using vision-based element finding
+   b. Verify all elements from Callbacks field are present
+   c. Test interactive elements (tap, type, verify results)
+   d. Screenshot for 3-build comparison
+3. Blockers (OTP, payment): pause and ask user
+4. Delete session when complete
 
-# Build and install
-./gradlew :app:assembleDebug
-adb -s $ANDROID_SERIAL install -r <apk>
+For flows with login requirements: navigate through login flow using vision-based finding. appium-mcp handles CMP Compose text fields natively — no keycode workarounds needed.
 
-# Run Appium flows (comparison mode)
-python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT \
-  --platform android --mode compare \
-  --output-dir e2e-tests/results/comparison/android/
-
-# Check results: exit 0 = all pass, exit 1 = failures
-```
-
-For flows with blocker segments (OTP, payment): run segment 1 → pause, ask user → run segment 2.
-Save screenshots to `e2e-tests/screenshots/android/comparison/`.
-
-### 4.2 adb (fallback)
+### 4.2 adb (fallback — log capture only)
 
 ```bash
-# Uninstall first to ensure clean state
-adb -s $ANDROID_SERIAL uninstall <package>
-
-# Build & install
-./gradlew :app:installProductionDebug
-
 # Clear logs, launch, capture errors
 adb -s $ANDROID_SERIAL logcat -c
 adb -s $ANDROID_SERIAL shell am start -n <package>/<activity>
-adb -s $ANDROID_SERIAL logcat -d *:E | grep -E "FATAL|AndroidRuntime|KoinApplication|SKIE|ClassCastException|IllegalStateException|NullPointerException|CoroutineException|JobCancellation"
+adb -s $ANDROID_SERIAL logcat -d *:E | grep -E "FATAL|AndroidRuntime|KoinApplication|ClassCastException|IllegalStateException|NullPointerException"
 ```
-
-To find the package and activity: check `AndroidManifest.xml` for the package name and the
-launcher activity (the one with `MAIN` + `LAUNCHER` intent filters).
 
 ### 4.3 Napier Log Tag Filtering
 
@@ -240,26 +223,13 @@ adb -s $ANDROID_SERIAL logcat -s "DebugLoginScreen"
 # After fix confirmed, remove Napier instrumentation before committing
 ```
 
-### 4.4 Loop Protocol
+### 4.4 Debug Protocol
 
-1. **Uninstall** old build (ensures clean state — never skip this step)
-2. **Build & install**
-3. **Launch app, capture logs**
-4. **Parse crash output** — match against the patterns in Section 5
-5. **If crash detected:**
-   - Identify crash category from Section 5
-   - Check findings.md Known Fixes table first — the fix may already be documented
-   - If not found: invoke the structured debug loop from `references/agent-prompts/debugger.md`
-   - Each fix attempt logged in PROGRESS.md
-   - Incremental rebuild only — `./gradlew :app:assembleProductionDebug`
-   - Re-launch and re-capture logs
-   - Repeat until clean launch (**max 3 iterations via debug loop**, then escalate to user)
-6. **If clean launch** → proceed to per-screen verification (navigate, verify data loads, verify CTA, screenshot — use cached screen-map), then Summary Table, then Appium automated flows (`python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT` for affected screen), then manual test
-
-If still crashing after 3 debug loop iterations, **STOP** and escalate: provide full stacktraces
-(not just filtered lines), all fixes attempted, and your recommendation. Do not attempt a 4th fix.
-
-Each fix attempt must be logged in PROGRESS.md.
+1. Build and install: `./gradlew :app:assembleDebug && adb -s $ANDROID_SERIAL install -r <apk>`
+2. Run appium-mcp E2E on affected screens
+3. If crash detected: capture logs (4.2), dispatch debugger agent (3-strike), fix, rebuild
+4. If clean: proceed to 3-build comparison, then manual test
+5. Max 3 debug iterations → escalate to user with full stacktraces and findings
 
 ---
 

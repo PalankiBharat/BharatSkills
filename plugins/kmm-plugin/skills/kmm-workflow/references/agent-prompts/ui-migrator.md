@@ -176,16 +176,39 @@ Read the `UI Strategy:` field. Use that strategy exactly. Do not override it. If
 
 ---
 
+## Self-Verification (mandatory before completion)
+
+**Layer 1 — Deterministic scan:**
+Scan your output for:
+- Type casts (`as `, `as?`, `as!`) → CRITICAL
+- `TODO()` or placeholder text → CRITICAL
+- Empty callback closures (`= {}`, `= { }`) not overridden by parent → HIGH
+- Missing `.task {}` blocks (count < Flows field count) → HIGH
+- Missing conditional branches (count < UI Branches field count) → HIGH
+
+Fix all CRITICAL items. Fix HIGH items or report in UI_BLOCKED.
+
+**Layer 2 — Adversarial self-review:**
+Re-read the Android source composable/XML and your iOS/CMP output side by side:
+- Every padding/spacing value matches (16.dp → 16 points)
+- Every color token matches
+- Every text string is character-for-character identical
+- Every conditional rendering branch exists
+- Every interactive element is wired to a real action
+- If device available: take appium-mcp screenshot and compare visually with master Android
+
+---
+
 ## onClick Audit (mandatory before completion)
 
-Before reporting UI_COMPLETE, you MUST verify every interactive element is wired:
+Before reporting UI_VERIFIED, you MUST verify every interactive element is wired:
 
 1. **Scan all callback parameters** — find every `onClick`, `onTap`, `onSubmit`, `onDismiss`, and any `() -> Unit` / `() -> Void` parameter in the screen
 2. **Trace each callback** — follow from the composable/view declaration up to where it's called from the parent. Verify the parent passes a real action (ViewModel call, navigation, etc.) — not an empty lambda `= {}`
 3. **Flag empty defaults** — any callback parameter with default `= {}` that is never overridden by the parent is a dead button. Report it as a finding.
 4. **Verify clickable modifiers** — check `.clickable {}`, `.onTapGesture {}`, and `Button(action:)` blocks. Each must contain a real action, not an empty closure.
 
-If ANY interactive element is unwired, do NOT report UI_COMPLETE. Instead either:
+If ANY interactive element is unwired, do NOT report UI_VERIFIED. Instead either:
 - Fix the wiring by passing the correct callback from the parent (if the ViewModel action is obvious)
 - Report UI_BLOCKED listing each unwired element in the reason field (e.g., "3 unwired callbacks: onOpenWhatsapp, onRetry, onDismiss — parent does not pass actions")
 
@@ -196,12 +219,26 @@ If ANY interactive element is unwired, do NOT report UI_COMPLETE. Instead either
 **On success:**
 
 ```
-UI_COMPLETE: <screen-name> | strategy: <CMP|SwiftUI|Hybrid> | components: N | registered: yes/no
+UI_VERIFIED: <screen-name> | strategy: <CMP|SwiftUI|Hybrid> | components: N | registered: yes/no
+  flows_subscribed: N/N
+  ui_branches: N/N
+  callbacks_wired: N/N
+  defaults_match: N/N
+  strings_identical: N/N
+  deterministic_scan: 0 critical, 0 high
+  peer_review: PASS
+  screenshot_compared: true/false (vs master Android)
 ```
 
 - `<screen-name>`: struct name (SwiftUI/Hybrid) or Composable name (CMP), e.g. `LoginScreen`
 - `components: N`: count of top-level UI components in the screen body
 - `registered`: `yes` if pbxproj was updated; `no` if already registered, not applicable (CMP), or registration was not possible
+- `flows_subscribed`: count of `.task {}` blocks = count of flows in migration-guide.md Flows field
+- `ui_branches`: count of conditional rendering branches implemented = count in UI Branches field
+- `callbacks_wired`: count of interactive callbacks traced to real actions = count in Callbacks field
+- `defaults_match`: all @State initial values match Android defaults
+- `strings_identical`: all user-visible text character-for-character identical
+- `screenshot_compared`: if device available, appium-mcp screenshot taken and compared with master Android
 
 **If blocked:**
 
@@ -211,4 +248,4 @@ UI_BLOCKED: <screen-name> | reason: <clear explanation, may include list of unwi
 
 Do not make assumptions to unblock yourself. Stop and report.
 
-Do not output both. Do not output neither. One of these two lines closes your response, always.
+Do not output both. Do not output neither. One of UI_VERIFIED or UI_BLOCKED closes your response, always.

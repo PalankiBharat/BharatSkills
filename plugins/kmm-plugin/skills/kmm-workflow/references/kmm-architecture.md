@@ -155,6 +155,9 @@ kotlin {
 
 ```kotlin
 // commonMain
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
 abstract class BaseViewModel<State, Action, Effect>(
     initialState: State,
 ) : ViewModel() {

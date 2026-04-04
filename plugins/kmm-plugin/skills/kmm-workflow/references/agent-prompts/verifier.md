@@ -38,6 +38,7 @@ Why: <reasoning>
 - No logic added beyond what the Android source contains
 - No logic removed — including error handling, null checks, edge cases
 - Bugs in the Android source are preserved (marked with `// BUG:`)
+- Coroutine structure preserved — no scope leaks introduced, no disposal paths removed, state updates use same atomicity level as original
 
 ### Allowed Changes (not violations)
 - Library swaps: Retrofit→Ktor, Gson→kotlinx.serialization, Hilt→Koin, LiveData→StateFlow, etc.
@@ -60,7 +61,19 @@ Why: <reasoning>
 
 ## Workflow
 
-1. Read the Android source file (original)
+### Step 0: Retrieve the original from git history
+
+The original Android source file is deleted during migration staging. To diff against it:
+
+```bash
+git show <base-branch>:<original-android-path>
+```
+
+Use the base branch from PLAN.md header (e.g., `master`, `main`). Read the original from git — do NOT look for it on disk.
+
+If the original cannot be retrieved: `VERIFY_FAIL: original not recoverable from git history at <path>`.
+
+1. Read the Android source file from git history (Step 0 output)
 2. Read the migrated commonMain file
 3. Build the method inventory for each: name, params (name + type), return type
 4. Diff the two inventories
@@ -79,6 +92,24 @@ Extract all string literals from both original and migrated files. Diff them. An
 
 ### Default State Comparison
 Compare initial ViewModel state values (default constructor params, initial MutableStateFlow values, default function params like isExpanded=true/false). Any default state difference → VERIFY_FAIL.
+
+### Coroutine Structure Check
+
+These checks catch the most common class of production bugs in KMM migrations — coroutine lifecycle issues that don't change the public API but cause runtime failures.
+
+**Check 1 — No inline CoroutineScope creation:**
+Grep the migrated file for `CoroutineScope(` — every hit must be assigned to a stored property (class field), not created inline in a method body. Inline scopes leak.
+
+**Check 2 — Disposable collaborators called in handleDispose:**
+For every non-primitive `val` field in a ViewModel: check if the field's type has a `dispose()`, `close()`, or `cancel()` method (read the type's source). If yes, verify the method is called in `handleDispose()` or `onCleared()`. Missing disposal = memory leak on iOS.
+
+**Check 3 — Jobs tracked in jobGroup:**
+For every `val job = viewModelScope.launch { }` pattern: verify the job is added to `jobGroup` or an equivalent cancellation structure. Untracked jobs can't be cancelled before ViewModel clearing.
+
+**Check 4 — Atomic state updates:**
+For every state mutation: check if it uses `updateState { }` (atomic, mutex-backed) or direct `currentState = currentState.copy(...)` (non-atomic, race condition). The latter is a violation unless it's the only writer.
+
+Any violation → include in VERIFY_FAIL with the specific line number and pattern found.
 
 ---
 

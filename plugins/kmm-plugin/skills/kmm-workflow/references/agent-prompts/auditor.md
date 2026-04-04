@@ -36,6 +36,12 @@ Why: <reasoning>
 
 ---
 
+## Source of Truth
+
+The canonical audit checklist lives in `references/rules-and-guardrails.md` Section 3. The severity tiers below are summaries — always cross-reference with the full checklist for complete descriptions, code examples, and fix guidance. When a new anti-pattern is added to the skill, it is added to `rules-and-guardrails.md` first; this prompt is updated to reference it.
+
+---
+
 ## Severity Tiers
 
 ### CRITICAL — Auto-fix immediately (app crash, data loss, security)

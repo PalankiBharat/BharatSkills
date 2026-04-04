@@ -64,13 +64,10 @@ xcrun simctl install $IOS_UDID <app-path>
 xcrun simctl launch --console-pty $IOS_UDID <bundle-id> 2>&1 | grep "Debug<Name>"
 ```
 
-**Appium quick smoke (either platform):**
-```bash
-adb -s $ANDROID_SERIAL uninstall <pkg>
-./gradlew :app:installDebug
-python3 e2e-tests/appium_driver.py --device $ANDROID_SERIAL --appium-port $APPIUM_PORT --platform android --flow <specific-screen>
-```
-Appium is preferred for smoke tests — deterministic, no token cost. Fall back to adb/xcrun if Appium is unavailable.
+**appium-mcp quick smoke (either platform):**
+Create appium-mcp session → navigate to failing screen → screenshot → verify element presence.
+appium-mcp is preferred for smoke tests — vision-based, no selector brittleness, no Python driver needed.
+Fall back to adb/xcrun if appium-mcp is unavailable.
 
 ### Step 3: WAIT
 Tell the user exactly what to do:

@@ -91,7 +91,89 @@ Every agent must emit exactly ONE of these on its final line:
 - `NEEDS_CONTEXT: <what's missing>` — cannot proceed without additional information
 - `BLOCKED: <reason>` — tried max attempts, escalating with full error context
 
+**Agent-specific tokens:** Individual agent prompts define task-specific completion tokens (FILE_VERIFIED, UI_VERIFIED, TDD_COMPLETE, VERIFY_PASS, DEBUG_COMPLETE, AUDIT_COMPLETE, PLAN_ANALYSIS) that supersede the generic tokens above. Use the agent-specific token when one is defined in your prompt. The generic tokens (DONE/BLOCKED) are the fallback for agents without a task-specific format.
+
 3-strike rule: max 3 fix attempts on the same error before emitting BLOCKED.
+
+## Pre-Completion Checklist
+
+Before emitting any completion signal (`DONE` or equivalent), verify:
+
+1. Read the task list assigned to this agent (from the orchestrator prompt or PROGRESS.md)
+2. Confirm each task has `[x]` status — not `[ ]` or `[~]`
+3. If any task is incomplete: complete it now, or emit `BLOCKED: <task> incomplete — <reason>`
+
+**Never commit with incomplete tasks.** A commit that leaves tasks unchecked is a silent failure — the orchestrator sees "committed" and moves on, and the uncompleted task is discovered only during final verification. Common pattern: agents complete 4/5 tasks, commit because "the build passes," but the 5th task (e.g., deleting original files) creates import ambiguity later.
+
+## Tool-Call Budget (Anti-Spin)
+
+Every agent has an implicit tool-call budget per task:
+
+- **50 tool calls on a single task** → pause, re-read task description and reference files, try a fundamentally different approach
+- **100 tool calls on a single task** → emit `BLOCKED` with full context: what was tried, what failed, current best hypothesis
+- **Never exceed 150 tool calls without escalating**
+
+**Signs of spinning (stop immediately):**
+- Trying the same approach with minor variations
+- Reading the same files repeatedly without extracting new information
+- Retrying a command that has failed 3+ times with the same error
+- Building automation for something the project may already have (check first)
+
+## Context Compaction Recovery
+
+Long-running agents are subject to context compaction (conversation history summarized, earlier details lost). Treat compaction as a likely event — prepare recovery documents proactively.
+
+### Mandatory handoff document
+
+At every task boundary (each `[x]` checkpoint in PROGRESS.md), update `<gameplan-dir>/HANDOFF.md`:
+
+```markdown
+# Handoff: <AgentRole> — <Timestamp>
+## Current task: <exact task from PROGRESS.md>
+## Completed: <list with commit hashes>
+## Remaining: <list>
+## Critical context: <non-obvious decisions, build state, pending REQUIRES_APPROVAL>
+```
+
+### On context loss detection
+
+If an agent cannot recall what it has done or what's next:
+1. STOP all code changes immediately
+2. Read PROGRESS.md → determine current task
+3. Read HANDOFF.md → recover context
+4. Confirm current state (`git status`, build check) before proceeding
+5. Never reconstruct context from guesses — read the files
+
+## Verified-Output Protocol
+
+Every agent must produce **evidence of verification**, not just evidence of completion. "It compiles and tests pass" is necessary but not sufficient.
+
+### Two-layer verification
+
+**Layer 1 — Deterministic scans (known patterns, fast, free):**
+Grep your own output file for known CRITICAL/HIGH patterns from `references/rules-and-guardrails.md`:
+- CRITICAL: `runBlocking` outside test code, `TODO()`, type casts (`as `, `as?`, `as!`), hardcoded secrets
+- HIGH: inline `CoroutineScope(`, undisposed fields with `dispose()`/`close()`/`cancel()`, `setState(getState().copy(` (non-atomic), callback params with default `= {}`
+
+Report counts in your completion signal. Any CRITICAL > 0 → fix before completing.
+
+**Layer 2 — Adversarial peer review (unknown patterns, AI judgment):**
+After your deterministic scan, re-read the original source AND your migrated output side by side. Look for ANY difference that changes behavior or appearance — not from a checklist, but with the mindset: "what could go wrong here that nobody anticipated?"
+
+Focus on:
+- Default values that silently changed
+- String literals that differ in casing or wording
+- Conditional branches present in original but absent in migrated
+- Error handling paths removed or altered
+- Concurrency that was parallel in original but sequential in migrated
+
+### Evidence format
+
+Every completion signal must include structured evidence. The orchestrator validates this — missing fields or non-zero CRITICAL counts cause rejection.
+
+Agent-specific formats are defined in each agent prompt, but all must include at minimum:
+- `deterministic_scan: N issues` (0 = clean)
+- `peer_review: PASS | FAIL | N/A` (self-review of own output)
 
 ## Failure Modes to Avoid
 

@@ -82,7 +82,7 @@ Every sealed class/enum variant must have an explicit mapping in every routing f
 Every sub-screen flow must verify the parent screen appears after pressing back.
 
 **How to verify:**
-- Appium flows: verify-after-back pattern (press back, wait, verify parent selector)
+- appium-mcp: use vision-based verification — capture screenshot after back press, ask Claude Vision to confirm the parent screen is visible
 - Do NOT hardcode N back presses — navigation stack depth may differ between builds
 
 ---
@@ -111,3 +111,32 @@ Every callback parameter must reach a real action — no dead buttons.
 - Scan composables for callback params with default `= {}`
 - Trace each from declaration through all call sites to the actual action
 - Empty lambdas on onClick/callback params produce buttons that look active but do nothing
+
+## parity-check.sh Allowlist
+
+When generating `parity-check.sh`, the import allowlist MUST include `androidx.compose.*` and related Compose imports. Omitting these produces hundreds of false positive "Android-only import" warnings for standard Compose APIs valid in shared CMP code.
+
+**Minimum allowlist for CMP migrations:**
+- `androidx.compose.*`
+- `androidx.compose.runtime.*`
+- `androidx.compose.ui.*`
+- `androidx.compose.foundation.*`
+- `androidx.compose.material3.*`
+
+**Verify:** After generating parity-check.sh, run it on a known-clean file — output should be 0 warnings before relying on it.
+
+---
+
+## 3-Build Visual Comparison
+
+KMM migrations require parity across 3 builds:
+1. **Master Android** (pre-migration) — the reference
+2. **Migrated Android** (post-migration) — must match master
+3. **iOS** (new app) — must match migrated Android
+
+For each screen, Claude Vision compares all 3 screenshots:
+- Master vs Migrated Android: any difference = potential regression
+- Migrated Android vs iOS: any difference = parity gap
+- Classification per difference: REGRESSION / EXPECTED / FALSE_POSITIVE
+
+See `appium-mcp-testing.md` Section 4 for the full protocol.

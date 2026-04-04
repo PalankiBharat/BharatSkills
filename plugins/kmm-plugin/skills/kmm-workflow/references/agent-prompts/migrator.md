@@ -234,6 +234,32 @@ Run the same test suite again (no changes to tests):
   - Attempt 3: apply a second targeted fix — if still failing, output FILE_BLOCKED
 - Every fix attempt must conform to the 1:1 rule — fix the KMM port to match Android behavior, never adjust tests to match wrong behavior
 
+### Step 9b: Self-verification (mandatory before completion)
+
+Two-layer verification of your own output:
+
+**Layer 1 — Deterministic scan:**
+Grep the migrated commonMain file for:
+- `runBlocking` (outside test code) → CRITICAL
+- `TODO()` or `TODO("` → CRITICAL
+- ` as `, ` as?`, ` as!` (type casts) → CRITICAL
+- Inline `CoroutineScope(` not assigned to a class field → HIGH
+- `setState(getState().copy(` or equivalent non-atomic pattern → HIGH
+- Callback params with default `= {}` → HIGH
+
+Record counts. Fix any CRITICAL items before proceeding. Fix straightforward HIGH items.
+
+**Layer 2 — Adversarial self-review:**
+Re-read the original Android source (from git history: `git show <base-branch>:<path>`) and your migrated file side by side. Check:
+- Every default value matches original exactly
+- Every string literal is character-for-character identical
+- Every conditional branch in original exists in migrated
+- Every error handling path preserved
+- Concurrency structure preserved (parallel stays parallel)
+- No methods combined, split, or renamed
+
+Any difference that changes behavior → fix or REQUIRES_APPROVAL.
+
 ### Step 10: Wire imports for consumers
 
 - Update import paths in all consumers identified in Step 4 to point to the new `commonMain` location
@@ -252,7 +278,7 @@ Run the same test suite again (no changes to tests):
 
 ## What You MUST NOT Do
 
-- **Do NOT skip Steps 5, 6, or 9.** Step 5 (write tests) is NOT optional — migration without characterization tests is rejected by the orchestrator. Tests must pass at both checkpoints — against staged androidMain (Step 6) AND against commonMain (Step 9). A `FILE_COMPLETE` with `tests: 0` is invalid and will be rejected.
+- **Do NOT skip Steps 5, 6, or 9.** Step 5 (write tests) is NOT optional — migration without characterization tests is rejected by the orchestrator. Tests must pass at both checkpoints — against staged androidMain (Step 6) AND against commonMain (Step 9). A `FILE_VERIFIED` with `tests: 0` is invalid and will be rejected.
 - **Do NOT change test files to make a failing migration pass.** If tests fail after migration, fix the migration.
 - **Do NOT change API signatures.** Method names, parameter names, parameter order, and return types must match the Android source exactly. Android is in production — any signature drift breaks callers.
 - **Do NOT improve or refactor.** Zero behavioral changes. Zero "while we're here" edits. If Android has a bug, migrate the bug and note it with `// BUG:`.
@@ -267,33 +293,45 @@ The LAST line of your output MUST be exactly one of the following two formats. N
 **On success:**
 
 ```
-FILE_COMPLETE: <source-file>
+FILE_VERIFIED: <source-file>
   target: <target-file>
   tests: <test-file> (N tests)
   swaps: [list-of-lib-swaps]
   breaking: [list-of-consumer-visible-changes] or "none"
   di-bindings: [list-of-Koin-bindings-needed] or "none"
   wiring-notes: [import-changes-for-consumers] or "standard"
+  deterministic_scan: 0 critical, 0 high
+  peer_review: PASS
+  defaults_match: N/N
+  strings_match: N/N
 ```
 
 Examples:
 ```
-FILE_COMPLETE: shared/src/commonMain/kotlin/com/example/LoginRepository.kt
+FILE_VERIFIED: shared/src/commonMain/kotlin/com/example/LoginRepository.kt
   target: shared/src/commonMain/kotlin/com/example/LoginRepository.kt
   tests: shared/src/commonTest/kotlin/com/example/LoginRepositoryTest.kt (12 tests)
   swaps: [Retrofit→Ktor, Gson→kotlinx.serialization, Hilt→Koin]
   breaking: none
   di-bindings: [single<LoginRepository>()]
   wiring-notes: standard
+  deterministic_scan: 0 critical, 0 high
+  peer_review: PASS
+  defaults_match: 4/4
+  strings_match: 7/7
 ```
 ```
-FILE_COMPLETE: shared/src/commonMain/kotlin/com/example/UserMapper.kt
+FILE_VERIFIED: shared/src/commonMain/kotlin/com/example/UserMapper.kt
   target: shared/src/commonMain/kotlin/com/example/UserMapper.kt
   tests: shared/src/commonTest/kotlin/com/example/UserMapperTest.kt (5 tests)
   swaps: [none]
   breaking: none
   di-bindings: none
   wiring-notes: standard
+  deterministic_scan: 0 critical, 0 high
+  peer_review: PASS
+  defaults_match: 2/2
+  strings_match: 3/3
 ```
 
 **If migration cannot proceed** (missing dependency source, API surface conflict, platform behavior with no clear KMM equivalent, tests failing after 3 attempts):

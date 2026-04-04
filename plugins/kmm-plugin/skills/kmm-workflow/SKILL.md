@@ -49,12 +49,12 @@ Any behavioral change → REQUIRES_APPROVAL.
 On ANY invocation, always ask: Create / Continue / Improve / Audit. Never auto-resume. Never assume.
 
 - **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md, PROGRESS.md, migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. Write session marker. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
-- **Continue** → list all gameplans with status, user picks. Write session marker → read PLAN.md + PROGRESS.md → verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`) → continue from last checkpoint.
+- **Continue** → if exactly one non-stale gameplan exists, auto-resume it (report: "Resuming <name> — Phase N: <description>. Say STOP to switch."). If multiple gameplans exist, list all with status, user picks. Write session marker → read PLAN.md + PROGRESS.md → verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`) → continue from last checkpoint.
 - **Improve** → **FIRST: `cd ~/dev/claude-code-skills`** — ALL file edits use paths under that directory (NEVER `~/.claude/plugins/`). Then: read open GitHub issues with `skill:kmm-workflow` label, classify learnings, create branch, consolidate into skill files (NEVER append — rewrite to absorb), measure file growth, bump patch version in `plugin.json`, raise PR, self-review (Consolidation Mandate rule 6). See `references/self-improvement.md`.
 - **Verify** → unified verification of a migrated module. Runs 3 layers in order:
   - Layer 1 (Static): anti-pattern scan, parity-check.sh, cross-platform parity, phase checklists — no devices needed, fast
-  - Layer 2 (Completeness): ViewModel flow inventory audit, callback completeness trace, UI branch audit, DI binding verification — code analysis, no devices. Runs deterministic scripts (flow-collector-check.sh, koin-binding-check.py, screen-coverage-check.sh) plus AI-powered callback and branch analysis.
-  - Layer 3 (Device): Appium E2E flows, screenshot comparison, runtime DI check — needs devices, slow
+  - Layer 2 (Completeness): ViewModel flow inventory audit, callback completeness trace, UI branch audit, DI binding verification — code analysis, no devices. Runs deterministic scripts (flow-collector-check.sh, koin-binding-check.py) plus AI-powered callback and branch analysis.
+  - Layer 3 (Device): appium-mcp E2E, 3-build screenshot comparison (master Android vs migrated Android vs iOS), runtime DI check — needs devices, slow
   If devices unavailable: Layers 1-2 run fully, Layer 3 reports warning. Always gets useful results.
   Detects existing gameplan state (v6 / pre-v6 / none), upgrades or reverse-engineers migration-guide.md.
   See `references/verify-protocol.md`.
@@ -78,7 +78,7 @@ The skill is file-based — nothing is lost on `/clear`. The orchestrator MUST s
 ### Phase 1: PLAN
 
 - Create worktree, research codebase, write migration-guide.md (enriched template with 15 fields), findings.md (with Decisions section), PLAN.md, PROGRESS.md
-- Generate build-verify.sh, parity-check.sh, screen-map.json, fake-server; allocate dedicated device + ports; record all in PLAN.md header
+- Generate build-verify.sh, parity-check.sh; boot emulator/simulator; record device serials in PLAN.md header
 - Dispatch plan-analyzer → fix all BLOCKERs → user approval
 - Run Phase 1 checklist (`references/phase-checklists.md`) before approval
 - Read `references/planning-and-execution.md` for full protocol
@@ -93,20 +93,21 @@ The skill is file-based — nothing is lost on `/clear`. The orchestrator MUST s
 
 - Build DAG from migration-guide.md "Migrate after" fields
 - PARALLEL subagents per file (full TDD pipeline) — agents read `references/agent-protocol.md`
-- TDD enforcement: FILE_COMPLETE with tests >= Expected tests from migration-guide.md; `tests: 0` is rejected
+- TDD enforcement: FILE_VERIFIED with tests >= Expected tests from migration-guide.md; `tests: 0` is rejected
 - Original deletion (two-step): orchestrator deletes before dispatch, verifies after all agents complete
 - After all levels: full test suite, auditor sweep, Phase 3 checklist (`references/phase-checklists.md`)
 - CHECKPOINT COMMIT — Read `references/dependency-replacements.md`, `references/rules-and-guardrails.md`, `references/platform-api-gotchas.md`
 
-### Phase 4+5: WIRE ANDROID + iOS (parallel team)
+### Phase 4+5: WIRE ANDROID + iOS (parallel where possible)
 
 - Spawn agent team if available (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1), else parallel subagents
   - Android-wirer: imports, DI (Hilt→Koin), delete originals, build+tests
-  - iOS-wirer: SwiftUI, Koin iOS, navigation+pbxproj, build+tests
+  - iOS UI migration (Phase 5A): can start in parallel with Phase 4 — UI screens only depend on shared ViewModel API from Phase 3, not on Android wiring
+  - iOS wiring (Phase 5B): Koin iOS, navigation+pbxproj, build+tests — must wait for Phase 4 to complete (needs confirmed bindings)
   - Team members communicate about shared-code issues (missing Koin bindings, API mismatches)
 - After both complete: Verification Pipeline (see below) → CHECKPOINT COMMIT
 - Run Phase 4 and Phase 5 checklists (`references/phase-checklists.md`)
-- Read `references/android-wiring.md`, `references/ios-wiring.md`, `references/appium-testing.md`, `references/cross-platform-parity.md`
+- Read `references/android-wiring.md`, `references/ios-wiring.md`, `references/appium-mcp-testing.md`, `references/cross-platform-parity.md`
 
 ## Verification Pipeline
 
@@ -115,9 +116,8 @@ Mandatory at Phase 4/5 boundaries — no skipping, no reordering:
 2. parity-check.sh — static analysis, zero tokens
 3. flow-collector-check.sh — ViewModel flow → iOS collector cross-reference (deterministic)
 4. koin-binding-check.py — DI resolution verification (deterministic)
-5. screen-coverage-check.sh — screen-map vs nav graph coverage (deterministic)
-6. Appium E2E — verify-first protocol (`references/appium-testing.md`), both platforms parallel
-7. Manual test — structured checklist from migration-guide.md breaking changes
+5. appium-mcp E2E — 3-build comparison (`references/appium-mcp-testing.md`), both platforms
+6. Manual test — structured checklist from migration-guide.md breaking changes
 
 If any layer fails → fix → rerun from that layer. If manual testing finds a new check → add it to parity-check.sh.
 
@@ -137,11 +137,11 @@ All agents read `references/agent-protocol.md` before starting.
 
 | Task | Prompt | Model | Returns |
 |------|--------|-------|---------|
-| Migrate file (full TDD pipeline) | agent-prompts/migrator.md | sonnet | FILE_COMPLETE / FILE_BLOCKED |
+| Migrate file (full TDD pipeline: stage, test, migrate, verify) | agent-prompts/migrator.md | sonnet | FILE_VERIFIED / FILE_BLOCKED |
 | Verify migration (structural diff) | agent-prompts/verifier.md | haiku | VERIFY_PASS / VERIFY_FAIL |
-| Write characterization tests (standalone) | agent-prompts/test-writer.md | sonnet | TDD_COMPLETE / TDD_BLOCKED |
+| Write characterization tests (standalone — Verify mode and pre-characterization only) | agent-prompts/test-writer.md | sonnet | TDD_COMPLETE / TDD_BLOCKED |
 | Debug failure | agent-prompts/debugger.md | sonnet | DEBUG_COMPLETE / DEBUG_BLOCKED |
-| UI migration (per screen) | agent-prompts/ui-migrator.md | sonnet | UI_COMPLETE / UI_BLOCKED |
+| UI migration (per screen) | agent-prompts/ui-migrator.md | sonnet | UI_VERIFIED / UI_BLOCKED |
 | Audit code (Phase 3 inline) | agent-prompts/auditor.md | sonnet | AUDIT_COMPLETE / AUDIT_BLOCKED |
 | Verify module (3-layer) | agent-prompts/verifier-full.md | sonnet | VERIFY_COMPLETE / VERIFY_BLOCKED |
 | Analyze plan | agent-prompts/plan-analyzer.md | sonnet | PLAN_ANALYSIS |
@@ -151,7 +151,6 @@ All agents read `references/agent-protocol.md` before starting.
 - `references/agent-protocol.md` — ALL agents: understand-first protocol, failure modes, completion signals
 - `references/phase-checklists.md` — ALL phases: boundary gates
 - `references/planning-and-execution.md` — Phase 1
-- `references/automated-testing.md` — Phase 1: device/port isolation, fake server, screen-map
 - `references/dependency-decision-framework.md` — Phase 1: dependency Replace/Port/Abstract decisions
 - `references/kmm-architecture.md` — Phases 2, 3: expect/actual, source sets, ViewModel/DI/coroutines
 - `references/dependency-replacements.md` — Phase 3: library swap tables
@@ -160,10 +159,9 @@ All agents read `references/agent-protocol.md` before starting.
 - `references/android-wiring.md` — Phase 4
 - `references/ios-wiring.md` — Phase 5
 - `references/cross-platform-parity.md` — Phases 4, 5: cross-platform verification
-- `references/appium-testing.md` — Phases 4, 5, Verify: Appium flow generation, selectors, segmentation, verify-first protocol
+- `references/appium-mcp-testing.md` — Phases 4, 5, Verify: appium-mcp E2E, vision-based element finding, 3-build comparison
+- `references/automated-testing.md` — Phases 4, 5: testing model overview, deterministic verification scripts, adb/xcrun fallback
 - `references/verify-protocol.md` — Verify mode: 3-layer verification protocol
-- `references/appium-flow-templates.md` — Phases 4, 5, Verify: YAML templates and Python driver
-- `references/device-slot-management.md` — Phases 4, 5, Verify: emulator/simulator allocation
 - `references/self-improvement.md` — Migration retrospective
 
 ## Recovery Protocols
@@ -182,11 +180,12 @@ All agents read `references/agent-protocol.md` before starting.
 2. **All decisions through user** — REQUIRES_APPROVAL batched at phase boundaries, not one-by-one
 3. **Always create worktree** — ALL work in worktrees, including E2E setup and SDK wiring; never on base branch
 4. **Orchestrator never writes migration code** — only agents do
-5. **TDD non-negotiable** — tests must pass on original AND migrated; FILE_COMPLETE with `tests: 0` is rejected
+5. **TDD non-negotiable** — tests must pass on original AND migrated; FILE_VERIFIED with `tests: 0` is rejected
 6. **No deferring tasks** — complete fully or flag as genuinely blocked; "it's complex" is not a valid reason
 7. **No type casting** — no `as`, `as?`, `as!`; use polymorphism, generics, or protocol conformance
-8. **Device isolation absolute** — `$ANDROID_SERIAL` in every `adb` command, `$IOS_UDID` in every `xcrun simctl`; read from PLAN.md header
-9. **Verify every fix automatically** — rebuild + parity-check.sh + flow-collector-check.sh + koin-binding-check.py + Appium before reporting; never report without verification
+8. **Device targeting explicit** — `$ANDROID_SERIAL` in every `adb` command, `$IOS_UDID` in every `xcrun simctl`; appium-mcp sessions target specific device serials; read from PLAN.md header
+9. **Verify every fix automatically** — rebuild + parity-check.sh + flow-collector-check.sh + koin-binding-check.py + appium-mcp E2E before reporting; never report without verification
 10. **PROGRESS.md is checklist not journal** — one line per task; details belong in findings.md
 11. **Retrospective before /clear** — mandatory and autonomous; skipping means learnings lost permanently
-12. **parity-check.sh before Appium** — static analysis first, device testing second; never skip either layer
+12. **parity-check.sh before appium-mcp E2E** — static analysis first, device testing second; never skip either layer
+13. **Verified output, not just completed output** — every agent must produce evidence of verification (deterministic scan + adversarial self-review) before reporting completion; the orchestrator rejects completion signals without evidence fields; see `references/agent-protocol.md` Verified-Output Protocol; orchestrator reads evidence fields from agent output — if deterministic_scan or peer_review fields are absent or critical > 0, re-dispatch the agent with rejection reason
