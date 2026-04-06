@@ -41,7 +41,8 @@ Run after scaffold commit, before Phase 3.
 Run after all dependency levels complete, before /clear.
 
 - [ ] Every file: FILE_VERIFIED with tests >= Expected tests from migration-guide.md
-- [ ] Test fixture sync: all fake/stub classes in commonTest match current public API of migrated classes (no stale enum names, parameter counts, or field types)
+- [ ] Test fixture sync: all fake/stub classes in commonTest match current public API of migrated classes (no stale enum names, parameter counts, or field types). After modifying any interface in commonMain, grep commonTest for all implementations/fakes of that interface and add new members — missing members cause iOS test compilation failures.
+- [ ] Analytics event audit: for each migrated ViewModel, grep original for `track(`, `analytics.`, `logEvent(`, `WebEngage` — inventory all analytics events and verify they fire in the shared VM.
 - [ ] Every file: VERIFY_PASS from haiku verifier
 - [ ] No FILE_BLOCKED remaining (all resolved or escalated)
 - [ ] Full unit test suite passes: ./gradlew :shared:testDebugUnitTest
@@ -72,7 +73,7 @@ Run after Android wiring, before appium-mcp E2E.
 - [ ] Koin binding completeness: all VM constructor params AND child composable types have bindings
 - [ ] Build + unit tests pass
 - [ ] parity-check.sh passes (all 10 checks green)
-- [ ] DI binding audit: every constructor-injected dependency has a Koin binding (run koin-binding-check.py)
+- [ ] DI binding audit: every constructor-injected dependency has a Koin binding (run koin-binding-check.py). For each Koin `single<Interface>`, verify the Hilt `@Provides` chain provides the same implementation or decorator — not a simpler substitute. koin-binding-check.py only verifies bindings exist, not decorator equivalence.
 - [ ] appium-mcp E2E: all screens pass on Android device (3-build comparison)
 - [ ] Manual test: structured checklist from migration-guide.md breaking changes
 - [ ] PROGRESS.md updated and committed

@@ -201,6 +201,8 @@ These are confirmed platform or tooling constraints — not bugs to chase.
 |-------|---------|------------|
 | CMP Compose `send_keys` drops characters | Text input via `send_keys` or `input text` silently drops characters in Compose-backed text fields | Use keycode-based input — send characters one-by-one via Android keycodes instead of string dispatch |
 | UiAutomator2 crash during Lottie splash | Driver crashes or returns null hierarchy immediately after app launch when a Lottie animation plays | Wait **15–18 seconds** after launch before any interaction. This is a Lottie/UiAutomator2 timing issue, distinct from Appium server startup delay |
+| `mobile: shell` + `input text` for PIN/numeric entry | Requires `--allow-insecure=adb_shell` Appium capability — may not be enabled; silently fails or throws capability error | Use `driver.pressKeyCode()` instead — works without any extra capability config |
+| CMP screens slow to expose accessibility labels on iOS | CMP-rendered screens register accessibility labels later than native SwiftUI. Element lookups immediately after navigation intermittently fail with "not found" | Add a 1–2 s pause after navigation before the first element lookup on any CMP screen |
 
 ## 9. What appium-mcp Catches vs Doesn't
 

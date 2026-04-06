@@ -23,6 +23,8 @@ Do not rediscover — use the manifest.
    - 1.2 [Update DI (Hilt → Koin)](#12-update-di-hilt--koin)
    - 1.3 [Delete Original Android Files](#13-delete-original-android-files)
    - 1.4 [Consumer Wrapper Pattern](#14-consumer-wrapper-pattern)
+   - 1.5 [HTTP Client Behavioral Parity](#15-http-client-behavioral-parity)
+   - 1.6 [Lifecycle Method Verification](#16-lifecycle-method-verification)
 2. [Parallel Execution](#2-parallel-execution)
 3. [Build & Test](#3-build--test)
 4. [Runtime Verification](#4-runtime-verification)
@@ -59,6 +61,15 @@ For every file listed under "Consumers" in migration-guide.md:
 - Update imports to point to shared module. For most files, call sites don't change (signatures are identical per the 1:1 behavioral port rule). EXCEPTION: when migration-guide.md documents a Breaking Change for this file (e.g., callback→suspend conversion), update call sites as documented. The breaking change was approved during planning — apply it now.
 - Dispatch parallel Haiku agents if consumer count > 5 (see Section 2)
 
+**Import aliases for dual-VM screens:** During the transition window when both a Hilt ViewModel and a Koin (shared) ViewModel share the same class name, use Kotlin import aliases to avoid compilation errors:
+
+```kotlin
+import com.example.shared.vm.LoginViewModel as SharedLoginViewModel
+import com.example.android.vm.LoginViewModel as HiltLoginViewModel
+```
+
+Aliases are temporary — remove them when the Hilt VM is deleted. Never leave aliases in the final post-migration state.
+
 **Pager composable tab routing:** When a shared composable uses `HorizontalPager` with multiple tab types (e.g., Positions/Orders/Holdings), and multiple nav routes render the same composable for different tabs, each route MUST pass the correct `initialTab` parameter. Hardcoding a default tab means other tabs silently render the wrong content.
 
 ```kotlin
@@ -76,6 +87,22 @@ Route.HoldingsRoute -> { ExpandedPositionsBook(initialTab = TabOption.Holdings(0
 - Remove Hilt bindings for migrated classes
 - Add Koin `single { }` or `factory { }` declarations for shared classes
 - If the project uses Hilt throughout: flag as REQUIRES_APPROVAL before changing DI framework
+
+**Decorator equivalence (not just binding existence):** For each `single<Interface>`, trace the original Hilt `@Provides` chain and replicate the decorator wrapping order. Static koin-binding-check.py only verifies that a binding exists — it cannot catch decorator collapse.
+
+```kotlin
+// Hilt chain: UserRepositoryDecorator wraps UserLocalStore
+@Provides fun provideUserRepo(store: UserLocalStore): UserRepository =
+    UserRepositoryDecorator(store)
+
+// Koin — WRONG: decorator stripped, binds raw store
+single<UserRepository> { UserLocalStore(get()) }
+
+// Koin — CORRECT: decorator order preserved
+single<UserRepository> { UserRepositoryDecorator(UserLocalStore(get())) }
+```
+
+For every migrated binding: (1) read the Hilt `@Provides` method, (2) count decorator layers, (3) ensure Koin replicates the same chain.
 
 ### 1.3 Delete Original Android Files
 
@@ -117,7 +144,43 @@ class ScripRepository(...) : ScripStore {
 
 If consumers need the full SDK interface, inject `ScripStore` directly — don't wrap it.
 
-### 1.5 Lifecycle Method Verification
+### 1.5 HTTP Client Behavioral Parity
+
+When Ktor replaces OkHttp/Retrofit in the shared module, compile-time parity is not sufficient — these behaviors are invisible to the type checker. Perform a behavioral audit against the original client:
+
+| Behavior | Original | Ktor equivalent | Verified? |
+|---|---|---|---|
+| Retry count + backoff | `OkHttp.Interceptor` or `Retrofit` | `HttpRequestRetry { retryOnException(...) }` | [ ] |
+| Auth header injection | `Interceptor.chain.request().addHeader(...)` | `appendIfNameAbsent` (not `append` — `append` adds duplicates) | [ ] |
+| Session expiry callback | `onSessionExpired { ... }` lambda | Non-no-op, calls platform session-expiry mechanism | [ ] |
+| Content encoding | `GzipRequestBody` / `Accept-Encoding` | `ContentEncoding` plugin | [ ] |
+| Logging level | `HttpLoggingInterceptor.Level.BODY` | `LogLevel.ALL` / `LogLevel.HEADERS` | [ ] |
+| Connect/read/write timeouts | `OkHttpClient.Builder` timeout | `HttpTimeout { ... }` plugin | [ ] |
+
+**Auth header — use `appendIfNameAbsent`, not `append`:**
+```kotlin
+// BAD — adds duplicate Authorization headers on retry
+headers.append(HttpHeaders.Authorization, "Bearer $token")
+
+// GOOD — idempotent
+headers.appendIfNameAbsent(HttpHeaders.Authorization, "Bearer $token")
+```
+
+**Session expiry — logged-in guard:**
+Wire `onSessionExpired` so it only fires when the user has a non-empty token. A 401 during login means wrong credentials, not an expired session — firing session-expiry on login 401 logs the user out before they are ever logged in.
+
+```kotlin
+onSessionExpired = { token ->
+    if (token.isNotEmpty()) {
+        sessionManager.expireSession()
+    }
+    // else: login 401 — ignore, let the caller surface the error
+}
+```
+
+A no-op `onSessionExpired = {}` is a silent contract break — the app never logs users out on token expiry.
+
+### 1.6 Lifecycle Method Verification
 
 After rewiring navigation, verify that all lifecycle trigger methods still fire correctly. Navigation refactors are the #1 source of "data doesn't load" bugs — not because the code is wrong, but because the initialization call never executes.
 

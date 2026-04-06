@@ -15,6 +15,16 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
    - [KMM-Specific Escalation Triggers](#kmm-specific-escalation-triggers)
 3. [Audit Checklist by Severity](#3-audit-checklist-by-severity)
    - [CRITICAL — Must fix immediately](#critical--must-fix-immediately-app-crash-data-loss-security)
+     - runBlocking on Main Thread
+     - Ktor Auth Interceptor: `append` vs `appendIfMissing`
+     - ViewModel Effect Flow: Exactly One Collector Per Entry Point
+     - MutableStateFlow Field Must Never Be Reassigned
+     - Mutable State Not Cleared on Error Paths
+     - API Response Fields Not Fully Persisted After Migration
+     - TODO() in Production Code
+     - Missing NSFaceIDUsageDescription
+     - Hardcoded Secrets
+     - Type Casting (as / as? / as!)
    - [HIGH — Should fix](#high--should-fix-memory-leaks-logic-errors-architecture-violations)
    - [MEDIUM — Should fix](#medium--should-fix-code-quality-consistency-maintainability)
    - [LOW — Nice to fix](#low--nice-to-fix-cosmetic-expected-behavior)
@@ -238,7 +248,7 @@ class AuthInterceptor(private val tokenProvider: TokenProvider) : HttpClientPlug
     override fun install(plugin: AuthInterceptor, scope: HttpClient) {
         scope.requestPipeline.intercept(HttpRequestPipeline.State) {
             val token = tokenProvider.getToken() // suspend function — no blocking
-            context.headers.append("Authorization", "Bearer $token")
+            context.headers.appendIfMissing("Authorization", "Bearer $token")
         }
     }
 }
@@ -249,6 +259,31 @@ class TokenProvider {
     suspend fun getToken(): String = cached ?: fetchAndCache()
     private suspend fun fetchAndCache(): String { ... }
 }
+```
+
+---
+
+### Ktor Auth Interceptor: `append` vs `appendIfMissing`
+
+**What to look for:** Ktor `HttpClient` auth interceptors (or any request pipeline interceptor) that call `context.headers.append("Authorization", ...)` instead of `context.headers.appendIfMissing("Authorization", ...)`.
+
+**Why it's a problem:** On retries, the interceptor fires again on the same request. `append` adds a second `Authorization` header — many servers reject requests with duplicate auth headers, causing silent auth failures on retry rather than an obvious crash.
+
+**Generalization:** Any header added inside an interceptor that can fire multiple times per request lifecycle (auth, correlation IDs, tracing headers) MUST use an idempotent setter. `appendIfMissing` is the standard guard.
+
+**Where to look:**
+- `HttpClientPlugin` `install` blocks
+- `requestPipeline.intercept(...)` lambdas
+- Any `context.headers.append(...)` call where the interceptor could run more than once per logical request
+
+**How to fix:** Replace `append` with `appendIfMissing` for all headers set in interceptors.
+
+```kotlin
+// Bad — duplicates header on retry
+context.headers.append("Authorization", "Bearer $token")
+
+// Good — idempotent, safe on retry
+context.headers.appendIfMissing("Authorization", "Bearer $token")
 ```
 
 ---
@@ -338,13 +373,96 @@ fun handle(event: AppEvent) {
 
 ---
 
+### ViewModel Effect Flow: Exactly One Collector Per Entry Point
+
+**What to look for:** Any ViewModel's `effect` `SharedFlow` being collected by more than one composable or SwiftUI view within the same screen hierarchy.
+
+**Why it's a problem:** Effect flows are declared with `replay=0`. With multiple collectors active simultaneously, each emission is delivered to exactly one subscriber — chosen non-deterministically. The other subscriber silently misses the event. Navigation triggers, snackbars, and dialogs randomly fail to fire. This compiles without warnings and appears correct in code review.
+
+**Verification step:** Grep for `.effect.` (or `.effects.`) collectors in the screen's composable tree. If the count is > 1 within the same screen hierarchy, flag CRITICAL.
+
+```bash
+# Example: find all effect collectors for a screen
+grep -r "\.effect\." --include="*.kt" shared/src/
+grep -r "\.effects\." --include="*.kt" shared/src/
+```
+
+**How to fix:** Consolidate to one collector at the topmost entry-point composable. Child composables receive effects via callback parameters from the parent collector, never by subscribing themselves.
+
+---
+
+### MutableStateFlow Field Must Never Be Reassigned
+
+**What to look for:** Any `_state` or `_uiState` field typed as `MutableStateFlow` being reassigned (e.g., `_state = someFlow.stateIn(...)`), or `KMMViewModel.set(flow)` (or equivalent) calls that replace the `_state` reference entirely.
+
+**Why it's a problem:** UI collectors bind to the original `MutableStateFlow` instance at composition time. Reassigning `_state` to a new instance means UI collectors hold a dead reference to the old flow — they never receive updates from the new one. The screen appears frozen with stale state.
+
+**Where to look:**
+- ViewModel `init {}` blocks that call `set(flow)` or assign `_state = ...`
+- Any BaseViewModel helper that wraps a source flow by replacing the backing field
+
+**How to fix:** Collect into the existing instance; never replace the reference.
+
+```kotlin
+// Bad — replaces _state; existing collectors hold a dead reference
+init {
+    _state = someFlow.stateIn(viewModelScope, SharingStarted.Eagerly, State())
+}
+
+// Good — feeds into the existing instance; collectors stay live
+init {
+    viewModelScope.launch {
+        someFlow.collect { _state.value = it }
+    }
+}
+```
+
+---
+
+### Mutable State Not Cleared on Error Paths
+
+**What to look for:** `setError` / `setStateError` / equivalent error-path handlers in a migrated ViewModel that only update the UI error state but leave other mutable backing fields (PIN buffers, OTP strings, auth tokens, session identifiers) unchanged.
+
+**Why it's a problem:** When the user retries after an error, those stale fields are reused in the next CTA click — sending stale PIN/OTP/token to the backend. The bug manifests only on the second attempt after an error, making it hard to reproduce in happy-path testing.
+
+**Audit rule:** For every `setError` call in a migrated ViewModel, verify it explicitly clears ALL mutable backing fields that were populated before the failed operation — not just the UI error indicator.
+
+```kotlin
+// Bad — error state set, but _pin and _otp survive to next attempt
+fun onSubmitFailed(error: Throwable) {
+    setError(error)
+}
+
+// Good — error state set, mutable fields cleared for clean retry
+fun onSubmitFailed(error: Throwable) {
+    setError(error)
+    _pin.value = ""
+    _otp.value = ""
+    _sessionToken.value = null
+}
+```
+
+---
+
+### API Response Fields Not Fully Persisted After Migration
+
+**What to look for:** API response objects (login, registration, biometric auth) where the original Android code persisted multiple fields to storage (preferences, DB, session store) but the migrated shared ViewModel only persists a subset.
+
+**Why it's a problem:** The missing fields are silently lost on the first network round-trip. Downstream features that read those fields (e.g., biometric re-auth, personalization, audit logging) fail with null/empty values in ways that are not immediately obvious — no crash, just wrong data.
+
+**Audit rule:** For every API response type in a migrated ViewModel, trace each field: (1) find all fields persisted in the original Android code, (2) verify each has a corresponding persist call in the migrated VM. Missing persist calls are data-loss bugs.
+
+**Common pattern to grep for:** Find all `.save(`, `.put(`, `preferences.set(`, `store.write(` calls in the original Android ViewModel and verify equivalent calls exist in the migrated code.
+
+---
+
 ## HIGH — Should fix (memory leaks, logic errors, architecture violations)
 
 ---
 
 ### Coroutine Lifecycle Violations
 
-Four variants of the same root cause: coroutine work outliving its intended lifecycle.
+Five variants of the same root cause: coroutine work outliving its intended lifecycle.
 
 **Variant A — Unscoped CoroutineScope (original "leaked scopes"):**
 `CoroutineScope(Dispatchers.IO).launch { }` or `GlobalScope.launch { }` created inline without being stored and cancelled. The scope is never cancelled, so coroutines run until the process dies. On iOS, this causes unbounded memory growth across navigation pushes. Fix: use `viewModelScope`.
@@ -367,6 +485,25 @@ init { jobGroup += viewModelScope.launch { startSync() } }
 override fun handleDispose() {
     super.handleDispose()
     jobGroup.cancelChildren()
+}
+```
+
+**Variant E — Fire-and-forget work cancelled on fast navigation:**
+Original Android code used `GlobalScope.launch { }` for fire-and-forget work (analytics events, server-side recording, audit logging) that must complete regardless of screen lifecycle. Migrating this to plain `viewModelScope.launch { }` is wrong — the scope is cancelled when the user navigates away before the work finishes.
+
+Fix: use `viewModelScope.launch(NonCancellable) { }` for any work that must survive scope cancellation.
+
+**Generalization:** If a coroutine must complete regardless of screen lifecycle, it needs `NonCancellable`. Plain `viewModelScope.launch` is correct for UI-driven work that should stop on navigation; it is wrong for analytics, audit trails, and server-side state mutations where partial completion causes data inconsistency.
+
+```kotlin
+// Bad — cancelled on fast back navigation, analytics event lost
+fun onPurchaseComplete(orderId: String) {
+    viewModelScope.launch { analyticsRepository.recordPurchase(orderId) }
+}
+
+// Good — survives scope cancellation, event always delivered
+fun onPurchaseComplete(orderId: String) {
+    viewModelScope.launch(NonCancellable) { analyticsRepository.recordPurchase(orderId) }
 }
 ```
 
