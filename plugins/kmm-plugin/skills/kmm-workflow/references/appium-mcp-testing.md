@@ -32,12 +32,24 @@ Key tools available through the MCP server:
 
 One appium-mcp session per platform per test run. No manual port allocation, no device-slot JSON file, no Appium server start/stop.
 
+**Pre-flight (step 0) — kill zombie Appium processes before starting:**
+```bash
+# Crashed sessions leave port bindings that silently corrupt new sessions
+lsof -ti tcp:4723 | xargs kill -9 2>/dev/null || true
+adb forward --remove-all
+```
+
 ```
 1. select_platform → "android" or "ios"
 2. select_device → target emulator serial or simulator UDID
 3. create_session → returns session ID (handles server lifecycle internally)
 4. ... run tests ...
 5. delete_session → cleanup
+```
+
+**Appium server environment:** When restarting the Appium server manually, always forward `ANDROID_HOME` and `PATH` explicitly. A restarted server loses inherited env vars, causing adb failures that appear as device connection issues.
+```bash
+ANDROID_HOME=$ANDROID_HOME PATH=$PATH appium --port 4723
 ```
 
 Record device identifiers in PLAN.md header:
@@ -58,6 +70,7 @@ The core testing protocol for KMM migrations. Ensures 100% visual + functional p
    - Navigate to the screen using vision-based element finding
    - Take screenshot via `appium_screenshot`
    - Store in `e2e-tests/screenshots/android/master/<screen-name>.png`
+   - **Spot-check immediately:** visually confirm the screenshot shows the correct screen (not a login screen, splash, or blank state). Silent login-screen baselines invalidate the entire comparison phase. Do not proceed to the next screen until confirmed.
 5. Delete session, clean up temp worktree
 6. Write master commit SHA to `e2e-tests/screenshots/android/master/.cache-key`
 
@@ -76,6 +89,10 @@ The core testing protocol for KMM migrations. Ensures 100% visual + functional p
 3. Navigate same screens, take screenshots
 4. Store in `e2e-tests/screenshots/ios/migrated/<screen-name>.png`
 5. Delete session
+
+**iOS-specific notes:**
+- CMP text field locators must include `XCUIElementTypeTextView` — standard `XCUIElementTypeTextField` will miss Compose-backed inputs.
+- Mock server URL is passed via ProcessInfo launch arguments (`-appiumTest`), not build flavors. Build flavor overrides are inert on iOS shared modules; use the launch arg approach to route to the test server.
 
 ### 4.4 Comparison Matrix
 
@@ -119,7 +136,16 @@ For each platform-stay screen in migration-guide.md:
 4. **Verify flows** — for each item in the Flows field, trigger the action and confirm the flow fires (e.g., tap submit → verify success screen appears)
 5. **Verify UI branches** — for each item in the UI Branches field, trigger the condition and verify the correct branch renders
 
-### 5.2 Interactive Element Audit
+### 5.2 E2E Wiring Checklist
+
+Before running any functional verification, confirm the test build is correctly wired:
+
+1. **HTTP client factory** — verify it routes to the test/mock server URL under the E2E test variant, not the production endpoint.
+2. **BuildKonfig flavors in shared modules are inert** — they do not propagate to shared KMM modules. Use runtime DI overrides (inject mock base URL via constructor/factory) rather than build variant constants for any shared module that needs to talk to a mock server.
+
+Skipping this check is a common source of E2E tests that pass structurally but hit real production endpoints.
+
+### 5.3 Interactive Element Audit
 
 For thorough screen verification:
 1. Take initial screenshot
@@ -167,7 +193,16 @@ Common blockers: OTP/SMS verification, biometric prompts, payment gateway, KYC/i
 - 3 crash recoveries per screen
 - After exhausting retries → escalate to user with screenshots and findings
 
-## 8. What appium-mcp Catches vs Doesn't
+## 8. Known Limitations
+
+These are confirmed platform or tooling constraints — not bugs to chase.
+
+| Issue | Symptom | Workaround |
+|-------|---------|------------|
+| CMP Compose `send_keys` drops characters | Text input via `send_keys` or `input text` silently drops characters in Compose-backed text fields | Use keycode-based input — send characters one-by-one via Android keycodes instead of string dispatch |
+| UiAutomator2 crash during Lottie splash | Driver crashes or returns null hierarchy immediately after app launch when a Lottie animation plays | Wait **15–18 seconds** after launch before any interaction. This is a Lottie/UiAutomator2 timing issue, distinct from Appium server startup delay |
+
+## 9. What appium-mcp Catches vs Doesn't
 
 ### Catches
 - **Visual regressions** — layout shifts, missing elements, wrong colors (via Claude Vision)
@@ -184,7 +219,7 @@ Common blockers: OTP/SMS verification, biometric prompts, payment gateway, KYC/i
 - Animation quality (screenshots are static frames)
 - Accessibility compliance (no contrast/touch-target auditing)
 
-## 9. Integration with Verification Pipeline
+## 10. Integration with Verification Pipeline
 
 appium-mcp E2E is step 5 in the verification pipeline:
 
@@ -197,7 +232,7 @@ appium-mcp E2E is step 5 in the verification pipeline:
 
 Steps 1-4 run first (fast, deterministic, zero tokens). Step 5 runs only after steps 1-4 pass. Step 6 is the final gate before handoff.
 
-## 10. Rules
+## 11. Rules
 
 - Do NOT generate YAML flow files — Claude drives appium-mcp directly
 - Do NOT use appium_driver.py — it no longer exists
@@ -209,3 +244,4 @@ Steps 1-4 run first (fast, deterministic, zero tokens). Step 5 runs only after s
 - Always run deterministic checks (steps 1-4) BEFORE appium-mcp E2E
 - Always delete sessions after testing (`delete_session`)
 - Record all findings in findings.md, not just in conversation
+- Once Android E2E passes fully, treat those test cases as the specification. iOS test failures mean fix iOS, not modify assertions.
