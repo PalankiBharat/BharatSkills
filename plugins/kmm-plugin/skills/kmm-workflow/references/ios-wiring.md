@@ -740,6 +740,19 @@ case .openMyNewScreen(let e):
 
 Missing any step causes silent failures: the destination exists but is never reachable, or is reachable but renders nothing.
 
+### SharedRoute Completeness Verification
+
+After defining all `SharedRoute` variants in Kotlin, grep for every variant and verify each has an **explicit `case`** in the Swift `AppRouter` (or equivalent route-mapping switch):
+
+```bash
+# Find all SharedRoute variants
+grep -rn "sealed\|data class\|data object\|object " shared/src/commonMain/.../SharedRoute.kt
+```
+
+Then inspect the Swift router switch and confirm every variant appears by name — not covered by `default:`.
+
+**Rule:** `default:` in Swift route switches silently swallows unhandled routes. There is no compile-time warning, no runtime crash, and no log — the navigation action simply does nothing. Use exhaustive switches (no `default:`) whenever the router covers a sealed type, so new routes cause a compile error rather than a silent no-op.
+
 ### PBXFileSystemSynchronizedRootGroup (Xcode 16+)
 If the project uses `PBXFileSystemSynchronizedRootGroup`, new .swift files are auto-discovered — no manual `PBXBuildFile`, `PBXFileReference`, or `PBXGroup` entries needed. Check `project.pbxproj` for this group type before planning manual registration tasks.
 
