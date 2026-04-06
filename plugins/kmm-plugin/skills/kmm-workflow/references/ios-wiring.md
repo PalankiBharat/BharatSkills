@@ -28,11 +28,12 @@ Do not rediscover — use the manifest.
    - [Dialogs and Sheets](#dialogs-and-sheets)
    - [Fragment / XML → SwiftUI](#fragment--xml--swiftui)
 4. [SKIE Interop (StateFlow, sealed, suspend→async)](#4-skie-interop)
-5. [Screen Template + Effect Handling](#5-screen-template--effect-handling)
-6. [Navigation & pbxproj Registration](#6-navigation--pbxproj-registration)
-7. [Build & Runtime Verification](#7-build--runtime-verification)
-8. [iOS Gotchas](#8-ios-gotchas)
-9. [REQUIRES_APPROVAL Triggers](#9-requires_approval-triggers)
+5. [Kotlin/Native CF Interop](#5-kotlinnative-cf-interop)
+6. [Screen Template + Effect Handling](#6-screen-template--effect-handling)
+7. [Navigation & pbxproj Registration](#7-navigation--pbxproj-registration)
+8. [Build & Runtime Verification](#8-build--runtime-verification)
+9. [iOS Gotchas](#9-ios-gotchas)
+10. [REQUIRES_APPROVAL Triggers](#10-requires_approval-triggers)
 
 ---
 
@@ -68,6 +69,7 @@ In `iosApp/src/.../di/` (or equivalent):
 - Add `initKoin()` call in `AppDelegate` or `@main` entry
 - Register shared module classes: `single { LoginRepository() }`, etc.
 - Match Android Koin declarations exactly — same classes, same scopes
+- Wire platform callbacks on shared components (e.g., `onSessionExpired`) — see [Section 9](#9-ios-gotchas) for the logged-in guard requirement
 
 #### Step 3 — Wire Navigation
 
@@ -77,7 +79,7 @@ In `iosApp/src/.../di/` (or equivalent):
 
 #### Step 4 — Register New Files in pbxproj
 
-Every new `.swift` file must be added to the Xcode project (see [Section 6](#6-navigation--pbxproj-registration) for full details):
+Every new `.swift` file must be added to the Xcode project (see [Section 7](#7-navigation--pbxproj-registration) for full details):
 
 ```bash
 # Verify registration after adding files
@@ -100,7 +102,7 @@ Failures: check `findings.md` Known Fixes first, then 3-strike rule.
 
 #### Step 6 — Runtime Verify
 
-See [Section 7](#7-build--runtime-verification) for the full verification protocol.
+See [Section 8](#8-build--runtime-verification) for the full verification protocol.
 
 #### Step 7 — Appium Automated Flow Tests (iOS)
 
@@ -573,7 +575,45 @@ The original Kotlin enum is accessible in Swift with a `__` prefix (`__Occupatio
 
 ---
 
-## 5. Screen Template + Effect Handling
+## 5. Kotlin/Native CF Interop
+
+When KMM shared code exposes APIs that work with CoreFoundation types (certificates, keys, data buffers), use typed CF APIs on the Swift side. Never use `as`/`as?` casts or `CFBridgingRelease` for CF types — they produce type-erased `Any?` and obscure pointer ownership, leading to memory safety bugs and runtime crashes.
+
+### Rules
+
+- Use `CFDataGetBytePtr()` and `CFDataGetLength()` to read CF data buffers — never cast to `NSData`.
+- Use `NSData.dataWithBytes(_:length:)` to produce `NSData` from a raw pointer.
+- Use `.reinterpret<T>()` for typed Kotlin/Native pointer conversions (e.g., `CPointer<ByteVar>` → typed pointer).
+- Declare output variables with typed pointer vars: `val keyRef = CPointerVar<__SecKey>()` — not `val keyRef: Any?`.
+- `CFBridgingRelease` returns `Any?` and breaks type inference downstream. Avoid it entirely.
+
+### Pattern
+
+```swift
+// WRONG — type-erased, ownership unclear
+let data = CFBridgingRelease(cfData) as? NSData
+
+// CORRECT — typed, ownership explicit
+let ptr = CFDataGetBytePtr(cfData)
+let len = CFDataGetLength(cfData)
+let data = NSData(bytes: ptr, length: len)
+```
+
+```kotlin
+// WRONG — untyped output var
+val keyOut: Any? = null
+
+// CORRECT — typed output var with reinterpret
+val keyOut = nativeHeap.alloc<CPointerVar<__SecKey>>()
+SecItemCopyMatching(query, keyOut.ptr.reinterpret())
+val key: SecKeyRef? = keyOut.value
+```
+
+CF pointer ownership follows standard CF rules (Create Rule / Get Rule). `.reinterpret<T>()` does not transfer ownership — manage retain/release explicitly or use `CFAutorelease`.
+
+---
+
+## 6. Screen Template + Effect Handling
 
 ### Standard Screen Template
 
@@ -701,7 +741,7 @@ If you only subscribe to `effect` and navigation uses `navigationEvents`, the sc
 
 ---
 
-## 6. Navigation & pbxproj Registration
+## 7. Navigation & pbxproj Registration
 
 ### Navigation Wiring Checklist
 
@@ -749,9 +789,31 @@ After defining all `SharedRoute` variants in Kotlin, grep for every variant and 
 grep -rn "sealed\|data class\|data object\|object " shared/src/commonMain/.../SharedRoute.kt
 ```
 
-Then inspect the Swift router switch and confirm every variant appears by name — not covered by `default:`.
+Then inspect the Swift router switch and confirm every variant appears **by name** — not covered by `default:`.
 
-**Rule:** `default:` in Swift route switches silently swallows unhandled routes. There is no compile-time warning, no runtime crash, and no log — the navigation action simply does nothing. Use exhaustive switches (no `default:`) whenever the router covers a sealed type, so new routes cause a compile error rather than a silent no-op.
+**NEVER use `default:` in route switches.** It silently swallows all unhandled routes — no compile-time warning, no runtime crash, no log output. Navigation actions simply do nothing. In practice, a single `default:` fallthrough can silently drop a large number of routes (12 routes fell through to a placeholder in one incident). Use a concrete fallback for genuinely unimplemented routes instead:
+
+```swift
+// WRONG — silently drops every unhandled route, including future ones
+switch onEnum(of: route) {
+case .home: router.push(.home)
+default: break  // swallows ALL unimplemented routes
+}
+
+// CORRECT — explicit case per variant, concrete fallback for unimplemented
+switch onEnum(of: route) {
+case .home: router.push(.home)
+case .settings: router.push(.settings)
+case .profile: router.push(.dashboard)  // not yet implemented — explicit, visible
+// adding a new SharedRoute variant now causes a compile error here
+}
+```
+
+**Checklist:**
+1. Count `SharedRoute` variants in Kotlin (grep sealed subclasses).
+2. Count explicit `case` entries in the Swift router switch.
+3. Numbers must match — if they don't, find and add the missing cases.
+4. Any unimplemented route gets a concrete `.dashboard` (or equivalent) fallback with a `// TODO:` comment — not `default:`.
 
 ### PBXFileSystemSynchronizedRootGroup (Xcode 16+)
 If the project uses `PBXFileSystemSynchronizedRootGroup`, new .swift files are auto-discovered — no manual `PBXBuildFile`, `PBXFileReference`, or `PBXGroup` entries needed. Check `project.pbxproj` for this group type before planning manual registration tasks.
@@ -808,7 +870,7 @@ xcodebuild -list -project iosApp/iosApp.xcodeproj
 
 ---
 
-## 7. Build & Runtime Verification
+## 8. Build & Runtime Verification
 
 ### iOS Build
 
@@ -844,7 +906,7 @@ For each screen:
 
 ---
 
-## 8. iOS Gotchas
+## 9. iOS Gotchas
 
 **pbxproj registration** — New `.swift` files not added to the Xcode project are silently ignored at edit time but fail at build time. Always verify after adding files.
 
@@ -900,6 +962,23 @@ import Combine  // still needed for Publishers.keyboardHeight
 
 Check all usages of Combine in the file before removing the import.
 
+**Session expiry callback — logged-in guard required** — When wiring `onSessionExpired` to the platform's session-expiry mechanism (e.g., `UserModel.setSessionExpired()`), always add a logged-in guard: only fire when the user has a non-empty token. During login, a 401 response means wrong credentials — not an expired session. Without the guard, a failed login attempt incorrectly triggers session expiry, corrupting app state.
+
+```swift
+// WRONG — fires during login on wrong-password 401
+viewModel.onSessionExpired = {
+    UserModel.shared.setSessionExpired()
+}
+
+// CORRECT — guarded, only fires for authenticated users
+viewModel.onSessionExpired = { [weak self] in
+    guard let token = UserModel.shared.token, !token.isEmpty else { return }
+    UserModel.shared.setSessionExpired()
+}
+```
+
+Both platforms ship with `onSessionExpired = {}` (empty no-op) by default. Verify both Android and iOS are wired — a missing wire is silent (no crash, no log).
+
 **Nested dot notation for sealed subtypes** — Sealed class subtypes in Swift use nested dot notation, not flat names.
 
 ```swift
@@ -942,7 +1021,7 @@ When the SwiftUI wrapper uses `.ignoresSafeArea(.all)`, CMP composables get the 
 
 ---
 
-## 9. REQUIRES_APPROVAL Triggers
+## 10. REQUIRES_APPROVAL Triggers
 
 - Screen strategy differs from `migration-guide.md` assignment (CMP vs SwiftUI vs Hybrid)
 - New iOS-only UI not present in Android (adds behavior not in scope)

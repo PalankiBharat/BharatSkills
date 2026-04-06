@@ -46,7 +46,7 @@ Any behavioral change → REQUIRES_APPROVAL.
 
 ## On Invocation — Always Ask
 
-On ANY invocation, always ask: Create / Continue / Improve / Audit. Never auto-resume. Never assume.
+On ANY invocation, always ask: Create / Continue / Improve / Verify / Audit. Never auto-resume. Never assume.
 
 - **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md, PROGRESS.md, migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. Write session marker. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
 - **Continue** → if exactly one non-stale gameplan exists, auto-resume it (report: "Resuming <name> — Phase N: <description>. Say STOP to switch."). If multiple gameplans exist, list all with status, user picks. Write session marker → read PLAN.md + PROGRESS.md → verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`) → continue from last checkpoint.
@@ -58,6 +58,11 @@ On ANY invocation, always ask: Create / Continue / Improve / Audit. Never auto-r
   If devices unavailable: Layers 1-2 run fully, Layer 3 reports warning. Always gets useful results.
   Detects existing gameplan state (v6 / pre-v6 / none), upgrades or reverse-engineers migration-guide.md.
   See `references/verify-protocol.md`.
+- **Audit** → takes a PR URL or branch name. Standalone post-merge/post-PR review — no gameplan needed. Reverse-engineers context from the PR diff + affected files. Runs the same 3-layer verification as Verify but with focused context (only loads diff, not full migration history). Classifies each finding as:
+  - **BUG** — introduced by the migration, must fix
+  - **PRE-EXISTING** — was broken before migration, document but don't block
+  - **INTENTIONAL** — deliberate change, document rationale in findings.md
+  Generates fixes for BUG findings by severity (CRITICAL first), commits & pushes. Reports summary table of all findings with classification.
 - On completion (all phases done + committed): delete session marker.
 
 ## Workflow
