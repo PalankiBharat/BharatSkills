@@ -38,6 +38,9 @@ Every field checked by session-validity predicates (`isLoggedIn()`, `isTokenExpi
 
 **Why:** Partially-saved sessions (token written, expiry not) cause silent logout on cold restart.
 
+### Known False Positives
+- **iOS NSURLSession handles gzip/deflate transparently at the OS level.** A missing `ContentEncoding` plugin in the Ktor iOS engine is NOT a parity gap — Darwin handles decompression natively. Do not flag this during cross-platform parity checks.
+
 ---
 
 ## Resources & Assets

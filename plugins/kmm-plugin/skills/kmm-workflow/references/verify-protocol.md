@@ -6,11 +6,8 @@ Invoked via `/kmm-workflow verify <module>`.
 ## Entry Point
 
 On `verify` invocation:
-1. Ask: which module? which branch has the migrated code?
-2. Detect gameplan state:
-   - **Path A (v6+ gameplan):** `~/dev/gameplans/<name>/` has PLAN.md with "Platform APIs:" field → use directly
-   - **Path B (pre-v6 gameplan):** gameplan exists but missing v6 fields → upgrade migration-guide.md first
-   - **Path C (no gameplan):** reverse-engineer migration-guide.md from code (see Section 2b below)
+1. Ask: which module? which branch?
+2. Detect gameplan state (see Gameplan Detection below)
 3. Create worktree for verification work
 
 ## Gameplan Detection
@@ -60,22 +57,7 @@ Create `~/dev/gameplans/<module-name>/` with:
 
 1. **Identify migrated files** — scan `shared/src/commonMain/` for the module. List every file that was migrated.
 2. **Identify consumers** — grep the Android and iOS app code for imports from the shared module. Map which consumers use which shared files.
-3. **Build migration-guide.md** — one entry per migrated file, all 15 fields populated by reading the current code:
-   - Source: reconstruct from git history or package structure
-   - Target: current path in commonMain
-   - Classification: infer from file type and location
-   - Public API: read current public methods
-   - Platform APIs: grep for remaining Android-only APIs
-   - Swaps: infer from import statements (Ktor = was Retrofit, Koin = was Hilt, etc.)
-   - Breaking changes: diff against git history if available
-   - Callbacks: scan for lambda params
-   - Expected tests: count public methods
-   - Serialization: scan for serialization annotations
-   - expect/actual: check if file has expect/actual declarations
-   - Migrate after: infer from import dependencies
-   - Consumers: from Step 2
-   - Rules: "none (verify mode)"
-   - Decisions: "pre-v6 migration, rationale not recorded"
+3. **Build migration-guide.md** — one entry per migrated file, all 15 fields populated using the same enrichment logic as Step 2a (infer from code, git history, and import statements)
 4. **Write PLAN.md** — verify mode header, module context, verification-only phases
 5. **Write findings.md** — empty Decisions table, Known Fixes from git blame if available
 6. **Generate parity-check.sh** — from actual module structure
@@ -90,8 +72,8 @@ Fast, deterministic checks that catch structural issues.
 
 ### 1.1 Anti-Pattern Scan
 Dispatch auditor agent (agent-prompts/auditor.md) — scans for:
-- CRITICAL: runBlocking on main, TODO() in production, type casts, hardcoded secrets
-- HIGH: leaked CoroutineScopes, force unwraps, redundant Flow wrappers, wrong Koin scopes
+- CRITICAL: runBlocking on main, TODO() in production, type casts, hardcoded secrets, connections in `LaunchedEffect(Unit)` or `onCreate` without lifecycle-aware reconnect (if original had lifecycle handling and migration removed it)
+- HIGH: leaked CoroutineScopes, force unwraps, redundant Flow wrappers, wrong Koin scopes, connections in `LaunchedEffect(Unit)` or `onCreate` without lifecycle-aware reconnect (if original had same pattern — PRE-EXISTING)
 - MEDIUM: dual base classes, duplicated patterns, hardcoded strings
 Auto-fix CRITICAL and straightforward HIGH. Escalate non-trivial items.
 
@@ -99,16 +81,17 @@ Auto-fix CRITICAL and straightforward HIGH. Escalate non-trivial items.
 Run the project's generated parity-check.sh (10 static checks). All must pass.
 
 ### 1.3 Cross-Platform Parity
-Read `references/cross-platform-parity.md`. Verify:
-- SDK initialization on both platforms
-- Route mapping completeness
-- String literal preservation
-- Callback wiring
-- Session persistence
+Run the full checklist from `references/cross-platform-parity.md` (SDK init, routing, strings, callbacks, session persistence).
 
 ### 1.4 Phase Checklists
 Run Phase 4 + Phase 5 checklists from `references/phase-checklists.md`. All items must pass.
 Skip items that are build/commit related (those are for active migration, not verification).
+
+### 1.5 Behavioral Diff Review
+For each RENAMED or MODIFIED file in the migration diff (`git diff master...HEAD --name-status`):
+- Compare old vs new behavior: proto/JSON parsing, date conversions, concurrency model, error handling, dispatch context
+- Flag any observable behavioral difference as BUG (logic changes are not pattern violations — anti-pattern scan won't catch them)
+- Auto-classify: was the behavioral change intentional (documented in findings.md Decisions section) or accidental?
 
 **Layer 1 output:** `LAYER_1: passed: N/N | blockers: N | high: N`
 
@@ -151,12 +134,25 @@ For every if/when/switch in Android UI that controls visibility/rendering:
 
 Runtime verification using appium-mcp.
 
-### 3.0 Environment Check
+### 3.0 Environment & Device Selection
 Check prerequisites:
 - `which appium` → installed?
 - `npx appium-mcp@latest --version` → appium-mcp available?
 - `appium driver list --installed` → uiautomator2, xcuitest present?
 If any missing → **skip Layer 3 with explicit warning**, report Layers 1-2 results only.
+
+**Device targeting (mandatory):**
+1. List available devices: `adb devices` (Android), `xcrun simctl list devices available` (iOS)
+2. Present the list to the user — ask which device(s) to target
+3. Use ONLY the selected device(s) for all subsequent appium-mcp sessions
+4. Never assume physical vs emulator — always ask
+
+### 3.0.1 Manual Test Checklist Generation
+Before device testing begins, auto-generate a structured manual test checklist:
+1. Extract breaking changes from migration-guide.md
+2. Extract SDK API surface changes from findings.md
+3. Present the checklist to the user — ask which items they will test manually vs which automation should cover
+4. Exclude user-claimed items from automated verification to avoid redundant work
 
 ### 3.1 Session Setup
 - Boot emulator and/or simulator
@@ -185,7 +181,14 @@ Follow `references/appium-mcp-testing.md` Section 5:
 
 ## Unified Report
 
-After all layers complete, present findings grouped by severity:
+After all layers complete, **auto-classify each finding** before presenting:
+1. For each finding, run `git show master:<path>` to check if the issue existed pre-migration
+2. Classify as:
+   - **NEW** — introduced by the migration (blocks merge)
+   - **PRE-EXISTING** — existed before migration (document, don't block)
+   - **INTENTIONAL** — deliberate change documented in findings.md Decisions section (document rationale)
+
+Present findings grouped by severity, with classification on each:
 
 ```
 ## Verify Report: <module>
@@ -196,17 +199,19 @@ After all layers complete, present findings grouped by severity:
 - Layer 3 (Device): X/Y screens passed [or SKIPPED — devices unavailable]
 
 ### BLOCKERS (must fix before handoff)
-- [list each BLOCKER with file:line, description, suggested fix]
+- [NEW/PRE-EXISTING] file:line — description — suggested fix
 
 ### HIGH (should fix before handoff)
-- [list each HIGH finding]
+- [NEW/PRE-EXISTING] file:line — description
 
 ### MEDIUM (consider fixing)
-- [list each MEDIUM finding]
+- [NEW/PRE-EXISTING/INTENTIONAL] file:line — description
 
 ### PASS
 - [list what passed]
 ```
+
+Only NEW findings block merge. PRE-EXISTING findings are documented for future cleanup.
 
 Wait for user approval before proceeding to fixes.
 
@@ -215,10 +220,10 @@ Wait for user approval before proceeding to fixes.
 ## Fix Protocol
 
 If the user says "fix", follow the understand-first protocol from `references/agent-protocol.md`:
-1. Read master (original Android code)
+1. Read master (original Android code) — `git show master:<path>` to check original patterns (dispatchers, concurrency, error handling)
 2. Read current migrated implementation
-3. Identify the specific delta
-4. Fix the root cause
+3. Identify the specific delta — fix must match original behavioral intent, not just compile
+4. Fix the root cause (e.g., for Dispatchers.IO in commonMain: `import kotlinx.coroutines.IO`, not a custom wrapper)
 5. Re-run the failing check to verify
 
 Max 3 fix attempts per finding. After 3 failures → REQUIRES_APPROVAL.
