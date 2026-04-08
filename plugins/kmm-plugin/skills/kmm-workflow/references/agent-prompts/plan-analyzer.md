@@ -42,6 +42,7 @@ Why: <reasoning>
 - No field is left blank, "TBD", or "if needed"
 - Every decision point is resolved — no open questions remain in migration-guide.md
 - After `/clear`, only files survive; any decision still only in chat is a gap
+- Verify each Source path actually exists on disk — a Source field pointing to a non-existent file is a BLOCKER
 
 ### 4. TDD Flow Documented Per File
 - Every file in Phase C (shared migration) has its TDD flow documented: staged androidMain path, test file path, and expected test count
@@ -143,6 +144,7 @@ The plan must contain all five phases in order. Flag any missing phase as a GAP:
   - Grep the SOURCE file for known problematic APIs: Dispatchers.IO, @Synchronized, String.format(), System.currentTimeMillis(), java.util.UUID, android.util.Log, java.net.URL, Thread.sleep, runBlocking
   - Every hit must appear in the file's "Platform APIs" field
   - Missing API in field → BLOCKER (migrator will hit it and improvise)
+  - Any batch of 3+ consecutive entries where "Platform APIs: none" → flag as MEDIUM — pattern indicates files were not individually read
 
 ### 20. Expected Test Count Validation
 - For each file: count public methods in the source

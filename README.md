@@ -13,7 +13,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
 | `bug-finder` | 1.0.0 | Evidence-based bug/crash root cause diagnosis — flow mapping, hypothesis formation, log verification, root cause report |
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
-| `kmm-plugin` | 6.4.1 | Battle-tested KMM migration orchestrator — 5-phase workflow with TDD, parallel agent teams, static parity analysis, verify-first Appium, enriched migration guide, integrated self-improvement |
+| `kmm-plugin` | 6.4.2 | Battle-tested KMM migration orchestrator — 5-phase workflow with TDD, parallel agent teams, static parity analysis, verify-first Appium, enriched migration guide, integrated self-improvement |
 
 ## Installation
 
