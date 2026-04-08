@@ -640,6 +640,11 @@ val bottomPanelModule = module { ... }
 val loginModule = module { includes(bottomPanelModule) }
 ```
 
+### expect class + actual typealias Modality Mismatch
+- `expect class` cannot be satisfied by `actual typealias` when the aliased type has different modality (e.g., an open/abstract Android class). Compiler reports: "actual and expect declarations have different modalities."
+- Fix: Use `actual class` with an internal wrapper field instead of `actual typealias` for Android SDK types.
+- Preferred: Use DI injection (Koin) or interface + `expect fun` factory to avoid the modality problem entirely.
+
 ---
 
 ## Process Gotchas

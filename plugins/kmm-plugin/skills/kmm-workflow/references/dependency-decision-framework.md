@@ -28,9 +28,10 @@ When migrating an Android SDK to KMM, every Android-only dependency needs a deci
 | **SharedPreferences** | Replace | multiplatform-settings (`com.russhwolf:multiplatform-settings`) | Standard KMM key-value storage. Wraps SharedPrefs (Android) and NSUserDefaults (iOS). No expect/actual needed. **Consumer note:** When the SDK uses multiplatform-settings internally and the consumer DI module creates `SharedPreferencesSettings` (Android) or `NSUserDefaultsSettings` (iOS), the consumer needs an explicit `implementation("com.russhwolf:multiplatform-settings:1.2.0")` dependency. The SDK's transitive dep exposes the `Settings` interface but not the platform-specific factory classes (`SharedPreferencesSettings`, `NSUserDefaultsSettings`). |
 | **ObjectBox** | Abstract | expect/actual interface + Koin injection | No KMM support. Separate SDKs exist for Android (Kotlin) and iOS (Swift). Bridge pattern: Kotlin interface in commonMain, Android impl wraps ObjectBox-Android, iOS impl delegates to Swift ObjectBox via Koin-injected bridge. |
 | **Room** | Replace | Room KMP (2.7+) or SQLDelight | Room has official KMP support since 2.7. SQLDelight is the alternative. |
+| **AndroidX ViewModel (< 2.8.0)** | Replace (upgrade) | `androidx.lifecycle:lifecycle-viewmodel` 2.8.7+ | KMP-native since 2.8.0; ViewModel + viewModelScope work directly in commonMain. No expect/actual needed. Just upgrade. **Artifact disambiguation:** Use `androidx.lifecycle:lifecycle-viewmodel`, NOT `org.jetbrains.androidx.lifecycle:lifecycle-viewmodel` (JetBrains repackaged variant with different versioning). |
 | **Retrofit + OkHttp** | Replace | Ktor Client | Platform engines via expect/actual (CIO/Android for Android, Darwin for iOS). |
 | **RxJava** | Replace | kotlinx-coroutines + Flow | Standard KMM reactive. |
-| **Hilt/Dagger** | Replace | Koin | KMM-compatible. When migrating a library consumed by a Hilt app: keep Hilt in the app, add Koin alongside for the library's types, bridge via small module. |
+| **Hilt/Dagger** | Replace | Koin | KMM-compatible. When migrating a library consumed by a Hilt app: keep Hilt in the app, add Koin alongside for the library's types, bridge via small module. **Kotlin/Native warning (non-blocking):** Koin 4.0 and kotlinx-serialization reference `kotlin.uuid.Uuid` internally. On Kotlin 2.0.x, iOS native compilation emits warnings like "Unresolved reference: kotlin.uuid.Uuid." Informational only — no build failures or runtime crashes. Resolves on Kotlin 2.1+. |
 | **Android Log** | Replace | Custom Logger or Napier/Kermit | Use existing Logger if project has one, otherwise Napier. |
 | **java.util.UUID** | Replace | `kotlin.uuid.Uuid` (Kotlin 2.0+) | Built into Kotlin stdlib. |
 | **org.json.JSONObject/JSONArray** | Replace | `kotlinx.serialization.json.JsonObject/JsonArray` | Already in most KMM projects. |
@@ -38,14 +39,16 @@ When migrating an Android SDK to KMM, every Android-only dependency needs a deci
 | **Dispatchers.IO** | Keep | `Dispatchers.IO` (with `import kotlinx.coroutines.IO`) | Available on JVM + Native targets since coroutines 1.7.0. Extension property on Native — requires explicit import. NOT available on JS/Wasm. Do NOT replace with `Dispatchers.Default`. |
 | **External AAR SDK (no KMM)** | Replace (if KMM exists) or Abstract | Ask user if a KMM/KMP version of the SDK exists (check for KMM branches in the SDK repo). If yes: replace with the KMM version before Phase 4 to avoid building throwaway Android bridge adapters. If no: Abstract with expect/actual interface. | Before building Android-only bridge adapters, always confirm KMM availability with the user — building adapters then discovering a KMM version exists means double work. |
 
-## Coroutines version guidance
+## Coroutines and KMM library version guidance
 
-Always check if upgrading kotlinx-coroutines unlocks APIs needed in commonMain:
-- **1.9.0+**: Latest stable with full Native support
-- **1.8.0+**: Improved Native coroutine support
-- **1.7.0+**: New Kotlin/Native memory model (fixes threading issues)
+These libraries version-lock with kotlin-stdlib — mixing causes KLIB ABI errors at iOS link time. Before choosing versions in Phase 2 SCAFFOLD, confirm the project's Kotlin version:
 
-**`Dispatchers.IO` on Native:** Available since 1.7.0 as an **extension property** — requires `import kotlinx.coroutines.IO` (IDE may not auto-suggest it). Works on JVM + Native targets. NOT available on JS/Wasm — use `expect`/`actual` if targeting those. On Native, the IO pool has up to 64 threads (lazily allocated, no elasticity). See `references/platform-api-gotchas.md` for the full platform API reference.
+| Kotlin version | Ktor | kotlinx-coroutines | kotlinx-serialization | kotlinx-datetime |
+|---|---|---|---|---|
+| 2.1+ | 3.x | 1.9.x | 1.8.x | 0.6.x |
+| 2.0.x | 2.3.x | 1.8.x | 1.7.x | 0.6.x |
+
+**`Dispatchers.IO` on Native:** Available since coroutines 1.7.0 as an **extension property** — requires `import kotlinx.coroutines.IO` (IDE may not auto-suggest it). Works on JVM + Native targets. NOT available on JS/Wasm — use `expect`/`actual` if targeting those. See `references/platform-api-gotchas.md` for the full platform API reference.
 
 ## Wire protobuf specifics
 

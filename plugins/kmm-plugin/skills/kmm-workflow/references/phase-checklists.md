@@ -34,6 +34,8 @@ Run after scaffold commit, before Phase 3.
 - [ ] kotlinx-atomicfu added if any migrated file uses @Synchronized or java.util.concurrent
 - [ ] Fakes writable in commonTest for all scaffolded interfaces
 - [ ] build-verify.sh passes (all platforms compile)
+- [ ] .gitignore uses `**/build/` (not `/build`) — KMM adds nested build dirs (shared/build/) that `/build` misses
+- [ ] settings.gradle has `pluginManagement` block with google(), mavenCentral(), gradlePluginPortal() — required for AGP plugin resolution in KMM modules
 - [ ] Checkpoint committed
 
 ## Phase 3: SHARED CODE MIGRATION — Post-Migration Gate
