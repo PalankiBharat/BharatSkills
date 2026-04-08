@@ -191,3 +191,18 @@ GOOD: Read master — crash was due to missing SDK listener registration. Added 
 
 BAD: Left onClick = {} because "parent wasn't obvious."
 GOOD: Traced onClick through 3 composable layers to FundsActivity.onAddFundsClick(). Wired to shared ViewModel action.
+
+## Build Coordination
+
+**Gradle acquires a per-project lock.** Multiple agents running `./gradlew` on the same project deadlock — the second blocks indefinitely. This negates parallelism benefits and causes timeouts.
+
+**Rule: Agents own files, orchestrator owns builds.** Parallel agents are limited to file operations only (read, write, edit). ALL build verification runs as a single serial `./gradlew` call by the orchestrator after all file-op agents complete.
+
+**Orchestration pattern per migration level:**
+```
+[Agent A: file ops] ──┐
+[Agent B: file ops] ──┼──> orchestrator: ./gradlew build
+[Agent C: file ops] ──┘
+```
+
+This is the default execution strategy for Phase 3 level migrations. Never dispatch agents with build commands unless they operate on isolated modules with no shared Gradle project lock.

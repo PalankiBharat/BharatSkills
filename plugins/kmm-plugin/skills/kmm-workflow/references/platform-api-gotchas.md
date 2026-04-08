@@ -32,6 +32,34 @@ APIs that compile on JVM/Android but fail on Kotlin/Native (iOS) or are unavaila
 | CoreFoundation (CF) typed APIs in Kotlin/Native | CF types in K/N interop must use typed CF APIs: `CFDataGetBytePtr()`, `CFDataGetLength()`, `NSData.dataWithBytes()`, `.reinterpret<T>()`, typed output vars (e.g., `CPointerVar<__SecKey>`). Using `as`/`as?` with CF types produces type-erased `Any?`. Using `CFBridgingRelease` risks double-free. | Use `CFAutorelease` or explicit `CFRelease` with ownership tracking. Never cast CF types with `as`/`as?`. |
 | Enum/object property initializers | Property initializers in `enum` constants and `companion object` blocks execute at class-load time, not on demand. Platform API calls hidden here crash in commonMain. | Move to lazy properties, call-site evaluation, or androidMain extension functions | Grep enum classes and companion objects for property initializers that reference singletons (`Instance`, `getInstance`), platform APIs, or resource lookups. Standard method-body grep misses these. |
 
+## Coroutine Testing Gotchas
+
+| Problem | Symptom | Fix |
+|---------|---------|-----|
+| `while(true)` polling loop | `runTest` / `advanceUntilIdle()` hangs — loop never becomes idle | Replace `while(true)` with `while(currentCoroutineContext().isActive)` |
+| `viewModelScope.launch(Dispatchers.IO)` with test dispatcher | State updates race; assertions fail intermittently | Remove `Dispatchers.IO` from launch; let Ktor manage its own threading |
+| Init-block coroutines + `UnconfinedTestDispatcher` | Coroutines leak across tests → intermittent failures after `Dispatchers.resetMain()` | Use `StandardTestDispatcher` + `advanceUntilIdle()`, or cancel ViewModel scope in `@AfterTest` |
+
+**1. `while(true)` polling loops hang `runTest`**
+
+`advanceUntilIdle()` advances the virtual clock until no coroutines are pending. An infinite loop never becomes idle, so the call never returns.
+
+```kotlin
+// Before (hangs runTest)
+while (true) { delay(5_000); poll() }
+
+// After (cancels cleanly when scope ends)
+while (currentCoroutineContext().isActive) { delay(5_000); poll() }
+```
+
+**2. Explicit `Dispatchers.IO` bypasses test dispatcher**
+
+`Dispatchers.setMain(UnconfinedTestDispatcher())` only overrides `Main`. A `viewModelScope.launch(Dispatchers.IO)` block runs on a real IO thread — state updates are async and arrive after assertions. For Ktor-based network calls, removing `Dispatchers.IO` is safe; Ktor handles its own dispatcher.
+
+**3. `UnconfinedTestDispatcher` leaks init-block coroutines**
+
+`UnconfinedTestDispatcher` runs coroutines eagerly (no scheduling delay). ViewModel init-block launches execute immediately and may still be running when `@AfterTest` calls `Dispatchers.resetMain()`, corrupting the dispatcher state for subsequent tests. Switch to `StandardTestDispatcher` so coroutines only advance when explicitly driven, or cancel the ViewModel's coroutine scope in `@AfterTest`.
+
 ## atomicfu Setup
 
 When replacing `@Synchronized` or `java.util.concurrent` atomics, you MUST add the `kotlinx-atomicfu` dependency during Phase 2 (SCAFFOLD):
