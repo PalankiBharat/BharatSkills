@@ -81,6 +81,24 @@
       "category": "migration",
       "tags": ["kmm", "kotlin-multiplatform", "migration", "tdd", "swiftui", "skie", "ios", "android", "appium"],
       "keywords": ["kmm", "migrate", "kotlin", "multiplatform", "swift", "skie", "kmp", "ios", "appium"]
+    },
+    {
+      "name": "branch-manager",
+      "source": "./plugins/branch-manager",
+      "description": "Complete branch dev environment lifecycle — creates git worktrees, dedicated tmux panes with Claude Code, and isolated Android emulators per branch. Interactive cleanup with safety checks.",
+      "version": "1.0.0",
+      "category": "developer-tools",
+      "tags": ["git-worktree", "tmux", "android-emulator", "avd", "dev-environment", "branch-management"],
+      "keywords": ["setup-branch", "cleanup-branch", "worktree", "tmux", "emulator", "branch"]
+    },
+    {
+      "name": "legacy-refactor",
+      "source": "./plugins/legacy-refactor",
+      "description": "Safe legacy code refactoring guide based on Michael Feathers' \"Working Effectively with Legacy Code.\" Covers seams, characterization tests, dependency breaking, sprout/wrap techniques, and Kotlin/Android patterns.",
+      "version": "1.0.0",
+      "category": "productivity",
+      "tags": ["refactoring", "legacy-code", "technical-debt", "characterization-tests", "seams", "kotlin", "android"],
+      "keywords": ["refactor", "legacy", "technical-debt", "seam", "characterization", "sprout", "wrap"]
     }
   ]
 }
