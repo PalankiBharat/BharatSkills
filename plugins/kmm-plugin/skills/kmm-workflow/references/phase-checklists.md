@@ -19,7 +19,7 @@ Run before presenting plan to user.
 - [ ] PLAN.md: Device serials recorded in header
 - [ ] Dependency DAG: no cycles, topological order matches PLAN.md task order
 - [ ] manual-test-checklist.md generated with per-screen test steps
-- [ ] plan-analyzer: zero BLOCKERs, zero HIGH issues remaining
+- [ ] Plan quality review: zero BLOCKERs, zero HIGH issues remaining
 - [ ] build-verify.sh generated with verified build commands
 - [ ] parity-check.sh generated with all 10 static checks
 - [ ] Worktree builds clean (build-verify.sh passes)
@@ -44,8 +44,8 @@ Run after all dependency levels complete, before /clear.
 
 - [ ] Every file: FILE_VERIFIED with tests >= Expected tests from migration-guide.md
 - [ ] Test fixture sync: all fake/stub classes in commonTest match current public API of migrated classes (no stale enum names, parameter counts, or field types). After modifying any interface in commonMain, grep commonTest for all implementations/fakes of that interface and add new members — missing members cause iOS test compilation failures.
-- [ ] Analytics event audit: for each migrated ViewModel, grep original for `track(`, `analytics.`, `logEvent(`, `WebEngage` — inventory all analytics events and verify they fire in the shared VM.
-- [ ] Every file: VERIFY_PASS from haiku verifier
+- [ ] Analytics event audit: for each migrated ViewModel, grep original for `track(`, `analytics.`, `logEvent()`, and project-specific analytics SDK calls — inventory all analytics events and verify they fire in the shared VM.
+- [ ] Every file: VERIFY_PASS from structural verification
 - [ ] No FILE_BLOCKED remaining (all resolved or escalated)
 - [ ] Full unit test suite passes: ./gradlew :shared:testDebugUnitTest
 - [ ] API surface diff recorded in findings.md (Breaking Changes for Consumers)

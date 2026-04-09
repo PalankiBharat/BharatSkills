@@ -198,19 +198,62 @@ After rewiring navigation, verify that all lifecycle trigger methods still fire 
 
 ---
 
-## 2. Parallel Execution
+## 2. Parallel Execution — Wiring Team
 
-**Rule:** Haiku per consumer for import updates; Sonnet for DI wiring.
+Phase 4 runs as part of the "wiring-team" created by the orchestrator. The "android-wirer" teammate (Sonnet, tmux pane) owns all Android wiring work and fires sub-agents for maximum parallelism.
 
-| Task | Agent | Condition |
-|------|-------|-----------|
-| Import updates per consumer file | Haiku (one agent per file) | Consumer count > 5 |
-| DI module wiring (Koin declarations) | Sonnet | Always |
-| Build verification | Sonnet | Always |
-| Runtime verification | Sonnet | Always |
+### Sub-Agent Dispatch Pattern
 
-Launch all Haiku consumer agents concurrently. Do not wait for one to finish before starting
-the next. After all consumer agents report done, Sonnet proceeds to DI wiring.
+The android-wirer reads the execution blueprint from PLAN.md and fires sub-agents for ALL independent tasks simultaneously:
+
+```
+android-wirer (Sonnet, tmux pane):
+  PARALLEL BATCH 1 — file operations:
+    1 Sonnet sub-agent: DI wiring (Hilt→Koin module rewrite)
+    N Haiku sub-agents: consumer import rewiring (one per consumer file, ALL parallel)
+    [DI wiring and consumer rewiring are independent — run simultaneously]
+  
+  PARALLEL BATCH 2 — verification (after batch 1 completes):
+    Haiku sub-agent: stub audit + empty lambda audit
+    Haiku sub-agent: koin-binding-check.py
+    [Both independent — run simultaneously]
+  
+  Message orchestrator: "Android file ops done, request build"
+  Message ios-coordinator: "Confirmed bindings: [FooRepository, BarViewModel, ...]"
+```
+
+### Consumer Import Rewiring (Haiku Sub-Agents)
+
+**Always parallel** — every consumer file gets its own Haiku sub-agent regardless of count. No threshold (the old "count > 5" condition is removed). Even 3 consumers benefit from 3x parallelism.
+
+Each Haiku sub-agent receives:
+- The consumer file path
+- The old import prefix (e.g., `com.app.auth`)
+- The new import prefix (e.g., `shared.auth`)
+- Constraint: only modify import statements, no logic changes
+
+Returns: `DONE: <file> | imports_changed: N`
+
+### Inter-Agent Messaging
+
+The android-wirer participates in the wiring-team and communicates with the ios-coordinator:
+
+| From | To | Message | When |
+|------|-----|---------|------|
+| android-wirer | orchestrator | "Android file ops done, request build" | After all sub-agents complete |
+| android-wirer | ios-coordinator | "Confirmed bindings: [list]" | After DI wiring verified |
+| ios-coordinator | android-wirer | "LoginVM.state is StateFlow, not SharedFlow — fix?" | If API mismatch found |
+| android-wirer | orchestrator | "REQUIRES_APPROVAL: <decision>" | If behavioral change needed |
+
+### Build Ownership
+
+The android-wirer NEVER runs `./gradlew` or `xcodebuild`. After file operations complete, it messages the orchestrator to run the build. The orchestrator owns the Gradle lock.
+
+```
+android-wirer: "All file ops complete, 12 consumers rewired, DI module updated"
+orchestrator: runs ./gradlew build → reports BUILD_PASS or BUILD_FAIL
+android-wirer: if BUILD_FAIL → fires Sonnet debugger sub-agent per failure
+```
 
 ---
 
@@ -300,15 +343,9 @@ adb -s $ANDROID_SERIAL logcat -s "DebugLoginScreen"
 
 Common KMM runtime crash signatures to look for in logs:
 
-1. **SKIE type mismatch** — `ClassCastException` with SKIE-generated class names
-   - Root cause: sealed class/interface hierarchy consumed from Swift using wrong subtype
-   - Fix: check SKIE dot-notation usage in Swift callers (e.g., `Effect.NavigateToNext`, not
-     `NavigateToNext`)
+1. **SKIE type mismatch** — see `kmm-architecture.md` Gotchas: SKIE Nested Dot Notation
 
-2. **Missing Koin definition** — `No definition found for class` or `NoBeanDefFoundException`
-   - Root cause: type migrated to shared module but DI module not updated for both platforms
-   - Fix: verify `expect`/`actual` DI modules; check that the shared module's Koin module is
-     included in both platform DI graphs
+2. **Missing Koin definition** — see `kmm-architecture.md` Gotchas: Cross-Platform Koin Binding Verification
 
 3. **Coroutine scope issues** — `JobCancellationException`, `IllegalStateException: Module with
    the Main dispatcher`

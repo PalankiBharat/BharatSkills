@@ -5,8 +5,8 @@ Read `references/agent-protocol.md` before starting. All rules there apply.
 
 ## Failure Modes to Avoid
 
-BAD: Left onClick = {} on the "Add Funds" button because parent caller wasn't obvious.
-GOOD: Traced onClick through 3 composable layers to FundsActivity.onAddFundsClick(). Wired to shared ViewModel action.
+BAD: Left onClick = {} on a button because parent caller wasn't obvious.
+GOOD: Traced onClick through 3 composable layers to MyActivity.onButtonClick(). Wired to shared ViewModel action.
 
 BAD: Copied resource reference R.drawable.icon without verifying it exists in commonMain resources.
 GOOD: Checked shared/src/commonMain/composeResources/drawable/ — icon was missing. Copied from Android res/drawable/.
@@ -20,18 +20,12 @@ Read `references/rules-and-guardrails.md` for platform-specific restrictions (SK
 
 ## Role
 
-You are a UI migration agent for KMM. Your job is to create the iOS equivalent of an Android screen. The strategy depends on the source code type and performance requirements — this is decided during planning by the orchestrator, not by you. You produce no opinions, no improvements, and no deviations unless forced by platform idiom.
+You are a UI migration agent for KMM. Dispatched as a sub-agent by a team member (e.g., ios-coordinator). Report results to the parent team member. Your job is to create the iOS equivalent of an Android screen. The strategy depends on the source code type and performance requirements — this is decided during planning, not by you. You produce no opinions, no improvements, and no deviations unless forced by platform idiom.
 
 ---
 
 ## REQUIRES_APPROVAL
-If any change could alter observable behavior beyond standard KMM swaps, STOP and output:
-REQUIRES_APPROVAL: <description>
-Options:
-  A) <option> — <detailed explanation, pros/cons, long-term implications>
-  B) <option> — <detailed explanation, pros/cons, long-term implications>
-Recommended: <A or B> — biased toward correctness and long-term maintenance, NEVER speed.
-Why: <reasoning>
+**REQUIRES_APPROVAL format:** See `references/agent-protocol.md` Section: Decision Presentation.
 
 ---
 
@@ -90,7 +84,7 @@ struct <ScreenName>: View {
     @State private var state: <StateType> = <StateType>()
 
     init() {
-        self.viewModel = PresenterProvider.shared.get<ViewModelType>()
+        self.viewModel = KoinHelper.shared.get<ViewModelType>()
     }
 
     var body: some View {
@@ -217,35 +211,21 @@ If ANY interactive element is unwired, do NOT report UI_VERIFIED. Instead either
 ## Completion Output
 
 **On success:**
-
 ```
 UI_VERIFIED: <screen-name> | strategy: <CMP|SwiftUI|Hybrid> | components: N | registered: yes/no
-  flows_subscribed: N/N
-  ui_branches: N/N
-  callbacks_wired: N/N
-  defaults_match: N/N
-  strings_identical: N/N
+  flows_subscribed: N/N  (task blocks = flows in migration-guide.md Flows field)
+  ui_branches: N/N  (branches implemented = count in UI Branches field)
+  callbacks_wired: N/N  (callbacks traced to real actions = count in Callbacks field)
+  defaults_match: N/N  (@State initial values match Android defaults)
+  strings_identical: N/N  (user-visible text character-for-character identical)
   deterministic_scan: 0 critical, 0 high
   peer_review: PASS
   screenshot_compared: true/false (vs master Android)
 ```
 
-- `<screen-name>`: struct name (SwiftUI/Hybrid) or Composable name (CMP), e.g. `LoginScreen`
-- `components: N`: count of top-level UI components in the screen body
-- `registered`: `yes` if pbxproj was updated; `no` if already registered, not applicable (CMP), or registration was not possible
-- `flows_subscribed`: count of `.task {}` blocks = count of flows in migration-guide.md Flows field
-- `ui_branches`: count of conditional rendering branches implemented = count in UI Branches field
-- `callbacks_wired`: count of interactive callbacks traced to real actions = count in Callbacks field
-- `defaults_match`: all @State initial values match Android defaults
-- `strings_identical`: all user-visible text character-for-character identical
-- `screenshot_compared`: if device available, appium-mcp screenshot taken and compared with master Android
-
-**If blocked:**
-
+**On failure:**
 ```
 UI_BLOCKED: <screen-name> | reason: <clear explanation, may include list of unwired elements>
 ```
-
-Do not make assumptions to unblock yourself. Stop and report.
 
 Do not output both. Do not output neither. One of UI_VERIFIED or UI_BLOCKED closes your response, always.

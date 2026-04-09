@@ -3,6 +3,15 @@
 Unified 3-layer verification for migrated KMM modules. Replaces the old audit mode.
 Invoked via `/kmm-workflow verify <module>`.
 
+### Team Structure
+
+Verify mode uses a `verify-team` created by the orchestrator:
+- **Orchestrator (Opus):** Creates team, handles fix-or-escalate decisions, performs 3-build comparison (Vision), generates unified report
+- **"verifier" teammate (Sonnet, tmux pane):** Owns all 3 layers, fires sub-agents per layer, collects results, reports summaries to orchestrator
+- **Sub-agents (Sonnet/Haiku, in-process):** Each handles one check or one device E2E
+
+Layers execute in order (1 → 2 → 3) enforced by task dependencies. Within each layer, sub-agents run in parallel.
+
 ## Entry Point
 
 On `verify` invocation:
@@ -70,6 +79,20 @@ Create `~/dev/gameplans/<module-name>/` with:
 
 Fast, deterministic checks that catch structural issues.
 
+### Verify-Team Parallel Dispatch
+
+The orchestrator creates a verify-team. The "verifier" team member (Sonnet, tmux pane) owns all 3 layers and fires sub-agents per layer.
+
+**Layer 1 — fire 3 sub-agents simultaneously:**
+
+| Sub-agent | Model | Checks | Output |
+|-----------|-------|--------|--------|
+| static-scripts | Haiku | 1.2 (parity-check.sh) + 1.4 (phase checklists) | PASS/FAIL per check |
+| auditor | Sonnet | 1.1 (anti-pattern scan) — can fire its own sub-agents per module | AUDIT_COMPLETE with severity counts |
+| parity-reviewer | Haiku | 1.3 (cross-platform parity) + 1.5 (behavioral diff) | Checklist results + diff findings |
+
+All 3 run in parallel. The verifier team member collects results from all 3 before reporting Layer 1 output.
+
 ### 1.1 Anti-Pattern Scan
 Dispatch auditor agent (agent-prompts/auditor.md) — scans for:
 - CRITICAL: runBlocking on main, TODO() in production, type casts, hardcoded secrets, connections in `LaunchedEffect(Unit)` or `onCreate` without lifecycle-aware reconnect (if original had lifecycle handling and migration removed it)
@@ -100,6 +123,17 @@ For each RENAMED or MODIFIED file in the migration diff (`git diff master...HEAD
 ## Layer 2: Completeness Checks (no devices needed)
 
 Code analysis that catches feature gaps. Runs deterministic scripts + AI-powered analysis.
+
+### Layer 2 Parallel Dispatch
+
+**Layer 2 — fire 2 sub-agents simultaneously:**
+
+| Sub-agent | Model | Checks | Output |
+|-----------|-------|--------|--------|
+| script-runner | Haiku | 2.1 (flow-collector-check.sh) + 2.2 (koin-binding-check.py) | PASS/FAIL per script |
+| completeness-auditor | Sonnet | 2.3 (callback completeness trace) + 2.4 (UI branch audit) | Findings with file:line references |
+
+Deterministic scripts (Haiku) run parallel with AI-powered analysis (Sonnet). The verifier team member collects both results before reporting Layer 2 output.
 
 ### 2.1 Flow Collector Check (deterministic)
 Run `flow-collector-check.sh`:
@@ -134,6 +168,19 @@ For every if/when/switch in Android UI that controls visibility/rendering:
 
 Runtime verification using appium-mcp.
 
+### Layer 3 Parallel Dispatch
+
+**Layer 3 — fire 2 sub-agents simultaneously (when both devices available):**
+
+| Sub-agent | Model | Device | Checks |
+|-----------|-------|--------|--------|
+| device-android | Sonnet | Android emulator ($ANDROID_SERIAL) | 3-build comparison (Build 1: master, Build 2: migrated), functional verification |
+| device-ios | Sonnet | iOS simulator ($IOS_UDID) | 3-build comparison (Build 3: iOS), functional verification |
+
+Both agents capture screenshots independently. After both complete, the **orchestrator** (not the verifier team member) performs the 3-build cross-platform comparison using Claude Vision — this requires judgment-tier (Opus) analysis.
+
+If only one device is available: run that platform's E2E only. Report the other as skipped.
+
 ### 3.0 Environment & Device Selection
 Check prerequisites:
 - `which appium` → installed?
@@ -155,22 +202,13 @@ Before device testing begins, auto-generate a structured manual test checklist:
 4. Exclude user-claimed items from automated verification to avoid redundant work
 
 ### 3.1 Session Setup
-- Boot emulator and/or simulator
-- Create appium-mcp sessions (Android + iOS)
-- Record device identifiers
+Boot emulator and/or simulator, create appium-mcp sessions (Android + iOS), record device identifiers per `references/appium-mcp-testing.md` Section 3.
 
 ### 3.2 3-Build Comparison
-Follow `references/appium-mcp-testing.md` Section 4:
-- Build 1: Master Android APK → navigate screens → screenshot
-- Build 2: Migrated Android APK → navigate screens → screenshot
-- Build 3: iOS app → navigate screens → screenshot
-- Claude Vision compares all 3 per screen
+Run 3-build comparison per `references/appium-mcp-testing.md` Section 4.
 
 ### 3.3 Functional Verification
-Follow `references/appium-mcp-testing.md` Section 5:
-- Per-screen element verification
-- Interactive element testing
-- Flow triggering and validation
+Run per-screen functional verification per `references/appium-mcp-testing.md` Section 5.
 
 ### 3.4 Cleanup
 - Delete all appium-mcp sessions (`delete_session`)

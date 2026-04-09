@@ -89,7 +89,6 @@ class ApiService(private val client: HttpClient) {
         }.body()
 }
 
-// HTTP client with auth header
 val client = HttpClient(engine) {
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true })
@@ -821,95 +820,6 @@ When encountering an Android-only library not listed here:
 
 ---
 
-## Platform API Gotchas (commonMain)
+## Platform API Gotchas
 
-> **See also:** `references/platform-api-gotchas.md` for the full table with all APIs not available on Native.
-
-The following JVM/Android APIs are frequently used by migration agents but are NOT available in `commonMain`. Always use the replacement.
-
-### @Volatile
-
-```kotlin
-// BAD — JVM-only
-@Volatile
-var cached: String? = null
-
-// GOOD — available since Kotlin 1.8.20
-@kotlin.concurrent.Volatile
-var cached: String? = null
-```
-
-### @Synchronized → atomicfu
-
-```kotlin
-// BAD — JVM-only
-@Synchronized
-fun getOrCreate(): T { ... }
-
-// GOOD — requires kotlinx-atomicfu dependency
-import kotlinx.atomicfu.locks.SynchronizedObject
-import kotlinx.atomicfu.locks.synchronized
-
-class Cache : SynchronizedObject() {
-    fun getOrCreate(): T = synchronized(this) { ... }
-}
-```
-
-Add to `build.gradle.kts`:
-```kotlin
-commonMain.dependencies {
-    implementation("org.jetbrains.kotlinx:atomicfu:0.23.2")
-}
-```
-
-### Dispatchers.IO
-
-Available in commonMain for JVM + Native targets since kotlinx-coroutines 1.7.0 (Kotlin 1.8.20+).
-
-```kotlin
-// IMPORTANT: On Native, Dispatchers.IO is an extension property, not a member.
-// The IDE may not auto-import it. Always add this import explicitly:
-import kotlinx.coroutines.IO
-
-// GOOD — works in commonMain (JVM + Native)
-withContext(Dispatchers.IO) { networkCall() }
-
-// ONLY needed if targeting JS/Wasm (where Dispatchers.IO doesn't exist):
-// commonMain
-expect val ioDispatcher: CoroutineDispatcher
-// androidMain / nativeMain
-actual val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-// jsMain
-actual val ioDispatcher: CoroutineDispatcher = Dispatchers.Default
-```
-
-**Native caveats:** IO pool uses up to 64 threads, lazily allocated. No elasticity — threads are never released once created.
-
-### String.format()
-
-```kotlin
-// BAD — Java stdlib, not on Native
-String.format("%.2f", value)
-
-// GOOD — pure Kotlin
-fun Double.formatDecimal(precision: Int): String {
-    val factor = 10.0.pow(precision)
-    val rounded = kotlin.math.round(this * factor) / factor
-    val parts = rounded.toString().split(".")
-    val intPart = parts[0]
-    val decPart = (parts.getOrElse(1) { "0" }).padEnd(precision, '0').take(precision)
-    return "$intPart.$decPart"
-}
-```
-
-### Collection methods (Java 21+)
-
-```kotlin
-// BAD — Java 21 SequencedCollection, crashes on JVM 8 and absent on Native
-list.removeFirst()
-list.removeLast()
-
-// GOOD
-list.removeAt(0)
-list.removeAt(list.lastIndex)
-```
+See `references/platform-api-gotchas.md` for the full table of APIs not available in commonMain and their replacements (Dispatchers.IO, @Volatile, String.format(), UUID, android.util.Log, Context, etc.).

@@ -313,7 +313,7 @@ val iosModule = module {
 }
 ```
 
-### iOS PresenterProvider (KoinComponent bridge)
+### iOS KoinHelper (KoinComponent bridge)
 
 ```kotlin
 // iosMain — single access point for Swift

@@ -190,19 +190,180 @@ BAD: Added a try-catch wrapper around the crashing code.
 GOOD: Read master — crash was due to missing SDK listener registration. Added registration in AppDelegate (same pattern as Android Application class).
 
 BAD: Left onClick = {} because "parent wasn't obvious."
-GOOD: Traced onClick through 3 composable layers to FundsActivity.onAddFundsClick(). Wired to shared ViewModel action.
+GOOD: Traced onClick through 3 composable layers to MyActivity.onButtonClick(). Wired to shared ViewModel action.
 
 ## Build Coordination
 
-**Gradle acquires a per-project lock.** Multiple agents running `./gradlew` on the same project deadlock — the second blocks indefinitely. This negates parallelism benefits and causes timeouts.
+### Worktree Isolation Model (primary)
 
-**Rule: Agents own files, orchestrator owns builds.** Parallel agents are limited to file operations only (read, write, edit). ALL build verification runs as a single serial `./gradlew` call by the orchestrator after all file-op agents complete.
+Sub-agents that modify code run with `isolation: "worktree"` — each gets a temporary git worktree with its own Gradle daemon. No lock contention, no cross-agent test contamination.
 
-**Orchestration pattern per migration level:**
 ```
-[Agent A: file ops] ──┐
-[Agent B: file ops] ──┼──> orchestrator: ./gradlew build
-[Agent C: file ops] ──┘
+Team member fires N sub-agents (each in own worktree):
+  [Sub-agent A: worktree-A] → own ./gradlew → full TDD pipeline → FILE_VERIFIED
+  [Sub-agent B: worktree-B] → own ./gradlew → full TDD pipeline → FILE_VERIFIED
+  [Sub-agent C: worktree-C] → own ./gradlew → full TDD pipeline → FILE_VERIFIED
+  
+Team member: merge each branch back (trivial — different files)
+Team member → orchestrator: "request integration build"
+Orchestrator: single ./gradlew build (verify combined state)
 ```
 
-This is the default execution strategy for Phase 3 level migrations. Never dispatch agents with build commands unless they operate on isolated modules with no shared Gradle project lock.
+**Rule: Sub-agents own full pipeline in worktrees, coordinator owns integration builds.**
+- Sub-agents run `./gradlew` freely WITHIN their worktrees (separate Gradle daemons, no lock)
+- The orchestrator/coordinator runs ONE integration build after merging all worktree branches back
+- Integration builds catch combined-state issues that individual builds can't
+
+### Shared-Worktree Fallback
+
+When worktree isolation is not used (e.g., read-only verification, script execution):
+
+**Gradle acquires a per-project lock.** Multiple agents running `./gradlew` on the same project deadlock. In shared-worktree mode, agents are limited to file operations only — the orchestrator runs builds.
+
+### Script Execution
+
+Deterministic scripts (`parity-check.sh`, `flow-collector-check.sh`, `koin-binding-check.py`) do NOT acquire the Gradle lock. These CAN be run by Haiku sub-agents or team members anywhere. Only `./gradlew` and `xcodebuild` commands are lock-sensitive.
+
+## Model Routing
+
+The KMM workflow uses a 3-tier model hierarchy. Every agent must know its tier.
+
+### Tier 1: Orchestrator (Opus)
+The main Claude Code session. Handles:
+- Mode selection (Create/Continue/Improve/Verify/Audit)
+- Phase transition decisions
+- REQUIRES_APPROVAL evaluation and user interaction
+- Plan approval (evaluating plan-analyzer output)
+- Build ownership (Gradle lock — only the orchestrator runs `./gradlew` or `xcodebuild`)
+- Retrospective judgment (evaluating learning quality)
+- Fix-or-escalate decisions after agent BLOCKED
+- Merging team member results into canonical files (PLAN.md, PROGRESS.md, findings.md)
+
+The orchestrator NEVER writes migration code. It creates teams, dispatches teammates, handles decisions, and owns builds.
+
+### Tier 2: Team Members (Sonnet, in tmux panes)
+Long-running agents spawned via `Agent(team_name=..., name=...)`. Each owns a phase or scope:
+- "researcher" — owns Phase 1 research, fires Haiku sub-agents for parallel grep/read tasks
+- "migration-coordinator" — owns Phase 3, fires Sonnet sub-agents per file for TDD pipeline
+- "android-wirer" — owns Phase 4, fires Haiku sub-agents for consumer rewiring
+- "ios-coordinator" — owns Phase 5, fires Sonnet sub-agents per screen
+- "verifier" — owns Verify mode, fires sub-agents per layer check
+- "consolidator" — owns retrospective apply phase, fires sub-agents per target file
+
+Team members:
+- Run in tmux panes (own context window, no bloat to orchestrator)
+- Read the execution blueprint from PLAN.md to determine parallelism
+- Fire sub-agents for every parallelizable task (N independent files → N sub-agents)
+- Coordinate with other team members via messaging (SendMessage)
+- Report summaries to orchestrator (never raw output — keep orchestrator context lean)
+- Escalate REQUIRES_APPROVAL and BLOCKED to orchestrator
+
+### Tier 3: Sub-Agents (Sonnet or Haiku, in-process)
+Short-lived agents fired by team members via `Agent()`. Each owns a single file or check:
+- Sonnet sub-agents: full TDD pipeline per file, UI screen migration, DI wiring, debugging
+- Haiku sub-agents: structural verification, script execution, grep audits, import rewiring, checklist validation
+
+Sub-agents:
+- Receive minimal context (one file + its migration-guide.md entry + agent prompt)
+- Return structured completion signals (FILE_VERIFIED, VERIFY_PASS, etc.)
+- Never message other agents — only return results to their parent team member
+- Never run `./gradlew` or `xcodebuild` — only file operations and script execution
+
+## Agent Team Protocol
+
+All modes use `TeamCreate` for coordination. Teammates self-organize via shared task lists.
+
+### Team Lifecycle
+1. Orchestrator creates team: `TeamCreate("migration-team")`
+2. Orchestrator creates tasks: `TaskCreate(...)` with dependencies (`addBlockedBy`)
+3. Orchestrator spawns teammates: `Agent(team_name=..., name=..., model="sonnet")`
+4. Teammates claim tasks: check `TaskList`, claim with `TaskUpdate(owner=...)`
+5. Teammates work: fire sub-agents, collect results, mark tasks done
+6. Teammates check for next work: `TaskList` after each completion
+7. Teammates message each other: `SendMessage(to="android-wirer", message="...")`
+8. On completion: orchestrator sends shutdown, `TeamDelete`
+
+### Inter-Agent Messaging
+Team members can DM each other directly — no orchestrator mediation needed for:
+- Sharing confirmed Koin bindings (android-wirer → ios-coordinator)
+- Reporting API mismatches found during migration
+- Coordinating on shared-code changes
+
+Always escalate to orchestrator for:
+- REQUIRES_APPROVAL decisions (behavioral changes)
+- BLOCKED after 3 strikes (technical failures)
+- Build requests (Gradle lock ownership)
+
+### Task Dependency Tracking
+Use `addBlockedBy` to encode dependencies:
+- Phase 5B tasks blocked by Phase 4 completion
+- Verify Layer 2 tasks blocked by Layer 1 tasks
+- Per-file migration blocked by specific file dependencies (not entire DAG level)
+
+Team members check `TaskList` to find unblocked tasks. When a dependency resolves, blocked tasks automatically become claimable.
+
+## Haiku Agent Dispatch Protocol
+
+Haiku agents handle mechanical/deterministic tasks. They receive minimal prompts and return structured output.
+
+### Prompt Format
+Haiku agents receive context inline — no reference file loading. Prompt structure:
+```
+Task: <one-line description>
+Input: <file paths or data to process>
+Output format: <exact structure expected>
+Constraints: <what NOT to do>
+```
+
+Example:
+```
+Task: Rewire imports in MyConsumer.kt from com.app.auth to shared.auth
+Input: /path/to/MyConsumer.kt
+Output format: DONE: <file> | imports_changed: N | lines_modified: N
+Constraints: Only change import statements. Do not modify any logic or method bodies.
+```
+
+### Rules for Haiku Agents
+- Complete within 60 seconds (if exceeding, the task is too complex for Haiku)
+- Return structured output with clear delimiters (not prose)
+- Never run `./gradlew` or `xcodebuild`
+- Never make judgment calls — emit `NEEDS_CONTEXT: <what's unclear>` and let the parent team member decide
+- Never load reference files (agent-protocol.md, rules-and-guardrails.md, etc.) — context is provided inline
+- Never write to shared files (PLAN.md, PROGRESS.md, findings.md) — return data to parent for merging
+
+### When Haiku Is Wrong Tier
+If a Haiku agent encounters any of these, it should emit NEEDS_CONTEXT immediately:
+- Ambiguous code structure requiring judgment
+- Multiple valid approaches for a change
+- Code that might change behavior (not just imports/formatting)
+- Files with complex interdependencies
+
+## Tmux Integration
+
+Long-running team members run in tmux panes for true OS-level parallelism and independent context windows.
+
+### When to Use Tmux Panes
+- Any team member expected to run >5 minutes
+- Any team member that fires its own sub-agents
+- Sonnet-tier agents: migrators, UI migrators, wiring coordinators, auditors, E2E testers
+
+### When NOT to Use Tmux Panes
+- Haiku agents (complete in <60 seconds — pane overhead not worth it)
+- One-shot sub-agents that return immediately
+
+### Setup
+
+Claude Code handles tmux pane creation automatically. No manual `tmux` commands needed.
+
+1. Set `"teammateMode": "tmux"` in `~/.claude.json` (global) or pass `--teammate-mode tmux` per session
+2. When the lead spawns teammates, Claude Code auto-creates panes — one per teammate
+3. On disconnect, tmux sessions persist and teammates can resume
+4. On cleanup (`TeamDelete`), panes are removed
+
+Requires `tmux` installed (`brew install tmux` on macOS). For iTerm2, install the [`it2` CLI](https://github.com/mkusaka/it2) and enable Python API in iTerm2 preferences.
+
+### User Interaction
+- **Split-pane mode:** click into a teammate's pane to interact directly
+- **In-process mode (fallback):** `Shift+Down` cycles through teammates
+- `Ctrl+T` toggles the task list view
+- `Escape` interrupts a teammate's current turn
