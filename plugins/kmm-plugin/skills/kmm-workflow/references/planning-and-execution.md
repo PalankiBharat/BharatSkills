@@ -149,16 +149,18 @@ During Phase 1 planning, PLAN.md includes an execution blueprint table that anno
 
 ```markdown
 ## Execution Blueprint
-| # | Task | Files | Parallel? | Deps | Status |
-|---|------|-------|-----------|------|--------|
-| 2.1 | Create interfaces | InterfaceA.kt, InterfaceB.kt, InterfaceC.kt | YES (3) | none | pending |
-| 3.1 | Migrate Level 0 | A.kt, B.kt, C.kt, D.kt, E.kt | YES (5) | none | pending |
-| 3.2 | Verify Level 0 | A.kt, B.kt, C.kt, D.kt, E.kt | YES (5) | each blocked by its 3.1 file | pending |
-| 3.3 | Migrate Level 1 | F.kt, G.kt | YES (2) | F→A,B; G→C | pending |
-| 4.1 | Rewire consumers | 12 files | YES (12) | none | pending |
-| 4.2 | Wire DI | koinModule.kt | NO | none | pending |
-| 5A.1 | iOS screens | Login, Settings, Profile | YES (3) | none | pending |
-| 5B.1 | iOS navigation | Router.swift | NO | 4.2 | pending |
+| # | Task | Files | Parallel? | Deps | Teammate | Status |
+|---|------|-------|-----------|------|----------|--------|
+| 2.1 | Create interfaces | InterfaceA.kt, InterfaceB.kt, InterfaceC.kt | YES (3) | none | scaffolder-1 | pending |
+| 3.1a | Migrate Level 0 batch A | A.kt, B.kt, C.kt | YES (3) | none | migration-coord-L0-a | pending |
+| 3.1b | Migrate Level 0 batch B | D.kt, E.kt | YES (2) | none | migration-coord-L0-b | pending |
+| 3.2 | Verify Level 0 | A.kt–E.kt | YES (5) | each blocked by its 3.1 file | (Haiku sub-agents of coordinators) | pending |
+| 3.3 | Migrate Level 1 | F.kt, G.kt | YES (2) | F→A,B; G→C | migration-coord-L1 | pending |
+| 4.1a | Rewire consumers batch A | 6 files | YES (6) | none | android-wirer-1 | pending |
+| 4.1b | Rewire consumers batch B | 6 files | YES (6) | none | android-wirer-2 | pending |
+| 4.2 | Wire DI | koinModule.kt | NO | none | android-wirer-di | pending |
+| 5A.1 | iOS screens | Login, Settings, Profile | YES (3) | none | ios-coordinator-1 | pending |
+| 5B.1 | iOS navigation | Router.swift | NO | 4.2 | ios-coordinator-1 | pending |
 ```
 
 ### Per-File Dependency Tracking
@@ -175,6 +177,17 @@ The Parallel? column tells team members exactly how many sub-agents to fire:
 - `PARTIAL (N of M)` — N files are independent, remaining M have internal deps
 
 Team members read this column and fire sub-agents accordingly. No LLM judgment needed for parallelism decisions — it's pre-computed during planning.
+
+### Teammate Assignment
+
+During Phase 1 planning, the blueprint groups files into **batches of 5-8** and assigns each batch a named teammate. This is mandatory — the orchestrator reads the Teammate column at dispatch time.
+
+**Rules:**
+- Each DAG level is split into batches of 5-8 files. A level with 12 files gets 2 batches (6+6), not 1 batch of 12
+- Teammate names follow the pattern: `<role>-<level>-<letter>` (e.g., `migration-coord-L0-a`, `migration-coord-L0-b`)
+- All teammates for the same DAG level are independent — the orchestrator spawns them in ONE message for true parallelism
+- Consumer rewiring and screen migration follow the same batching pattern
+- The Teammate column tells the orchestrator exactly how many `Agent()` calls to make and what to name each one
 
 ---
 

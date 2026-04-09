@@ -63,9 +63,9 @@ Then ask: Create / Continue / Improve / Verify / Audit.
 
 On ANY invocation, always ask: Create / Continue / Improve / Verify / Audit. Never auto-resume. Never assume.
 
-- **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md (pure data format — `<!-- KMM-PLAN v1 | skill: 6.5.2 | module: <name> -->` header, execution blueprint, NO workflow instructions), PROGRESS.md (outcome-based tasks), migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
+- **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md (pure data format — `<!-- KMM-PLAN v1 | skill: 6.5.3 | module: <name> -->` header, execution blueprint, NO workflow instructions), PROGRESS.md (outcome-based tasks), migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
 - **Continue** → if exactly one non-stale gameplan exists, auto-resume it (report: "Resuming <name> — Phase N: <description>. Say STOP to switch."). If multiple gameplans exist, list all with status, user picks. Then:
-  1. Read PLAN.md header → check `skill: <version>`. If older than current skill version (6.5.2) or missing → run Version Compatibility Protocol (see `references/planning-and-execution.md`): upgrade missing fields, generate execution blueprint if absent, report to user "Plan upgraded from vX to vY."
+  1. Read PLAN.md header → check `skill: <version>`. If older than current skill version (6.5.3) or missing → run Version Compatibility Protocol (see `references/planning-and-execution.md`): upgrade missing fields, generate execution blueprint if absent, report to user "Plan upgraded from vX to vY."
   2. If PLAN.md has old-style workflow instructions (self-documenting header, inline Rules section) → ignore them. Workflow comes from THIS skill version, not the plan file. The plan is DATA only.
   3. Read PROGRESS.md → determine current phase/task.
   4. Verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`).
@@ -107,32 +107,37 @@ Read `references/agent-protocol.md` for: Model Routing, Agent Team Protocol, Hai
 ## Phases
 
 ### Phase 1: PLAN
-- Create `planning-team`. "researcher" teammate fires parallel Haiku sub-agents for codebase analysis + migration-guide.md population
-- "plan-analyzer" teammate reviews plan → orchestrator fixes BLOCKERs → user approval
-- Execution blueprint generated in PLAN.md (per-file deps, parallelism annotations)
+- Create `planning-team`. Spawn "researcher" and "plan-analyzer" teammates in ONE message
+- Researcher fires parallel Haiku sub-agents: Batch 1 (4 agents), Batch 2 (2 agents), Batch 3 (1 per migration file)
+- Plan-analyzer reviews plan after researcher completes → orchestrator fixes BLOCKERs → user approval
+- Execution blueprint generated in PLAN.md: per-file deps, parallelism annotations, AND teammate assignments (group files into batches of 5-8, assign each batch a named teammate)
 - Read `references/planning-and-execution.md`
 
 ### Phase 2: SCAFFOLD
-- "scaffolder" teammate fires N sub-agents (one per interface, each in worktree)
-- build-verify.sh → CHECKPOINT COMMIT
+- If >8 interfaces: spawn multiple "scaffolder" teammates (one per batch of 5-8), all in ONE message
+- Each scaffolder fires N sub-agents (one per interface, each in worktree)
+- After all scaffolders complete: orchestrator runs integration build → CHECKPOINT COMMIT
 - Read `references/kmm-architecture.md`
 
 ### Phase 3: SHARED CODE MIGRATION
-- Create `migration-team`. "migration-coordinator" fires N sub-agents per DAG level (each in worktree, full TDD pipeline)
-- Overlapping verification: Haiku verifiers fire as each migrator completes
-- Early-start: per-file deps, not per-level — start downstream files as soon as their specific deps are verified
-- Integration build after each level (orchestrator owns Gradle lock)
-- Auditor sweep + checklist validation (parallel) after all levels
+- Create `migration-team`. Read the execution blueprint's teammate assignments
+- Spawn one "migration-coordinator" per file batch (5-8 files each) — all coordinators for the same DAG level in ONE message
+- Each coordinator fires 1 sub-agent per file (worktree isolation, full TDD pipeline) + overlapping Haiku verifiers
+- Orchestrator active loop: monitor TaskList → run integration build when a level completes → spawn next level's coordinators
+- Early-start: if a file's specific deps are verified, its coordinator can start immediately — don't wait for the full level
+- After all levels: fire auditor + checklist validation teammates in parallel
 - Read `references/dependency-replacements.md`, `references/rules-and-guardrails.md`, `references/platform-api-gotchas.md`
 
 ### Phase 4+5: WIRE ANDROID + iOS
-- Create `wiring-team` with "android-wirer" and "ios-coordinator" teammates (both in tmux panes)
-- Phase 4: android-wirer fires N Haiku sub-agents (consumers) + Sonnet (DI), each in worktree
-- Phase 5A: ios-coordinator fires N Sonnet sub-agents (per screen, in worktrees) — starts IN PARALLEL with Phase 4
+- Create `wiring-team`. Spawn ALL of the following teammates in ONE message:
+  - Multiple "android-wirer" teammates if >8 consumer files (batches of 5-8 each), plus 1 for DI wiring
+  - Multiple "ios-coordinator" teammates if >8 screens (batches of 5-8 each)
+- Phase 4 android-wirers + Phase 5A ios-coordinators all launch simultaneously (no dependency between them)
 - Phase 5B: navigation + pbxproj — blocks on Phase 4 completion (needs confirmed bindings)
+- Each teammate fires sub-agents per file within its batch (Haiku for consumer rewiring, Sonnet for DI/screens)
 - Inter-agent messaging: teammates DM each other about bindings, API mismatches
 - Read `references/android-wiring.md`, `references/ios-wiring.md`, `references/appium-mcp-testing.md`
-- **Ad-hoc fix agents:** When dispatching agents to fix build errors outside the standard Agent Dispatch Table (e.g., one-off build failures), the orchestrator MUST include in the prompt: "Read `references/platform-api-gotchas.md` before changing any platform API usage (Dispatchers, System.*, java.*, android.*)." Standard dispatch table agents already read `agent-protocol.md`, but ad-hoc fix agents skip this and may make incorrect platform API changes.
+- **Ad-hoc fix agents:** include "Read `references/platform-api-gotchas.md` before changing any platform API usage" in prompt
 
 ## Verification Pipeline
 
@@ -161,19 +166,63 @@ BLOCKING gate before every `/clear` instruction. Runs in-session with full conve
 
 See `references/self-improvement.md` for full protocol including scan patterns, scoring criteria, and consolidation mandate.
 
-## Agent Teams & Dispatch
+## Team Orchestration Protocol
 
-All modes use agent teams. Teammates fire sub-agents. Orchestrator handles judgment + builds.
+### Context Budget
 
-**Model routing:** Opus = orchestrator (decisions, builds) | Sonnet = teammates + code sub-agents | Haiku = mechanical sub-agents
+Sonnet teammates have ~200K context. Each file migration (TDD pipeline + verifier) consumes ~15-20K tokens of teammate context. Budget accordingly:
+- **5-8 files per teammate** — safe ceiling, no compaction risk
+- Scale teammates to the work: 20 files → 3-4 teammates, 40 files → 5-8 teammates
+- Never cap teammate count — spawn as many as the work requires
 
-**Teams:** planning-team (Phase 1), scaffold-team (Phase 2), migration-team (Phase 3), wiring-team (Phase 4+5), verify-team (Verify/Audit), retro-team (Retrospective)
+### Mandatory Decomposition
 
-**Agent definitions:** See `agents/` directory — each role has a subagent definition file with model, tools, isolation, maxTurns. These are used as teammate types when spawning.
+The orchestrator MUST decompose every phase into batches of 5-8 files before spawning teammates. For each teammate, the prompt specifies:
+1. **Exact file list** — which files this teammate owns (by name, not "the rest")
+2. **Sub-agent instruction** — "Fire 1 sub-agent per file, ALL in ONE message"
+3. **Dependencies** — which files/teammates must complete first
+4. **Reference files** — which references to read for this phase
+5. **Expected signals** — FILE_VERIFIED / UI_VERIFIED / etc.
 
-**Sub-agent prompts:** See `references/agent-prompts/` — migrator.md, verifier.md, test-writer.md, debugger.md, ui-migrator.md, auditor.md, plan-analyzer.md, verifier-full.md
+### Parallel Launch
 
-Read `references/agent-protocol.md` for the full dispatch protocol.
+Fire ALL independent teammates in a SINGLE message (multiple `Agent()` calls in one response). Claude Code executes tool calls within one message in parallel — sequential messages create sequential teammates.
+
+```
+GOOD: One message → Agent("coord-L0-a", ...), Agent("coord-L0-b", ...), Agent("coord-L0-c", ...)
+BAD:  Message 1 → Agent("coord-L0-a"), Message 2 → Agent("coord-L0-b"), Message 3 → Agent("coord-L0-c")
+```
+
+### Active Guidance Loop
+
+After spawning a batch of teammates, the orchestrator does NOT wait passively:
+1. **Monitor** — check TaskList for completed/blocked tasks
+2. **Unblock** — when a DAG level completes, run integration build, then spawn next level's teammates
+3. **Re-dispatch** — if a teammate reports BLOCKED, spawn a fresh teammate with debugger prompt
+4. **Merge** — as teammates complete, merge worktree branches and update PROGRESS.md
+5. **Next batch** — spawn the next set immediately when dependencies resolve
+
+### Teammate Prompt Template
+
+Every teammate receives a prompt structured as:
+```
+You are <role> for batch <N>. Your files: [exact list].
+Fire 1 sub-agent per file, ALL in ONE message (true parallelism).
+Each sub-agent gets: isolation: "worktree", mode: "bypassPermissions".
+Read: <relevant reference files for this phase>.
+Report: <expected completion signal> per file to orchestrator.
+After all sub-agents complete: message orchestrator "Batch <N> done, request build."
+```
+
+### Model Routing
+
+Opus = orchestrator (decisions, builds, merging) | Sonnet = teammates + code sub-agents | Haiku = mechanical sub-agents (scripts, grep, verification)
+
+### Agent Definitions
+
+See `agents/` — each role has a definition file. The orchestrator spawns MULTIPLE INSTANCES of the same definition when the workload exceeds one teammate's budget (5-8 files).
+
+**Sub-agent prompts:** `references/agent-prompts/` — migrator.md, verifier.md, test-writer.md, debugger.md, ui-migrator.md, auditor.md, plan-analyzer.md, verifier-full.md
 
 ## References (read ONLY when entering relevant phase)
 

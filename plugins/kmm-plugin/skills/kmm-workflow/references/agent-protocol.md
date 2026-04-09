@@ -105,17 +105,19 @@ Before emitting any completion signal (`DONE` or equivalent), verify:
 
 **Never commit with incomplete tasks.** A commit that leaves tasks unchecked is a silent failure — the orchestrator sees "committed" and moves on, and the uncompleted task is discovered only during final verification. Common pattern: agents complete 4/5 tasks, commit because "the build passes," but the 5th task (e.g., deleting original files) creates import ambiguity later.
 
-## Workload Limits
+## Workload & Context Budget
 
-Cap individual agent workload at **10–15 files max**. Split larger batches into more agents with smaller scope.
+**Context math:** You (Sonnet teammate) have ~200K tokens. Each file migration (read original + TDD + migrate + verify) costs ~15-20K tokens. At 8 files = ~120-160K, leaving room for coordination. At 15+ files you WILL compact and lose context.
 
-**Why:** Agent batches of 25–30 files cause context compaction and degraded output quality. Navigation/UI agents with 19+ files compacted twice in production. Smaller batches eliminate compaction and maintain consistent output quality.
+**Your budget: 5-8 files per teammate.** The orchestrator pre-divides work into batches of this size before spawning you. If you somehow receive more than 8 files, split into sub-batches internally.
 
-**How to apply:**
-- Orchestrator/coordinator subdivides file lists before dispatching
-- If a migration level has 30 files → dispatch 3 agents of 10, not 2 of 15
-- Fragment/screen conversion is mechanical but volume is the failure mode — subdivision is mandatory at scale
-- When dispatching agents for high-volume tasks (e.g., fragment→composable conversion), the initial agent prompt MUST instruct: "For tasks with >10 files, spawn parallel sub-agents (mode: bypassPermissions) rather than processing sequentially"
+**Mandatory parallel dispatch:**
+- Fire ALL sub-agents for your file list in ONE message — multiple `Agent()` calls in a single response run concurrently in Claude Code
+- N independent files → N sub-agents, no exceptions. Never queue files for sequential processing
+- Each sub-agent gets exactly 1 file + its migration-guide.md entry + the relevant agent prompt
+- Each sub-agent gets `isolation: "worktree"` and `mode: "bypassPermissions"`
+
+**Compaction detection:** If you can't recall earlier file results, or find yourself re-reading files you already processed → write HANDOFF.md immediately, report "COMPACTION_DETECTED" to orchestrator. The orchestrator will spawn a fresh teammate for remaining files.
 
 ## Tool-Call Budget (Anti-Spin)
 
@@ -264,8 +266,10 @@ Long-running agents spawned via `Agent(team_name=..., name=...)`. Each owns a ph
 
 Team members:
 - Run in tmux panes (own context window, no bloat to orchestrator)
-- Read the execution blueprint from PLAN.md to determine parallelism
-- Fire sub-agents for every parallelizable task (N independent files → N sub-agents)
+- Receive an exact file list from the orchestrator (5-8 files max per teammate)
+- **Fire ALL sub-agents in a SINGLE message** — multiple `Agent()` calls in one response run concurrently. This is how parallelism works in Claude Code. Sequential messages = sequential agents
+- N independent files → N sub-agents, no exceptions. Never queue for sequential processing
+- Each sub-agent gets exactly 1 file + its migration-guide.md entry + the relevant agent prompt
 - Coordinate with other team members via messaging (SendMessage)
 - Report summaries to orchestrator (never raw output — keep orchestrator context lean)
 - Escalate REQUIRES_APPROVAL and BLOCKED to orchestrator
