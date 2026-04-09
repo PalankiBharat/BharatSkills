@@ -63,9 +63,9 @@ Then ask: Create / Continue / Improve / Verify / Audit.
 
 On ANY invocation, always ask: Create / Continue / Improve / Verify / Audit. Never auto-resume. Never assume.
 
-- **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md (pure data format — `<!-- KMM-PLAN v1 | skill: 6.5.1 | module: <name> -->` header, execution blueprint, NO workflow instructions), PROGRESS.md (outcome-based tasks), migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
+- **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md (pure data format — `<!-- KMM-PLAN v1 | skill: 6.5.2 | module: <name> -->` header, execution blueprint, NO workflow instructions), PROGRESS.md (outcome-based tasks), migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
 - **Continue** → if exactly one non-stale gameplan exists, auto-resume it (report: "Resuming <name> — Phase N: <description>. Say STOP to switch."). If multiple gameplans exist, list all with status, user picks. Then:
-  1. Read PLAN.md header → check `skill: <version>`. If older than current skill version (6.5.1) or missing → run Version Compatibility Protocol (see `references/planning-and-execution.md`): upgrade missing fields, generate execution blueprint if absent, report to user "Plan upgraded from vX to vY."
+  1. Read PLAN.md header → check `skill: <version>`. If older than current skill version (6.5.2) or missing → run Version Compatibility Protocol (see `references/planning-and-execution.md`): upgrade missing fields, generate execution blueprint if absent, report to user "Plan upgraded from vX to vY."
   2. If PLAN.md has old-style workflow instructions (self-documenting header, inline Rules section) → ignore them. Workflow comes from THIS skill version, not the plan file. The plan is DATA only.
   3. Read PROGRESS.md → determine current phase/task.
   4. Verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`).

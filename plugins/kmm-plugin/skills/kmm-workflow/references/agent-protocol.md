@@ -105,6 +105,18 @@ Before emitting any completion signal (`DONE` or equivalent), verify:
 
 **Never commit with incomplete tasks.** A commit that leaves tasks unchecked is a silent failure — the orchestrator sees "committed" and moves on, and the uncompleted task is discovered only during final verification. Common pattern: agents complete 4/5 tasks, commit because "the build passes," but the 5th task (e.g., deleting original files) creates import ambiguity later.
 
+## Workload Limits
+
+Cap individual agent workload at **10–15 files max**. Split larger batches into more agents with smaller scope.
+
+**Why:** Agent batches of 25–30 files cause context compaction and degraded output quality. Navigation/UI agents with 19+ files compacted twice in production. Smaller batches eliminate compaction and maintain consistent output quality.
+
+**How to apply:**
+- Orchestrator/coordinator subdivides file lists before dispatching
+- If a migration level has 30 files → dispatch 3 agents of 10, not 2 of 15
+- Fragment/screen conversion is mechanical but volume is the failure mode — subdivision is mandatory at scale
+- When dispatching agents for high-volume tasks (e.g., fragment→composable conversion), the initial agent prompt MUST instruct: "For tasks with >10 files, spawn parallel sub-agents (mode: bypassPermissions) rather than processing sequentially"
+
 ## Tool-Call Budget (Anti-Spin)
 
 Every agent has an implicit tool-call budget per task:
@@ -313,6 +325,7 @@ Task: <one-line description>
 Input: <file paths or data to process>
 Output format: <exact structure expected>
 Constraints: <what NOT to do>
+Parallelism: For >10 files, spawn parallel sub-agents — do not process sequentially.
 ```
 
 Example:
