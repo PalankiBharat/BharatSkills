@@ -55,6 +55,7 @@ Before asking the user which mode, load project-specific knowledge:
 2. Look up `knowledge/index.md` for a matching pattern
 3. If found → read `knowledge/<project>.md` — this is the project profile (SDK constraints, backend quirks, build commands, architecture decisions, migration history)
 4. If not found → inform user: "No project knowledge found. First migration on this project?"
+5. Check agent teams: `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`. If unset or empty → ask user to enable (`export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) and restart. Agent teams are REQUIRED for all phases — do not silently fall back to plain sub-agents.
 
 Then ask: Create / Continue / Improve / Verify / Audit.
 
@@ -62,9 +63,9 @@ Then ask: Create / Continue / Improve / Verify / Audit.
 
 On ANY invocation, always ask: Create / Continue / Improve / Verify / Audit. Never auto-resume. Never assume.
 
-- **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md (pure data format — `<!-- KMM-PLAN v1 | skill: 6.5.0 | module: <name> -->` header, execution blueprint, NO workflow instructions), PROGRESS.md (outcome-based tasks), migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
+- **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md (pure data format — `<!-- KMM-PLAN v1 | skill: 6.5.1 | module: <name> -->` header, execution blueprint, NO workflow instructions), PROGRESS.md (outcome-based tasks), migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
 - **Continue** → if exactly one non-stale gameplan exists, auto-resume it (report: "Resuming <name> — Phase N: <description>. Say STOP to switch."). If multiple gameplans exist, list all with status, user picks. Then:
-  1. Read PLAN.md header → check `skill: <version>`. If older than current skill version (6.5.0) or missing → run Version Compatibility Protocol (see `references/planning-and-execution.md`): upgrade missing fields, generate execution blueprint if absent, report to user "Plan upgraded from vX to vY."
+  1. Read PLAN.md header → check `skill: <version>`. If older than current skill version (6.5.1) or missing → run Version Compatibility Protocol (see `references/planning-and-execution.md`): upgrade missing fields, generate execution blueprint if absent, report to user "Plan upgraded from vX to vY."
   2. If PLAN.md has old-style workflow instructions (self-documenting header, inline Rules section) → ignore them. Workflow comes from THIS skill version, not the plan file. The plan is DATA only.
   3. Read PROGRESS.md → determine current phase/task.
   4. Verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`).
@@ -131,6 +132,7 @@ Read `references/agent-protocol.md` for: Model Routing, Agent Team Protocol, Hai
 - Phase 5B: navigation + pbxproj — blocks on Phase 4 completion (needs confirmed bindings)
 - Inter-agent messaging: teammates DM each other about bindings, API mismatches
 - Read `references/android-wiring.md`, `references/ios-wiring.md`, `references/appium-mcp-testing.md`
+- **Ad-hoc fix agents:** When dispatching agents to fix build errors outside the standard Agent Dispatch Table (e.g., one-off build failures), the orchestrator MUST include in the prompt: "Read `references/platform-api-gotchas.md` before changing any platform API usage (Dispatchers, System.*, java.*, android.*)." Standard dispatch table agents already read `agent-protocol.md`, but ad-hoc fix agents skip this and may make incorrect platform API changes.
 
 ## Verification Pipeline
 
@@ -216,4 +218,4 @@ Read `references/agent-protocol.md` for the full dispatch protocol.
 11. **Retrospective before /clear** — mandatory and autonomous; skipping means learnings lost permanently
 12. **parity-check.sh before appium-mcp E2E** — static analysis first, device testing second; never skip either layer
 13. **Verified output, not just completed output** — every agent must produce evidence of verification (deterministic scan + adversarial self-review) before reporting completion; the orchestrator rejects completion signals without evidence fields; see `references/agent-protocol.md` Verified-Output Protocol; orchestrator reads evidence fields from agent output — if deterministic_scan or peer_review fields are absent or critical > 0, re-dispatch the agent with rejection reason
-14. **Teams everywhere, sub-agents for parallelism** — all work dispatched via TeamCreate; team members fire sub-agents for N independent files (never process sequentially); orchestrator never fires sub-agents directly; Haiku sub-agents return data to parent (never write shared files); see `references/agent-protocol.md` Agent Team Protocol
+14. **Teams mandatory, no silent fallback** — ALL phases use TeamCreate (planning-team, migration-team, wiring-team, verify-team, retro-team). The orchestrator MUST NOT fall back to plain `Agent()` sub-agents when teams are available. If `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is unset, STOP and ask user to enable — do not silently degrade to sequential sub-agent dispatch. Team members fire sub-agents for N independent files; orchestrator never fires sub-agents directly; see `references/agent-protocol.md` Agent Team Protocol

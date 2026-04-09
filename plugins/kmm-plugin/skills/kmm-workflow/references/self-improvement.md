@@ -168,7 +168,7 @@ Each finding is classified into one of 3 destinations:
 
 ### Phase 3 — APPLY (after user approval)
 
-Only apply findings the user approved or modified. Using the retro-team pattern:
+Only apply findings the user approved or modified. **The retrospective ALWAYS creates a PR — NEVER creates GitHub issues.** Using the retro-team pattern:
 
 1. `cd ~/dev/claude-code-skills` — **Source Repo Gate** (see Consolidation Mandate)
 2. Create branch: `git checkout -b retro/<module-name>-<date>`
@@ -269,19 +269,23 @@ Since the retrospective now creates PRs directly (with full conversation context
 
 No team needed. Orchestrator handles this alone.
 
-## Issue format
+## PR Format (for retrospective output)
 
-Title: `[kmm-retro] <project-name>: <N> learnings from migration`
+The retrospective creates a **PR**, not issues. Issues are only created as orphan fallback when the PR creation fails (e.g., branch conflict, CI failure).
 
-Body contains for each learning:
-- **File to modify:** exact path
+**PR title:** `[kmm-retro] <project-name>: <N> learnings from migration`
+
+**PR body** contains for each learning:
+- **File modified:** exact path
 - **Section:** where in the file
-- **Content to add:** the actual markdown/text to insert (copy-pasteable)
+- **Change made:** the actual diff summary
 - **Rationale:** why this was learned (what went wrong without it)
 
-Labels: `skill:kmm-workflow`, `type:self-improvement`, `session:<date>`
+**Labels:** `skill:kmm-workflow`, `type:self-improvement`
 
-- **Always create retrospective issues on the skill's own repo** (detect via `gh repo view --json nameWithOwner`), NOT on the app repo being migrated. The learnings are about the skill itself, not the app.
+**Target repo:** Always the skill's source repo (`~/dev/claude-code-skills`), NOT the app repo being migrated.
+
+**Orphan issue fallback:** If PR creation fails after 2 attempts, create a GitHub issue with the same title/body format and label `orphan:needs-pr`. The Improve mode will batch-consolidate orphaned issues into PRs.
 
 ## Generalization rule (mandatory)
 
