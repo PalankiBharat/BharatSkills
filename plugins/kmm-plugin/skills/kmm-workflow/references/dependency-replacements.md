@@ -101,6 +101,8 @@ val client = HttpClient(engine) {
 
 **Alternative:** [Ktorfit](https://foso.github.io/Ktorfit/) wraps Ktor with Retrofit-style annotations if you prefer that interface pattern.
 
+**Transitive `strictly` constraint:** When a transitive dependency declares a `strictly` version constraint on a Ktor engine, you CANNOT override it with a newer version. Gradle fails with "Cannot find a version that satisfies constraints." Keep the androidMain Ktor engine version matching the transitive constraint and document why it differs from commonMain. Do not attempt `force` or `isTransitive = false` — they cause runtime classpath issues.
+
 ---
 
 ## Serialization: Gson / Moshi → kotlinx.serialization
@@ -288,6 +290,16 @@ actual fun createSettings(): Settings =
     NSUserDefaultsSettings(NSUserDefaults.standardUserDefaults)
 ```
 
+**Named qualifier warning:** When migrating multiple SharedPreferences files (e.g., separate files for ETags vs app preferences), each MUST get its own `Settings` instance via named Koin qualifiers. A single `Settings` binding causes cross-contamination — `store.clear()` on one wipes the other's data.
+
+```kotlin
+// Koin module — separate qualifiers per SharedPreferences file
+single(named("etags")) { SharedPreferencesSettings(context.getSharedPreferences("etags", MODE_PRIVATE)) }
+single(named("prefs")) { SharedPreferencesSettings(context.getSharedPreferences("app_prefs", MODE_PRIVATE)) }
+```
+
+Match the original SharedPreferences file names for backward compatibility with existing stored data.
+
 ---
 
 ## Database: Room → Room 2.7+ KMP or SQLDelight
@@ -434,6 +446,40 @@ actual fun createDataStore(): DataStore<Preferences> =
     }
 ```
 
+### Typed DataStore (for domain objects)
+
+When persisting `@Serializable` domain objects (not key-value preferences), use DataStore with `OkioSerializer`:
+
+```kotlin
+// commonMain — Generic JSON serializer for any @Serializable type
+class JsonOkioSerializer<T>(
+    private val serializer: KSerializer<T>,
+    override val defaultValue: T
+) : OkioSerializer<T> {
+    override suspend fun readFrom(source: BufferedSource): T =
+        Json.decodeFromString(serializer, source.readUtf8())
+    override suspend fun writeTo(t: T, sink: BufferedSink) =
+        sink.writeUtf8(Json.encodeToString(serializer, t))
+}
+
+// commonMain — Store creation (path injected via DI, no expect/actual needed)
+fun <T> createTypedDataStore(
+    serializer: OkioSerializer<T>,
+    producePath: () -> String
+): DataStore<T> = DataStoreFactory.create(
+    storage = OkioStorage(FileSystem.SYSTEM, serializer) { producePath().toPath() },
+    corruptionHandler = ReplaceFileCorruptionHandler { serializer.defaultValue }
+)
+```
+
+**Dependencies:** `androidx.datastore:datastore-core` + `androidx.datastore:datastore-core-okio`
+
+**Path injection via Koin (no expect/actual needed):**
+- Android: `{ context.filesDir.resolve("model.json").absolutePath }`
+- iOS: `{ "${NSHomeDirectory()}/Documents/model.json" }`
+
+Use this instead of Preferences DataStore when persisting structured domain objects. Eliminates the need for separate per-platform storage implementations.
+
 ---
 
 ## Reactive: RxJava → kotlinx-coroutines + Flow
@@ -528,6 +574,8 @@ val today: LocalDate = now.date
 val delay = 30.seconds
 val formatted = instant.toString() // ISO-8601 by default
 ```
+
+**joda-time `toDateTime(zone).toDate()` equivalence:** When porting joda-time's `parseDateTime(s).toDateTime(zone).toDate()` pattern, `Instant.parse(s)` is behaviorally equivalent. The timezone parameter in the original was cosmetic — `toDate()` always returns UTC epoch millis regardless of `toDateTime(zone)`. Do NOT flag this as a behavioral regression during Verify — it is a false positive.
 
 ---
 

@@ -118,6 +118,17 @@ If deletion would break a non-migrated consumer (consumer is `platform-stay` or 
 → REQUIRES_APPROVAL: present options (migrate consumer now, keep original alongside shared,
 use typealias)
 
+**@Entity Shadow Deletion — var→val Transition**
+
+When an Android `@Entity` class (with mutable `var` fields) shadows a shared `data class` (with immutable `val` fields), deleting the @Entity makes the shared `val` version active. All direct field mutations (`model.field = "new"`) become compile errors requiring `.copy()` refactoring.
+
+**Before deleting an @Entity shadow class:**
+1. Grep for `{className}.{field} =` mutation patterns in the codebase
+2. Count mutation sites — each needs `.copy()` conversion
+3. If >10 mutation sites, plan as a dedicated sub-task in PROGRESS.md, not a side effect of deletion
+
+This is mechanical but high-volume in ViewModels that directly mutate model state.
+
 ### 1.4 Consumer Wrapper Pattern
 
 When the consumer app has a wrapper class (e.g., `ScripRepository`) that delegates to the SDK's interface:
@@ -276,6 +287,15 @@ Failures:
 | LoginRepository.kt | login(email,pwd):Result | ... | PASS | PASS |
 
 Present to user before proceeding to Appium automated flows.
+
+**Custom Codegen + Maven Publish:** If the SDK has custom Gradle codegen tasks that produce source files, the `dependsOn` matcher must include `sourcesJar` tasks — not just `compile*Kotlin` and `kapt*`. Maven publish runs `sourcesJar` tasks which also need codegen output. Missing this causes `publishAllPublicationsToMavenRepository` to fail with implicit dependency errors.
+
+```kotlin
+// build.gradle.kts — ensure codegen runs before sourcesJar
+tasks.matching { it.name.contains("SourcesJar") }.configureEach {
+    dependsOn(codegenTask)
+}
+```
 
 **After Wire Android checkpoint:** proceed to per-screen verification, then appium-mcp E2E per `appium-mcp-testing.md`, then manual test. See SKILL.md for phase ordering.
 
