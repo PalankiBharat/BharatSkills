@@ -48,9 +48,19 @@ def find_injected_deps(shared_src):
     deps = {}  # class_name -> [list of required types]
 
     kt_files = glob.glob(os.path.join(shared_src, '**', '*.kt'), recursive=True)
-    # Pattern: class Foo(private val bar: BarType, private val baz: BazType)
-    class_pattern = re.compile(r'class\s+(\w+)\s*\(([^)]*)\)')
+    # Pattern: class Foo(  ...multiline params...  ) — re.DOTALL so . matches newlines
+    class_pattern = re.compile(r'class\s+(\w+)\s*\(([^)]*)\)', re.DOTALL)
     param_pattern = re.compile(r'(?:private\s+)?(?:val|var)\s+\w+\s*:\s*(\w+)')
+
+    # Primitives, stdlib, Android platform, and coroutine types — not Koin-provided
+    skip = {
+        # Kotlin primitives & stdlib
+        'String', 'Int', 'Long', 'Float', 'Double', 'Boolean', 'List', 'Map', 'Set', 'Unit', 'Any',
+        # Android platform types
+        'Context', 'Activity', 'Fragment', 'Application',
+        # Coroutine types
+        'CoroutineScope', 'CoroutineDispatcher',
+    }
 
     for f in kt_files:
         with open(f) as fh:
@@ -59,8 +69,6 @@ def find_injected_deps(shared_src):
                 class_name = m.group(1)
                 params_str = m.group(2)
                 param_types = param_pattern.findall(params_str)
-                # Filter out primitives and common stdlib types
-                skip = {'String', 'Int', 'Long', 'Float', 'Double', 'Boolean', 'List', 'Map', 'Set', 'Unit', 'Any'}
                 param_types = [t for t in param_types if t not in skip]
                 if param_types:
                     deps[class_name] = param_types

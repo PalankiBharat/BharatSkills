@@ -41,7 +41,8 @@ for vm_file in $viewmodel_files; do
   echo "--- $vm_name ($vm_file) ---"
 
   # Extract flow property names: val <name>: StateFlow/SharedFlow/Channel
-  flows=$(grep -oP 'val\s+\K\w+(?=\s*:\s*(State|Shared|Mutable(State|Shared))Flow|Channel)' "$vm_file" 2>/dev/null || true)
+  # Uses perl -ne for macOS compatibility (BSD grep lacks -P / \K / lookahead)
+  flows=$(perl -ne 'print "$1\n" if /val\s+(\w+)\s*:\s*(?:State|Shared|Mutable(?:State|Shared))Flow|Channel/' "$vm_file" 2>/dev/null || true)
 
   if [ -z "$flows" ]; then
     echo "  No reactive flows found — skip"

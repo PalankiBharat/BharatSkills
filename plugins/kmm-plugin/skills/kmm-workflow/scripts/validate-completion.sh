@@ -25,8 +25,14 @@ PLAN_DIR="$HOME/dev/gameplans/$(cat "$ACTIVE_FILE")"
 
 # ---------------------------------------------------------------------------
 # 3. Define the set of valid completion promise tokens
+#    SUCCESS tokens indicate work completed.
+#    BLOCKED/FAIL tokens indicate the agent could not complete — these are
+#    still valid promises (the agent communicated its status) but the
+#    orchestrator should investigate.
 # ---------------------------------------------------------------------------
-PROMISES="FILE_COMPLETE|FILE_VERIFIED|FILE_BLOCKED|TDD_COMPLETE|TDD_BLOCKED|VERIFY_PASS|VERIFY_FAIL|DEBUG_COMPLETE|DEBUG_BLOCKED|UI_COMPLETE|UI_VERIFIED|UI_BLOCKED|AUDIT_COMPLETE|AUDIT_BLOCKED|REQUIRES_APPROVAL|PLAN_ANALYSIS"
+SUCCESS_PROMISES="FILE_COMPLETE|FILE_VERIFIED|TDD_COMPLETE|VERIFY_PASS|DEBUG_COMPLETE|UI_COMPLETE|UI_VERIFIED|AUDIT_COMPLETE|VERIFY_COMPLETE|PLAN_ANALYSIS|IMPORT_DONE|CHECK_PASS|SCRIPT_PASS|RESEARCH_DONE|DIFF_DONE|PARITY_PASS|DONE|DONE_WITH_CONCERNS"
+FAILURE_PROMISES="FILE_BLOCKED|TDD_BLOCKED|VERIFY_FAIL|DEBUG_BLOCKED|UI_BLOCKED|AUDIT_BLOCKED|VERIFY_BLOCKED|BLOCKED|CHECK_FAIL|SCRIPT_FAIL|PARITY_FAIL|NEEDS_CONTEXT"
+PROMISES="$SUCCESS_PROMISES|$FAILURE_PROMISES"
 
 # ---------------------------------------------------------------------------
 # 4. Extract agent output text from the hook JSON payload.
@@ -34,9 +40,15 @@ PROMISES="FILE_COMPLETE|FILE_VERIFIED|FILE_BLOCKED|TDD_COMPLETE|TDD_BLOCKED|VERI
 # ---------------------------------------------------------------------------
 AGENT_OUTPUT=$(echo "$INPUT" | jq -r '(.output // .summary) // empty')
 
-# If the agent output contains a promise token, we're done — all good.
-if [ -n "$AGENT_OUTPUT" ] && echo "$AGENT_OUTPUT" | grep -qE "$PROMISES"; then
-    exit 0
+# Check for any valid promise token (success or failure).
+if [ -n "$AGENT_OUTPUT" ]; then
+    if echo "$AGENT_OUTPUT" | grep -qE "$FAILURE_PROMISES"; then
+        echo "[kmm-workflow] NOTICE: Agent emitted a failure/blocked signal. Orchestrator should investigate."
+        exit 0
+    fi
+    if echo "$AGENT_OUTPUT" | grep -qE "$SUCCESS_PROMISES"; then
+        exit 0
+    fi
 fi
 
 # ---------------------------------------------------------------------------

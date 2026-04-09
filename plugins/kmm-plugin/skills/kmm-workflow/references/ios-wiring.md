@@ -129,32 +129,84 @@ Update `PROGRESS.md` checkpoint. `PLAN.md` status block updated.
 
 ---
 
-## 2. Parallel Execution
+## 2. Parallel Execution — Wiring Team
 
-### Dispatch pattern
+Phase 5 runs as part of the "wiring-team" created by the orchestrator. The "ios-coordinator" teammate (Sonnet, tmux pane) owns all iOS wiring work, fires sub-agents for parallelism, and coordinates with the "android-wirer" teammate.
 
-Launch one Sonnet agent per screen concurrently. Each agent handles one screen end-to-end (SwiftUI implementation, state wiring, effect handling). A separate Sonnet agent handles Koin iOS module wiring in parallel with the screen agents.
+### Phase 5A vs 5B Split
+
+**Phase 5A (iOS UI migration)** has NO dependency on Phase 4 (Android wiring). UI screens only depend on the shared ViewModel API from Phase 3. Phase 5A starts in parallel with Phase 4.
+
+**Phase 5B (iOS plumbing)** MUST wait for Phase 4 to complete. Koin iOS bindings need confirmed Android bindings as reference. Navigation wiring and build verification require both platforms.
+
+### Sub-Agent Dispatch Pattern
 
 ```
-Sonnet agent: screen-1 (ui-migrator.md)  ─┐
-Sonnet agent: screen-2 (ui-migrator.md)  ─┤─→ merge results → build verify
-Sonnet agent: screen-N (ui-migrator.md)  ─┤
-Sonnet agent: Koin iOS wiring            ─┘
+ios-coordinator (Sonnet, tmux pane):
+
+  PHASE 5A — starts IMMEDIATELY (parallel with Phase 4):
+    PARALLEL: N Sonnet sub-agents (one per screen):
+      Sub-agent per screen: reads migration-guide.md screen entry + ui-migrator.md prompt
+        → implements SwiftUI/CMP/Hybrid per assigned strategy
+        → returns UI_VERIFIED with evidence fields
+    PARALLEL: 1 Sonnet sub-agent for Koin iOS module wiring
+    [All N+1 sub-agents run simultaneously]
+
+  WAIT for android-wirer message: "Confirmed bindings: [list]"
+
+  PHASE 5B — starts AFTER Phase 4 committed:
+    Sonnet sub-agent: navigation wiring + pbxproj registration
+    Message orchestrator: "iOS file ops done, request build"
+    [Orchestrator runs xcodebuild]
+    
+    PARALLEL verification sub-agents:
+      Haiku sub-agent: flow-collector-check.sh + koin-binding-check.py
+      Haiku sub-agent: Phase 5 checklist validation
+    [Both run simultaneously]
 ```
 
-### Per-screen agent input
+### Per-Screen Agent Input
 
-Each screen agent receives:
-- The screen's entry from `migration-guide.md` (strategy, ViewModel name, route)
+Each screen sub-agent receives:
+- The screen's entry from `migration-guide.md` (strategy, ViewModel name, route, callbacks, flows, UI branches)
 - The Android source files for that screen
-- This reference file (or the relevant sections)
+- The `ios-wiring.md` reference (component mapping, SKIE interop, screen template sections)
 
-### Merge step
+Each sub-agent returns: `UI_VERIFIED: <screen> | strategy: <CMP|SwiftUI|Hybrid> | flows_subscribed: N/N | ui_branches: N/N | callbacks_wired: N/N`
 
-After all agents complete, the orchestrator:
+### Merge Step
+
+After all Phase 5A sub-agents complete, the ios-coordinator:
 1. Verifies no duplicate `Destination` cases in `Router`
 2. Verifies no duplicate Koin registrations
-3. Runs the build (Section 7) and resolves any cross-screen conflicts
+3. Resolves any cross-screen conflicts (e.g., shared navigation helpers)
+4. Reports merge result to orchestrator
+
+### Inter-Agent Messaging
+
+| From | To | Message | When |
+|------|-----|---------|------|
+| android-wirer | ios-coordinator | "Confirmed bindings: [list]" | After Phase 4 DI verified |
+| ios-coordinator | android-wirer | "API mismatch: LoginVM.state is StateFlow not SharedFlow" | If mismatch found during UI wiring |
+| ios-coordinator | orchestrator | "iOS file ops done, request build" | After navigation + pbxproj complete |
+| ios-coordinator | orchestrator | "REQUIRES_APPROVAL: <decision>" | If behavioral change needed |
+| screen sub-agent | (returns to ios-coordinator) | UI_VERIFIED / UI_BLOCKED | On completion |
+
+### Build Ownership
+
+The ios-coordinator NEVER runs `xcodebuild`. After file operations complete, it messages the orchestrator. The orchestrator owns the build.
+
+### Sync Point Diagram
+
+```
+Phase 4 (android-wirer) ──commit──┬──→ ios-coordinator: Phase 5B (navigation, build, verify)
+                                   │
+Phase 5A (ios-coordinator) ───────┬──→ merge with 5B results
+                                   │
+                            SYNC: 5A + 5B complete
+                                   │
+                            VERIFICATION PIPELINE
+```
 
 ---
 
@@ -174,20 +226,18 @@ Android is the source of truth. Match EVERYTHING.
 - NEVER improve. NEVER add extra error handling. NEVER reorganize the layout. NEVER add convenience nil checks that aren't in Android.
 - If the Android screen has a bug or looks bad, the SwiftUI screen should have the same bug and look bad in the same way. Flag it to the user — do not silently fix it.
 
+> **Obvious 1:1 mappings omitted** (Column→VStack, Text→Text, etc.). Only non-obvious, gotcha-prone, or complex mappings listed below. For trivial mappings, use the SwiftUI equivalent of the Compose/XML component — the names are similar enough to infer.
+
 ### Layout
 
 | Compose | SwiftUI | Notes |
 |---|---|---|
-| `Column` | `VStack` | |
-| `Row` | `HStack` | |
-| `Box` | `ZStack` | |
 | `LazyColumn` | `List` or `ScrollView + LazyVStack` | Use `List` when rows are uniform; `ScrollView + LazyVStack` when mixing content |
 | `LazyRow` | `ScrollView(.horizontal) { LazyHStack { } }` | |
 | `Scaffold` | `NavigationStack` + `.toolbar` | |
 | `Surface` | No direct equivalent | Use `.background()` and `.overlay()` |
 | `Card` | `RoundedRectangle` with `.shadow()` | See snippet below |
-| `Spacer()` | `Spacer()` | |
-| `Spacer(modifier = Modifier.height(8.dp))` | `Spacer().frame(height: 8)` | |
+| `Spacer(modifier = Modifier.height(8.dp))` | `Spacer().frame(height: 8)` | Named height arg has no positional equivalent |
 
 **Card snippet:**
 ```swift
@@ -205,73 +255,38 @@ RoundedRectangle(cornerRadius: 8)
 | Compose | SwiftUI | Notes |
 |---|---|---|
 | `NavHost` | `NavigationStack` | Defined once in `RootView` |
-| `navController.navigate("route")` | `router.navigate(to: .destination)` | Via effect handling |
-| `TopAppBar` | `.toolbar` + `.navigationTitle` | |
-| `BottomNavigation` | `TabView` with `.tabItem` | |
+| `navController.navigate("route")` | `router.navigate(to: .destination)` | Via effect handling — never call directly |
 | `BackHandler { }` | Handled automatically by `NavigationStack` | No equivalent needed |
 | `popBackStack()` | `router.pop()` | |
 
-### Input
+### Input / Display (non-obvious only)
 
 | Compose | SwiftUI | Notes |
 |---|---|---|
-| `TextField` | `TextField` | |
 | `TextField` (password) | `SecureField` | Match `visualTransformation = PasswordVisualTransformation()` |
-| `Button` | `Button` | |
 | `Checkbox` | `Toggle` with custom checkbox style | |
 | `RadioButton` | `Picker` with `.radioGroup` or custom | |
-| `Switch` | `Toggle` | |
-| `Slider` | `Slider` | |
-| `DropdownMenu` | `Menu` or `Picker` | |
 | `OutlinedTextField` | `TextField` with `.textFieldStyle(.roundedBorder)` or custom border overlay | |
-
-### Display
-
-| Compose | SwiftUI | Notes |
-|---|---|---|
-| `Text` | `Text` | |
-| `Image(painterResource(...))` | `Image("name")` | Local asset |
 | `AsyncImage` (Coil) | `AsyncImage` | Available iOS 15+ |
-| `Icon(Icons.Default.X)` | `Image(systemName: "x")` | Map icon names manually |
-| `CircularProgressIndicator()` | `ProgressView()` | |
-| `LinearProgressIndicator(progress)` | `ProgressView(value: progress)` | |
-| `Divider()` | `Divider()` | |
-| `Spacer()` | `Spacer()` | |
+| `Icon(Icons.Default.X)` | `Image(systemName: "x")` | Map icon names manually — no automatic mapping |
 | `HorizontalPager` | `TabView` with `.tabViewStyle(.page)` | |
 
-### Modifiers
+### Modifiers (non-obvious only)
 
 | Compose Modifier | SwiftUI Modifier | Notes |
 |---|---|---|
-| `.padding(16.dp)` | `.padding(16)` | |
-| `.padding(horizontal = 16.dp)` | `.padding(.horizontal, 16)` | |
-| `.padding(vertical = 8.dp)` | `.padding(.vertical, 8)` | |
-| `.padding(top = 8.dp, bottom = 4.dp)` | `.padding(.top, 8).padding(.bottom, 4)` | |
 | `.fillMaxWidth()` | `.frame(maxWidth: .infinity)` | |
-| `.fillMaxHeight()` | `.frame(maxHeight: .infinity)` | |
 | `.fillMaxSize()` | `.frame(maxWidth: .infinity, maxHeight: .infinity)` | |
-| `.width(100.dp)` | `.frame(width: 100)` | |
-| `.height(48.dp)` | `.frame(height: 48)` | |
-| `.size(24.dp)` | `.frame(width: 24, height: 24)` | |
-| `.background(Color.Red)` | `.background(Color.red)` | |
 | `.clip(RoundedCornerShape(8.dp))` | `.clipShape(RoundedRectangle(cornerRadius: 8))` | |
-| `.clip(CircleShape)` | `.clipShape(Circle())` | |
 | `.clickable { }` | `.onTapGesture { }` or wrap in `Button` | Prefer `Button` for semantic correctness |
 | `.weight(1f)` | `Spacer()` or `.frame(maxWidth: .infinity)` | Inside `HStack` |
-| `.align(Alignment.Center)` | `.frame(alignment: .center)` | |
 | `.border(1.dp, Color.Gray)` | `.overlay(RoundedRectangle(cornerRadius: 0).stroke(Color.gray, lineWidth: 1))` | |
-| `.wrapContentWidth()` | Default — no modifier needed | |
-| `.alpha(0.5f)` | `.opacity(0.5)` | |
-| `.rotate(45f)` | `.rotationEffect(.degrees(45))` | |
-| `.zIndex(1f)` | `.zIndex(1)` | |
-| `.offset(x = 8.dp)` | `.offset(x: 8)` | |
 | `.testTag("tag")` | `.accessibilityIdentifier("tag")` | |
 
 ### State
 
 | Compose | SwiftUI | Notes |
 |---|---|---|
-| `remember { mutableStateOf(x) }` | `@State var x` | |
 | `collectAsState()` | `for await in .task { }` | |
 | `LaunchedEffect(key) { }` | `.task(id: key) { }` | Restarts when key changes |
 | `LaunchedEffect(Unit) { }` | `.task { }` | Runs once on appear |
@@ -279,91 +294,35 @@ RoundedRectangle(cornerRadius: 8)
 | `derivedStateOf { }` | Computed property (`var x: T { }`) | |
 | `SideEffect { }` | `.onChange(of:)` | |
 | `DisposableEffect { onDispose { } }` | `.onDisappear { }` | |
-| `produceState` | `@State` + `.task` | |
 
-### Other Components
+### Other / Dialogs (non-obvious only)
 
 | Compose | SwiftUI | Notes |
 |---|---|---|
 | `Snackbar` | Custom overlay or `.toast` modifier | No direct equivalent |
 | `AnimatedVisibility` | `if condition { view.transition(.opacity) }` with `withAnimation` | |
 | `FlowRow` | Custom `Layout` (iOS 16+) or wrapped `UICollectionViewLayout` | |
-| `FloatingActionButton` | `.overlay` with positioned `Button` or `.toolbar` button | |
-
-### Dialogs and Sheets
-
-| Compose | SwiftUI | Notes |
-|---|---|---|
-| `AlertDialog` | `.alert` modifier | |
-| `BottomSheetScaffold` | `.sheet` modifier | |
-| `ModalBottomSheet` | `.sheet` modifier | |
+| `BottomSheetScaffold` / `ModalBottomSheet` | `.sheet` modifier | |
 | `Dialog { }` | `.sheet` or `.fullScreenCover` | |
 
-### Fragment / XML → SwiftUI
+### Fragment / XML → SwiftUI (non-obvious only)
 
-#### Layout Containers
-
-| Android XML | SwiftUI | Notes |
+| Android XML / Attribute | SwiftUI | Notes |
 |---|---|---|
-| `LinearLayout` (vertical) | `VStack` | |
-| `LinearLayout` (horizontal) | `HStack` | |
-| `FrameLayout` | `ZStack` | |
 | `ConstraintLayout` | `VStack` / `HStack` composition | Use `GeometryReader` for complex absolute positioning |
-| `RelativeLayout` | `ZStack` with alignment | |
-| `ScrollView` | `ScrollView` | |
 | `RecyclerView` | `List` or `ScrollView + LazyVStack` | |
 | `ViewPager2` | `TabView` with `.tabViewStyle(.page)` | |
 | `CoordinatorLayout` | `ScrollView` with `.toolbar` | No direct equivalent |
-| `NestedScrollView` | `ScrollView` | |
-
-#### Widgets
-
-| Android XML | SwiftUI | Notes |
-|---|---|---|
-| `TextView` | `Text` | |
-| `EditText` | `TextField` | |
-| `ImageView` | `Image` / `AsyncImage` | |
-| `Button` | `Button` | |
-| `ProgressBar` (circular) | `ProgressView()` | |
-| `ProgressBar` (horizontal) | `ProgressView(value:)` | |
 | `WebView` | `WKWebView` via `UIViewRepresentable` | |
-| `CheckBox` | `Toggle` | |
-| `RadioGroup` / `RadioButton` | `Picker` | |
-| `Spinner` (dropdown) | `Picker` | |
-| `SeekBar` | `Slider` | |
-| `Switch` | `Toggle` | |
-| `CardView` | `RoundedRectangle` + `.shadow()` | |
 | `ChipGroup` / `Chip` | Custom `HStack` with tags | |
-
-#### XML Attributes
-
-| Android Attribute | SwiftUI Modifier | Notes |
-|---|---|---|
-| `android:padding="16dp"` | `.padding(16)` | |
-| `android:paddingHorizontal="16dp"` | `.padding(.horizontal, 16)` | |
-| `android:layout_width="match_parent"` | `.frame(maxWidth: .infinity)` | |
-| `android:layout_width="wrap_content"` | Default — no modifier needed | |
-| `android:layout_height="48dp"` | `.frame(height: 48)` | |
-| `android:visibility="gone"` | `if condition { view }` | Remove from layout |
+| `TabLayout` | `Picker` with `.segmented` style or custom tab bar | |
+| `android:visibility="gone"` | `if condition { view }` | Removes from layout — distinct from invisible |
 | `android:visibility="invisible"` | `.opacity(0)` | Keeps layout space |
-| `android:gravity="center"` | `.frame(alignment: .center)` or `.multilineTextAlignment(.center)` | |
-| `android:textColor="#FF0000"` | `.foregroundColor(Color.red)` | |
-| `android:textSize="16sp"` | `.font(.system(size: 16))` | |
-| `android:textStyle="bold"` | `.fontWeight(.bold)` | |
-| `android:background="@color/primary"` | `.background(Color.primary)` | |
-| `android:elevation="4dp"` | `.shadow(radius: 4)` | |
-| `android:layout_margin="8dp"` | `.padding(8)` on parent or `.padding(8)` on view | |
 | `android:layout_weight="1"` | `.frame(maxWidth: .infinity)` inside `HStack` | |
 | `android:drawableStart` | `Label("text", systemImage: "icon")` or custom `HStack` | |
-| `android:hint="Placeholder"` | `TextField("Placeholder", text: $text)` | |
-| `android:inputType="textPassword"` | `SecureField` | |
-| `android:maxLines="2"` | `.lineLimit(2)` | |
 | `android:ellipsize="end"` | `.truncationMode(.tail)` | |
 | `android:letterSpacing` | `.kerning(value)` | |
 | `android:lineSpacingExtra` | `.lineSpacing(value)` | |
-| `android:layout_height="match_parent"` | `.frame(maxHeight: .infinity)` | |
-| `TabLayout` | `Picker` with `.segmented` style or custom tab bar | |
-| `FloatingActionButton` | `.overlay` with positioned `Button` | |
 
 ---
 
@@ -628,7 +587,7 @@ struct MyScreen: View {
     @State private var state: MyState = MyState()
 
     init() {
-        self.viewModel = PresenterProvider.shared.getMyViewModel()
+        self.viewModel = KoinHelper.shared.getMyViewModel()
     }
 
     var body: some View {
@@ -666,7 +625,7 @@ Key points:
 - `@EnvironmentObject private var router: Router` — always present, even if screen does not navigate. Matches Android's `NavController` availability.
 - `private let viewModel: MyViewModel` — concrete type, no protocol wrapping.
 - `@State private var state: MyState` — single state object mirrors Compose's `uiState`.
-- `init()` calls `PresenterProvider.shared.getMyViewModel()` — this is one common way to obtain a VM. The VM acquisition pattern (`PresenterProvider.shared`) is one common approach. Your project may use Koin, manual injection, or a different provider. Adapt to match the project's existing DI conventions.
+- `init()` acquires the VM — the acquisition pattern depends on your project's DI conventions (Koin, manual injection, etc.). `KoinHelper.shared.getMyViewModel()` is one common approach; adapt to match the project.
 - First `.task` collects state. Second `.task` collects effects. Keep them separate.
 - `guard let effect = effect else { continue }` — required pattern before switching on nullable effect flows.
 - `switch onEnum(of:)` — always use SKIE's `onEnum` helper, never raw enum switch.
@@ -885,12 +844,8 @@ xcodebuild \
 Failures: check `findings.md` Known Fixes first, then 3-strike rule.
 
 ### pod install Sequence (CMP Projects)
-For projects using Compose Multiplatform with CocoaPods:
-1. Full shared framework build (`./gradlew :shared:build` or `:shared:linkDebugFrameworkIosSimulatorArm64`)
-2. `cd iosApp && pod install` — re-run AFTER the full build, not just after `generateDummyFramework`
-3. `xcodebuild` — only after pod install picks up populated compose-resources
 
-`generateDummyFramework` + `pod install` produces an empty framework with no compose resources. The full build must populate `build/compose/cocoapods/compose-resources` first.
+Re-run `pod install` after every shared module change before `xcodebuild`. See [iOS Gotchas: pod install](#9-ios-gotchas) for the full sequence and why `generateDummyFramework` is insufficient.
 
 ### Runtime Verify (appium-mcp on simulator, fallback: xcrun)
 

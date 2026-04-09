@@ -6,28 +6,30 @@ This file is the combined reference for both plan structure and iterative execut
 
 1. [Two-Phase Model](#two-phase-model)
 2. [Output Files](#output-files)
-3. [PLAN.md: Self-Documenting Header](#planmd-self-documenting-header)
+3. [PLAN.md: Pure Data Header](#planmd-pure-data-header)
 4. [PLAN.md: STATUS Block](#planmd-status-block)
 5. [PLAN.md: Title, Context, and Decisions](#planmd-title-context-and-decisions)
 6. [PLAN.md: Build Verification Template](#planmd-build-verification-template)
 7. [PLAN.md: Plan Presentation](#planmd-plan-presentation)
-8. [Workflow Phases Overview](#workflow-phases-overview)
-9. [Phase 1: PLAN (BLOCKING)](#phase-1-plan-blocking)
-10. [Phase Template: Shared Migration](#phase-template-shared-migration)
-11. [Per-File Migration Loop](#per-file-migration-loop)
-12. [Wire Android Phase](#wire-android-phase)
-13. [Wire iOS Phase](#wire-ios-phase)
-14. [Parallel Execution](#parallel-execution)
-15. [Agent Execution Strategy](#agent-execution-strategy)
-16. [PROGRESS.md Template](#progressmd-template)
-17. [migration-guide.md Structure](#migration-guidemd-structure)
-18. [findings.md Structure](#findingsmd-structure)
-19. [Summary Table Step](#summary-table-step)
-20. [Compact Format](#compact-format)
-21. [Plan Quality Rules](#plan-quality-rules)
-22. [Safeguards and Key Risks](#safeguards-and-key-risks)
-23. [Session Completion](#session-completion)
-24. [API 500 Debug Protocol](#api-500-debug-protocol-curl-bisection)
+8. [Execution Blueprint](#execution-blueprint)
+9. [Workflow Phases Overview](#workflow-phases-overview)
+10. [Phase 1: PLAN (BLOCKING)](#phase-1-plan-blocking)
+11. [Phase Template: Shared Migration](#phase-template-shared-migration)
+12. [Per-File Migration Loop](#per-file-migration-loop)
+13. [Wire Android Phase](#wire-android-phase)
+14. [Wire iOS Phase](#wire-ios-phase)
+15. [Parallel Execution](#parallel-execution)
+16. [Agent Execution Strategy](#agent-execution-strategy)
+17. [PROGRESS.md Template](#progressmd-template)
+18. [migration-guide.md Structure](#migration-guidemd-structure)
+19. [findings.md Structure](#findingsmd-structure)
+20. [Summary Table Step](#summary-table-step)
+21. [Compact Format](#compact-format)
+22. [Plan Quality Rules](#plan-quality-rules)
+23. [Safeguards and Key Risks](#safeguards-and-key-risks)
+24. [Session Completion](#session-completion)
+25. [Version Compatibility Protocol](#version-compatibility-protocol)
+26. [API 500 Debug Protocol](#api-500-debug-protocol-curl-bisection)
 
 ---
 
@@ -71,63 +73,43 @@ All four files are committed to the gameplan directory. After `/clear`, these fi
 
 ---
 
-## PLAN.md: Self-Documenting Header
+## PLAN.md: Pure Data Header
 
-MUST appear at the top of every generated PLAN.md:
+PLAN.md is a **pure data file** — it contains WHAT to migrate, not HOW to migrate it. Workflow instructions live in SKILL.md and reference files (the single source of truth for execution methodology). This separation ensures that when the skill is updated, older plans remain compatible — the new skill version applies its own workflow to the existing plan data.
+
+The header records the skill version that created the plan:
 
 ```
-<!-- KMM WORKFLOW — AGENT INSTRUCTIONS
-THE RULE: 1:1 MECHANICAL PORT. Only Android→KMM specifics change. Any behavioral
-change → REQUIRES_APPROVAL. Stop, present options, wait for user choice.
-
-Before doing ANY work, you MUST:
-1. Read this entire PLAN.md to understand the task, phases, and constraints
-2. Read PROGRESS.md (in this same directory) to determine current state
-3. Read migration-guide.md for per-file specs — follow them exactly
-4. Read findings.md for known fixes before diagnosing any failure
-5. Report to the user: "Starting/Resuming Phase N: [title], Task N.M: [description]"
-
-findings.md captures assessment data and research — keep untrusted content out of
-PLAN.md (auto-read by hooks). External content (web results, library docs, raw API
-references) goes in findings.md only, never in PLAN.md.
-
-During execution:
-- Update PROGRESS.md after EVERY completed task (mark [x], add notes)
-- Update PROGRESS.md for deferred tasks (mark [~] with inline reason)
-- NEVER skip phases or tasks — execute in order unless the plan says otherwise
-- NEVER commit without updating PROGRESS.md first
-- If you encounter something not covered by this plan, STOP and ask the user
-
-This plan is the source of truth for what to do. PROGRESS.md is the source of
-truth for what's been done. findings.md is the source of truth for research and
-reusable fixes.
-
-Plan location: <full path to this file> -->
+<!-- KMM-PLAN v1 | skill: 6.5.0 | module: <module-name> -->
 ```
+
+This enables version compatibility: when a newer skill version loads an older plan, it can detect missing data fields and upgrade them without rewriting existing decisions or progress.
+
+**PLAN.md must NEVER contain:**
+- Agent dispatch instructions ("dispatch Sonnet agent", "fire Haiku sub-agent")
+- Workflow rules ("1:1 MECHANICAL PORT", "escalate after 3 failures")
+- Reference file loading instructions ("read agent-protocol.md before starting")
+- Phase execution methodology (ordering, parallelism patterns)
+
+These all live in SKILL.md and reference files, which evolve with skill updates.
 
 ---
 
 ## PLAN.md: STATUS Block
 
-The first 15 lines of PLAN.md are injected by hooks on every message and before every Write/Edit. Structure these lines as a compact status summary:
+The first 10 lines of PLAN.md are injected by hooks on every message and before every Write/Edit. Structure these lines as a compact data summary — status only, no workflow instructions:
 
 ```
-<!-- STATUS: 1:1 MECHANICAL PORT | Phase N of M | <phase-name> | <status> -->
-<!-- NEXT: Task N.X — <description> -->
-<!-- VERIFY: <build verification command> -->
+<!-- KMM-PLAN v1 | skill: 6.5.0 | module: <module-name> -->
+<!-- STATUS: Phase N of M | <phase-name> | <status> -->
+<!-- NEXT: <what needs to happen next — WHAT, not HOW> -->
+<!-- VERIFY: <project-specific build command> -->
 <!-- CHECKPOINT: <last checkpoint commit or "none yet"> -->
 <!-- DEVICE: android=<emulator-serial> | ios=<simulator-UDID> -->
 ## KMM Migration: <module-name>
-## Rules (always in scope)
-- 1:1 MECHANICAL PORT: only Android→KMM specifics change, any behavioral change → REQUIRES_APPROVAL
-- Agents return completion promises — no promise = not accepted
-- Haiku verifier after every migration — VERIFY_PASS required before continuing
-- 3-platform build at every checkpoint
-- Escalate after 3 failures, never suppress errors
-- migration-guide.md = per-file spec | findings.md = known fixes + research
 ```
 
-Update the STATUS comments and Rules after every phase completes.
+Update the STATUS comments after every phase completes. The NEXT field describes the outcome needed ("Migrate Level 1 files"), not the method ("dispatch Sonnet migrator agents").
 
 ---
 
@@ -161,6 +143,41 @@ Tell the user where the full PLAN.md is if they want to review details. Wait for
 
 ---
 
+## Execution Blueprint
+
+During Phase 1 planning, PLAN.md includes an execution blueprint table that annotates every task with its parallelism potential. Team members read this table to know exactly what to parallelize — no guessing.
+
+```markdown
+## Execution Blueprint
+| # | Task | Files | Parallel? | Deps | Status |
+|---|------|-------|-----------|------|--------|
+| 2.1 | Create interfaces | InterfaceA.kt, InterfaceB.kt, InterfaceC.kt | YES (3) | none | pending |
+| 3.1 | Migrate Level 0 | A.kt, B.kt, C.kt, D.kt, E.kt | YES (5) | none | pending |
+| 3.2 | Verify Level 0 | A.kt, B.kt, C.kt, D.kt, E.kt | YES (5) | each blocked by its 3.1 file | pending |
+| 3.3 | Migrate Level 1 | F.kt, G.kt | YES (2) | F→A,B; G→C | pending |
+| 4.1 | Rewire consumers | 12 files | YES (12) | none | pending |
+| 4.2 | Wire DI | koinModule.kt | NO | none | pending |
+| 5A.1 | iOS screens | Login, Settings, Profile | YES (3) | none | pending |
+| 5B.1 | iOS navigation | Router.swift | NO | 4.2 | pending |
+```
+
+### Per-File Dependency Tracking
+
+The blueprint tracks **per-file dependencies** (not per-level). If F.kt depends only on A.kt and B.kt (from Level 0), then F.kt can start as soon as A and B are verified — even while C.kt, D.kt, E.kt are still in progress at Level 0.
+
+Dependencies come from migration-guide.md's "Migrate after" field. The blueprint Deps column encodes specific file dependencies, enabling early-start optimization by team members.
+
+### Parallelism Annotations
+
+The Parallel? column tells team members exactly how many sub-agents to fire:
+- `YES (N)` — fire N sub-agents simultaneously, one per file
+- `NO` — single agent, sequential
+- `PARTIAL (N of M)` — N files are independent, remaining M have internal deps
+
+Team members read this column and fire sub-agents accordingly. No LLM judgment needed for parallelism decisions — it's pre-computed during planning.
+
+---
+
 ## Workflow Phases Overview
 
 The canonical phase sequence for every migration:
@@ -191,10 +208,12 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.4:** Write PROGRESS.md to the gameplan directory with empty checkboxes for every task — filled during execution.
 - **Task 1.5:** Write migration-guide.md using the template in `references/agent-prompts/migration-guide-template.md` — one entry per file.
 - **Task 1.6:** Write findings.md with assessment data (see findings.md Structure below).
-- **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes in findings.md.
-- **Task 1.7b:** Boot an Android emulator and iOS simulator for this gameplan. Record device serials in PLAN.md header (`<!-- DEVICE: android=<serial> | ios=<UDID> -->`). Verify appium-mcp is available (`npx appium-mcp@latest --version`). No port allocation needed — appium-mcp manages sessions internally.
-- **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases.
-- **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md.
+> **Parallel research batches:** Tasks 1.7-1.9 form Batch 1 (4 independent Haiku sub-agents fired by the "researcher" team member). Tasks 1.11-1.12 form Batch 2 (2 Haiku sub-agents). Each batch runs simultaneously; batches are sequential. The researcher team member collects results and returns structured data to the orchestrator for merging into plan files.
+
+- **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes in findings.md. (parallelizable — Haiku sub-agent, Batch 1)
+- **Task 1.7b:** Boot an Android emulator and iOS simulator for this gameplan. Record device serials in PLAN.md header (`<!-- DEVICE: android=<serial> | ios=<UDID> -->`). Verify appium-mcp is available (`npx appium-mcp@latest --version`). No port allocation needed — appium-mcp manages sessions internally. (parallelizable — Haiku sub-agent, Batch 1)
+- **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases. (parallelizable — Haiku sub-agent, Batch 1)
+- **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md. (parallelizable — Haiku sub-agent, Batch 1)
 - **Task 1.10:** Dependency decision framework — Read `references/dependency-decision-framework.md`. For each Android-only dependency in the module:
   1. Look up the recommended decision (Replace/Port/Abstract) in the framework
   2. Present the recommendation WITH rationale to the user — do not ask open-ended "what should we do?" questions
@@ -203,9 +222,9 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 - **Task 1.10b:** Cross-check migration levels against dependency decisions — scan every DAG entry and verify it matches the decision in findings.md / dependency-decision-framework. Files involving a library with a recorded decision MUST use the decided approach (Replace/Port/Abstract). Fix mismatches before running the plan-analyzer.
 - **Task 1.10c:** Scope-change propagation — Any decision that adds files to scope MUST immediately trigger a re-check of: (1) scaffolding list, (2) DAG levels, (3) phase task counts — propagate changes before continuing Q&A.
 - **Task 1.10d:** Import-vs-DAG verification — for every file annotated `Migrate after: none` (no dependencies), read its actual import list and verify no import resolves to a file scheduled for later migration levels. Missed dependencies cause compilation failures when the file migrates early. Update DAG annotations for any mismatches found.
-- **Task 1.11:** Android API audit — Before writing migration-guide.md per-file specs, grep all files planned for commonMain migration for Android-only APIs (`android.util.Log`, `System.currentTimeMillis`, `java.util.Date`, `org.joda.time`, `org.json`, `com.google.gson`, `@Synchronized`, `java.util.concurrent`, `Dispatchers.IO`, `GlobalScope`, `@VisibleForTesting`, `android.content.Context`, `android.content.SharedPreferences`), singleton instance references (`instance`, `getInstance`, `companion object` singletons), cross-package imports to non-migration-target packages, enum references where the enum is defined outside the migration batch, and **domain/data class methods that construct infrastructure classes inline** (e.g., `RemoteStore(…)`, `Service.getInstance()`, `Repository(…)` called inside a model method body — flag these as "requires DI refactor before or during migration" in migration-guide.md, as they create silent reattach debt when the model migrates to commonMain but retains an androidMain extension). Record EVERY occurrence per file. For any batch count > 20 files of the same type, read each file individually to confirm classification before recording the count — never trust directory grep counts alone. The per-file spec in migration-guide.md MUST list the specific replacement for each occurrence — never write "should port cleanly" or "minimal changes".
+- **Task 1.11:** Android API audit — Before writing migration-guide.md per-file specs, grep all files planned for commonMain migration for Android-only APIs (`android.util.Log`, `System.currentTimeMillis`, `java.util.Date`, `org.joda.time`, `org.json`, `com.google.gson`, `@Synchronized`, `java.util.concurrent`, `Dispatchers.IO`, `GlobalScope`, `@VisibleForTesting`, `android.content.Context`, `android.content.SharedPreferences`), singleton instance references (`instance`, `getInstance`, `companion object` singletons), cross-package imports to non-migration-target packages, enum references where the enum is defined outside the migration batch, and **domain/data class methods that construct infrastructure classes inline** (e.g., infrastructure classes (e.g., store instances, service singletons) called inside model method bodies — flag these as "requires DI refactor before or during migration" in migration-guide.md, as they create silent reattach debt when the model migrates to commonMain but retains an androidMain extension). Record EVERY occurrence per file. For any batch count > 20 files of the same type, read each file individually to confirm classification before recording the count — never trust directory grep counts alone. The per-file spec in migration-guide.md MUST list the specific replacement for each occurrence — never write "should port cleanly" or "minimal changes". (parallelizable — Haiku sub-agent, Batch 2)
   - Never write "Platform APIs: none" for more than 3 consecutive files without re-reading each file individually — this field must be derived from grep, not from inference.
-- **Task 1.12:** Library KMP audit — For every Android-only library being replaced (Paging3, Room, DataStore, Navigation, etc.), web search for official KMP support before planning a manual alternative. AndroidX libraries are rapidly adding KMP support — training data is outdated, always research first. Record findings in findings.md. Phase 1 planning pre-verifies ALL library versions and pins them in migration-guide.md Swaps field with exact versions. Migrator agents use these pinned versions — no re-research during Phase 3. This is the single source of truth for dependency versions.
+- **Task 1.12:** Library KMP audit — For every Android-only library being replaced (Paging3, Room, DataStore, Navigation, etc.), web search for official KMP support before planning a manual alternative. AndroidX libraries are rapidly adding KMP support — training data is outdated, always research first. Record findings in findings.md. Phase 1 planning pre-verifies ALL library versions and pins them in migration-guide.md Swaps field with exact versions. Migrator agents use these pinned versions — no re-research during Phase 3. This is the single source of truth for dependency versions. (parallelizable — Haiku sub-agent, Batch 2; needs web search capability)
 - **Task 1.13:** Verify build task names — run `./gradlew :<module>:tasks --all | grep -i <platform>` to discover exact Gradle task names for Android compilation, iOS arm64 compilation, and app assembly. Record verified task names in PLAN.md build verification section. Never write build commands based on assumptions.
 - **Task 1.14:** Generate `build-verify.sh` in the gameplan directory using the verified build commands from Task 1.13. This project-specific script is the single source of truth for build checks throughout all phases — zero LLM tokens on mechanical builds. See [Build Verification Script](#build-verification-script) for the template and usage.
 - **Task 1.15:** Dispatch **Sonnet agent** (`plan-analyzer.md`) to find remaining ambiguity → resolve → user approves.
@@ -308,7 +327,7 @@ Scan all migrated files for `error("…")`, `TODO()`, `TODO("…")`, and `stub` 
 
 **Step 3: Koin binding completeness check**
 
-For each VM registered in the shared Koin module, verify ALL constructor parameter types AND all types used by child composables/screens (e.g., `CustomerSupportUseCase` used by `WithdrawalsTopBar`) have Koin bindings. Check transitively — not just direct constructor params. Verify bindings exist in BOTH `androidBridgeModule` AND `iosBridgeModule`. Missing bindings crash Koin startup at runtime and block ALL VM resolution, not just the missing one.
+For each VM registered in the shared Koin module, verify ALL constructor parameter types AND all types used by child composables/screens (e.g., `FeatureUseCase` used by a top bar composable) have Koin bindings. Check transitively — not just direct constructor params. Verify bindings exist in BOTH `androidBridgeModule` AND `iosBridgeModule`. Missing bindings crash Koin startup at runtime and block ALL VM resolution, not just the missing one.
 
 **Step 4: Android build + test**
 
@@ -393,19 +412,54 @@ Files at the same dependency level (no ordering constraint between them) run as 
 - Tasks that share files or have dependency order execute sequentially.
 - **Within each level, sort by complexity (LOC ascending).** `wc -l` each file before Phase 3. Flag >300 LOC with a complexity note; flag >500 LOC as "dedicated agent, longest runtime" for time budgeting.
 
+### Overlapping Verification in Phase 3
+
+Within a DAG level, Haiku verifiers start immediately as each migrator sub-agent completes — they do NOT wait for the entire level to finish:
+
+```
+Level N:
+  [Sonnet Migrator A] ──done──→ [Haiku Verifier A starts]
+  [Sonnet Migrator B] ──(running)──
+  [Sonnet Migrator C] ──done──→ [Haiku Verifier C starts]
+  [Sonnet Migrator B] ──done──→ [Haiku Verifier B starts]
+  [ALL migrators + verifiers complete]
+  Orchestrator: ./gradlew build (Gradle lock)
+```
+
+The migration-coordinator team member manages this internally — it fires verifier sub-agents as callbacks when migrator sub-agents return results.
+
+### Early-Start Across DAG Levels
+
+If File F (Level 1) depends only on File A and File B (Level 0), then F can start migrating as soon as A and B are verified — even if C, D, E (also Level 0) are still in progress.
+
+The execution blueprint's Deps column encodes per-file dependencies. The migration-coordinator checks actual file deps (from "Migrate after" field), not level boundaries.
+
+### Sub-Agent Rule
+
+**N independent files → N sub-agents.** Team members never process independent files sequentially. The execution blueprint's Parallel? column pre-computes this — team members read it and fire sub-agents accordingly.
+
 ---
 
 ## Agent Execution Strategy
 
-Include this table in PLAN.md so agents know their roles.
+All work flows through a 3-tier hierarchy. The orchestrator creates teams, team members fire sub-agents.
 
-| Phase | Work Type | Agent | Parallelism |
-|-------|-----------|-------|-------------|
-| 1: PLAN | Setup: PLAN.md, PROGRESS.md, migration-guide.md, findings.md | Sonnet | Sequential |
-| 2: SCAFFOLD | Create KMM module skeleton, expect/actual stubs | Sonnet | Sequential |
-| 3: SHARED CODE MIGRATION | Migrate → verify (Haiku) → Gradle test, per layer | Sonnet + Haiku verifier | Parallel per file at same dependency level, then sequential test |
-| 4: WIRE ANDROID | Update imports, DI, delete originals, Android build, runtime verify, Summary Table, appium-mcp E2E, manual test | Sonnet | Sequential |
-| 5: WIRE iOS | iOS screens, navigation, Koin iOS, iOS build, runtime verify, Summary Table, appium-mcp E2E, manual test | Sonnet | Sequential |
+| Phase | Team | Member (Tier 2) | Model | Tmux | Sub-Agents (Tier 3) | Parallelism |
+|-------|------|-----------------|-------|------|---------------------|-------------|
+| 1: PLAN — research | planning-team | researcher | Sonnet | Yes | N Haiku (grep, read, web search) | Parallel batches (1.7-1.9, then 1.11-1.12, then per-file guide) |
+| 1: PLAN — analysis | planning-team | plan-analyzer | Sonnet | No | Haiku (grep verification) | Sequential |
+| 1: PLAN — decisions | (orchestrator) | — | Opus | — | — | Sequential (REQUIRES_APPROVAL) |
+| 2: SCAFFOLD | scaffold-team | scaffolder | Sonnet | Yes | N Haiku (one per interface file) | Parallel per interface |
+| 3: MIGRATE | migration-team | migration-coordinator | Sonnet | Yes | N Sonnet (one per file, TDD pipeline) | Parallel per DAG level, early-start per file deps |
+| 3: VERIFY | migration-team | migration-coordinator | — | — | N Haiku (one per file, structural diff) | Overlapping with migrators |
+| 3: AUDIT | migration-team | (coordinator fires) | — | — | 1 Sonnet auditor + 1 Haiku checklist | Parallel |
+| 4: ANDROID | wiring-team | android-wirer | Sonnet | Yes | N Haiku (consumers) + 1 Sonnet (DI) | Parallel consumers + DI |
+| 5A: iOS UI | wiring-team | ios-coordinator | Sonnet | Yes | N Sonnet (one per screen) + 1 Sonnet (Koin) | Parallel per screen (overlaps Phase 4) |
+| 5B: iOS PLUMB | wiring-team | ios-coordinator | — | — | 1 Sonnet (nav) + N Haiku (scripts) | Sequential nav, parallel scripts |
+| Verify L1 | verify-team | verifier | Sonnet | Yes | 2 Haiku + 1 Sonnet | 3-way parallel |
+| Verify L2 | verify-team | verifier | — | — | 1 Haiku + 1 Sonnet | 2-way parallel |
+| Verify L3 | verify-team | verifier | — | — | 2 Sonnet (Android + iOS devices) | 2-way parallel |
+| Retro — apply | retro-team | consolidator | Sonnet | Yes | N Sonnet (one per target file) | Parallel per file |
 
 ---
 
@@ -413,81 +467,90 @@ Include this table in PLAN.md so agents know their roles.
 
 Created during Phase 1 with empty checkboxes. Filled during execution. PROGRESS.md is committed after each phase completes — not all at once at the end.
 
+Task names describe WHAT was accomplished, not HOW (no agent names, tool names, or method references). This ensures the checklist remains valid across skill version updates.
+
 ```markdown
 # Progress: <module-name>
 
 ## Phase 1: PLAN
-- [ ] 1.1 Create gameplan directory
-- [ ] 1.2 Create worktree + copy local.properties
-- [ ] 1.3 Write PLAN.md
-- [ ] 1.4 Write PROGRESS.md
-- [ ] 1.5 Write migration-guide.md
-- [ ] 1.6 Write findings.md
-- [ ] 1.7 Write findings with API endpoints
-- [ ] 1.7b Boot emulator/simulator, record device serials in PLAN.md header
-- [ ] 1.8 Verify platform navigation architecture
-- [ ] 1.9 Verify SDK availability
-- [ ] 1.10 Dependency decision framework (references/dependency-decision-framework.md)
-- [ ] 1.10b Cross-check migration levels vs dependency decisions
-- [ ] 1.11 Android API audit (grep Android-only APIs per file)
-- [ ] 1.12 Library KMP audit (web search for official KMP support)
-- [ ] 1.13 Verify build task names
-- [ ] 1.14 Generate build-verify.sh
-- [ ] 1.15 Plan ambiguity analysis (plan-analyzer.md)
-- [ ] 1.15b Mandatory gap analysis — fix BLOCKER/HIGH before approval
-- [ ] 1.15c Interface completeness check
-- [ ] 1.16 Verify clean build baseline
-- [ ] 1.17 Generate parity-check.sh, flow-collector-check.sh, koin-binding-check.py
-- [ ] 1.18 Generate manual-test-checklist.md
-- [ ] Checkpoint 1 committed
+- [ ] Gameplan directory + worktree created
+- [ ] Plan files written (PLAN.md, PROGRESS.md, migration-guide.md, findings.md)
+- [ ] Source files analyzed, APIs recorded
+- [ ] Devices booted, serials recorded
+- [ ] Navigation architecture verified
+- [ ] SDK availability verified
+- [ ] Dependency decisions made (all REQUIRES_APPROVAL resolved)
+- [ ] Cross-check: migration levels vs dependency decisions
+- [ ] Android API audit complete (per-file Platform APIs populated)
+- [ ] Library KMP compatibility verified
+- [ ] Import-vs-DAG verification complete
+- [ ] Build task names verified
+- [ ] Verification scripts generated (build-verify, parity-check, flow-collector, koin-binding)
+- [ ] Interface completeness check passed
+- [ ] Plan quality review passed (zero BLOCKERs, zero HIGH)
+- [ ] Baseline build passes
+- [ ] Manual test checklist generated
+- [ ] Checkpoint committed
 
 ## Phase 2: SCAFFOLD
-- [ ] 2.1 Create KMM module skeleton (build.gradle.kts, source sets)
-- [ ] 2.2 Write expect/actual stubs for platform APIs
-- [ ] 2.3 Add commonTest source set (kotlin-test + kotlinx-coroutines-test)
-- [ ] 2.4 Add kotlinx-atomicfu if @Synchronized replacement needed
-- [ ] 2.N ...
-- [ ] Checkpoint 2 committed
+- [ ] KMM module skeleton created (build.gradle.kts, source sets)
+- [ ] expect/actual stubs written for platform APIs
+- [ ] commonTest source set configured
+- [ ] kotlinx-atomicfu added (if @Synchronized replacement needed)
+- [ ] Fakes writable from commonTest
+- [ ] Build passes
+- [ ] Checkpoint committed
 
 ## Phase 3: SHARED CODE MIGRATION
-<!-- One checkbox per file per loop step, grouped by phase -->
-- [ ] 3.1 <FileName>.kt — stage
-- [ ] 3.1 <FileName>.kt — compile original
-- [ ] 3.1 <FileName>.kt — write tests
-- [ ] 3.1 <FileName>.kt — run on original
-- [ ] 3.1 <FileName>.kt — migrate
-- [ ] 3.1 <FileName>.kt — run on migrated
-- [ ] 3.1 <FileName>.kt — verify (Haiku)
-- [ ] 3.1 <FileName>.kt — delete staged
+<!-- One line per file — "migrated + tested + verified" is the outcome -->
+- [ ] <FileName>.kt — migrated + tested + verified
+- [ ] <FileName>.kt — migrated + tested + verified
 - [ ] ...
-- [ ] Checkpoint 3 committed
+- [ ] Full unit test suite passes
+- [ ] Post-migration audit passed (zero CRITICAL)
+- [ ] String literal diff verified
+- [ ] Cross-platform Koin bindings verified
+- [ ] Checkpoint committed
+- [ ] Retrospective complete
 
 ## Phase 4: WIRE ANDROID
-- [ ] 4.1 Wire Android: update imports, DI, delete originals
-- [ ] 4.2 Stub audit (scan for error(), TODO(), stub markers)
-- [ ] 4.3 Koin binding completeness check (transitive, both platforms)
-- [ ] 4.4 Android build + unit test — ALL tests pass
-- [ ] 4.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot
-- [ ] 4.6 Summary Table
-- [ ] 4.7 appium-mcp E2E (3-build comparison)
-- [ ] 4.8 Manual test (remaining edge cases only)
-- [ ] Checkpoint: Phase 4 Wire Android committed
-- [ ] PROGRESS.md committed
+- [ ] Imports + DI rewired
+- [ ] Consumer files updated
+- [ ] Original Android files deleted
+- [ ] Stub audit passed (zero error()/TODO() in non-test)
+- [ ] Empty lambda audit passed
+- [ ] Koin binding check passed (both platforms)
+- [ ] Build + all unit tests pass
+- [ ] Parity check passed
+- [ ] DI binding audit passed
+- [ ] E2E comparison passed (3-build)
+- [ ] Manual test passed
+- [ ] Checkpoint committed
 
 ## Phase 5: WIRE iOS
-- [ ] 5.1 UI migration (per screen)
-- [ ] 5.2 Wire iOS: imports, DI, SKIE, Koin iOS
-- [ ] 5.3 Stub audit + Koin completeness check (iOS bindings)
-- [ ] 5.4 iOS build + unit test — ALL tests pass
-- [ ] 5.5 Runtime verify — per-screen: navigate, verify data loads, verify CTA, screenshot + Android parity
-- [ ] 5.6 Summary Table
-- [ ] 5.7 appium-mcp E2E (3-build comparison)
-- [ ] 5.8 Manual test (remaining edge cases only)
-- [ ] Checkpoint: Phase 5 Wire iOS committed
-- [ ] PROGRESS.md committed
+- [ ] SwiftUI screens wired for all platform-stay files
+- [ ] Koin iOS module: all bindings registered
+- [ ] Navigation + pbxproj updated
+- [ ] Stub audit passed
+- [ ] Empty lambda audit passed
+- [ ] Info.plist keys verified
+- [ ] Asset parity verified
+- [ ] Route mapping complete (every variant has explicit case)
+- [ ] Session fields verified (all persist paths)
+- [ ] Flow inventory audit passed
+- [ ] Callback completeness verified
+- [ ] UI branch audit passed
+- [ ] DI binding audit passed
+- [ ] Build + all unit tests pass
+- [ ] Parity check passed
+- [ ] E2E comparison passed (3-build)
+- [ ] Cross-platform parity classified
+- [ ] Manual test passed
+- [ ] Checkpoint committed
+- [ ] Retrospective complete (final)
 
 ## Final Verify
-- [ ] All PROGRESS.md checkboxes marked [x]
+- [ ] All checkboxes marked [x]
 - [ ] findings.md saved for next migration
 ```
 
@@ -511,31 +574,9 @@ Not a global `.active` file. Each session has its own scoped active file so conc
 
 One entry per file. Agents consume this during execution — they do not re-read source code or make decisions.
 
-```markdown
-# Migration Guide: <module-name>
-
-## <FileName>.kt
-
-- **Source:** androidApp/src/main/java/com/acme/<path>/<FileName>.kt
-- **Target:** shared/src/commonMain/kotlin/com/acme/<path>/<FileName>.kt
-- **Classification:** migrate-swap
-- **Public API:**
-  - `login(email: String, pwd: String): Result<User>`
-  - `logout(): Unit`
-  - `isLoggedIn(): Flow<Boolean>`
-- **Library swaps:**
-  - `retrofit2.Call<T>` → `suspend fun` (Ktor 3.1.0)
-  - `SharedPreferences` → `MultiplatformSettings 1.3.0`
-- **API endpoints:** POST /api/auth/login, DELETE /api/auth/session
-- **expect/actual:** none
-- **Migrate after:** AuthCredentials.kt, TokenManager.kt
-- **Consumers:** LoginUseCase.kt, LoginViewModel.kt (update imports after)
-- **Rules:** keep `login(email)` and `login(phone)` as SEPARATE methods — DO NOT combine
-```
+See `references/agent-prompts/migration-guide-template.md` for the full template with all fields and examples.
 
 > **Source path rule:** The Source field MUST be the actual file path verified by reading the file — never assumed from context, naming convention, or co-location.
-
-See `references/agent-prompts/migration-guide-template.md` for the full template.
 
 ---
 
@@ -545,52 +586,26 @@ See `references/agent-prompts/migration-guide-template.md` for the full template
 # Findings: <module-name>
 
 ### Decisions Made During Planning
-
-Every planning decision with rationale — survives `/clear` so wiring agents can see WHY choices were made.
-
 | Decision | Options Considered | Chosen | Rationale |
 |----------|-------------------|--------|-----------|
-| AuthService DI | Replace (Koin) / Abstract (expect/actual) | Replace (Koin) | Official KMP support since Koin 4.0, battle-tested |
-| Date handling | kotlinx-datetime / expect/actual wrapper | kotlinx-datetime | 1:1 API parity, no custom code needed |
 
-Every dependency decision from Task 1.10, every library choice from Task 1.12, and any non-obvious architectural decisions go here. If a wiring agent encounters something unexpected, this table is the first place to check for rationale.
-
-## Known Fixes
-
-Check here BEFORE diagnosing any build/test failure. If the symptom matches, apply the fix directly.
-
+### Known Fixes
 | Symptom | Fix | Category |
 |---------|-----|----------|
-| Ktor cookie not sent | Add explicit BrowserCookieJar | ktor |
-| Gradle cache error on :shared:test | Add --no-configuration-cache | build |
-| SourceKit trust dialog blocks xcodebuild | Run xcodebuild once manually first | ios-build |
 
-Categories: `build`, `ios-build`, `skie`, `koin`, `coroutines`, `test`, `interop`, `other`
+### Gotchas
+- (non-obvious project-specific issues)
 
-## Gotchas
-
-Non-obvious project-specific issues found during planning.
-
-- x-request-token vs session_token header naming (server expects x-request-token)
-
-## Library Versions (verified via docs)
-
+### Library Versions (verified via docs)
 | Library | Version | Verified |
 |---------|---------|---------|
-| Ktor | 3.1.0 | 2026-03-26 |
-| MultiplatformSettings | 1.3.0 | 2026-03-26 |
 
-## Issues Encountered
-
+### Issues Encountered
 | # | Task | Attempt | What Failed | Resolution |
 |---|------|---------|-------------|------------|
 
-## Research
-
-Library documentation, API references, version compatibility notes.
-Free-form — paste docs, link references, record findings here.
-This is the ONLY place external content (web results, raw docs) should live.
-NEVER put external content in PLAN.md — it is auto-read by hooks.
+### Research
+(Library docs, API references, version compatibility. ONLY place for external content — never in PLAN.md.)
 ```
 
 ---
@@ -674,6 +689,24 @@ This technique found the `platform` header root cause in 5 minutes after 2+ hour
 - `findings.md` saved for next migration (Known Fixes, Gotchas, Library Versions)
 - `migration-guide.md` and `PLAN.md` kept for reference or deleted per user preference
 - **Device cleanup:** delete dedicated emulator AVD (`avdmanager delete avd -n <name>`) and iOS simulator (`xcrun simctl delete <UDID>`) that were allocated for this gameplan. Release ports.
+
+---
+
+## Version Compatibility Protocol
+
+PLAN.md records `skill: <version>` in its header. When the skill loads a plan created by an older version:
+
+1. **Read skill version from header** — e.g., `skill: 6.4.3`
+2. **Compare with current skill version** — e.g., current is `6.5.0`
+3. **If same version** → proceed normally
+4. **If older version** → run lightweight data upgrade:
+   - Check if migration-guide.md has all expected fields (add missing fields with defaults or by re-analyzing code)
+   - Check if execution blueprint exists in PLAN.md (generate from migration-guide.md DAG if missing)
+   - Check if PROGRESS.md uses outcome-based tasks (if old format with tool/agent references, don't rewrite — map old tasks to current workflow internally)
+   - Report to user: "Plan was created with skill v6.4.3, now running v6.5.0. Data upgraded. Workflow uses current skill version."
+5. **Never rewrite existing plan data** — only add missing fields. Decisions, progress, and findings are preserved.
+
+This generalizes the existing verify-protocol.md Step 2a (upgrade pre-v6 gameplan) to handle any version gap.
 
 ---
 

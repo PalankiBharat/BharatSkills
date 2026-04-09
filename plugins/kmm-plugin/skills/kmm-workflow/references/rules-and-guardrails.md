@@ -61,7 +61,7 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
 - **Latest stable deps.** When adding new dependencies, check the latest stable version via web search or Context7, not training data or skill reference files (which may have outdated version numbers).
 - **No "Shared" prefix** on class/file names in commonMain. Keep names natural (e.g., `LoginViewModel` not `SharedLoginViewModel`).
 - **Host app DI stays untouched.** When migrating a library SDK consumed by a host app with its own DI framework (Hilt, Dagger): keep the host app's DI as-is. Add Koin alongside for the SDK's types only. Bridge via a small module. Do NOT propose removing the host app's DI framework.
-- **SDK demo app source may differ from published artifact.** When porting from an SDK's demo app, verify enums, methods, and types against the actual Maven/CocoaPods artifact — not the demo source. Demo apps may be ahead or behind the published SDK version (e.g., `SesameState.gender` vs `.personal`). Always check the published artifact as the source of truth.
+- **SDK demo app source may differ from published artifact.** When porting from an SDK's demo app, verify enums, methods, and types against the actual Maven/CocoaPods artifact — not the demo source. Demo apps may be ahead or behind the published SDK version (e.g., `SdkEnum.variant1` in demo vs `.variant2` in published artifact). Always check the published artifact as the source of truth.
 - **Version catalog enforcement.** During Phase 2 SCAFFOLD, scan all `build.gradle`/`build.gradle.kts` files in migration scope for plugins declared with hardcoded `version '...'` syntax. Replace with version catalog aliases. A hardcoded plugin version that differs from the project's Kotlin version causes pre-existing build failures that block migration verification.
 - **Module dependency before original deletion.** When migrating files from an Android module to shared, add `api(project(":shared"))` (or `implementation`) to the Android module's `build.gradle` BEFORE deleting original source files. Correct sequence: (1) create files in `shared/src/commonMain/`, (2) add module dependency, (3) build to verify resolution, (4) delete originals. Never delete originals and add the dependency in the same step — the dependency must land first.
 
@@ -464,25 +464,23 @@ fun onSubmitFailed(error: Throwable) {
 
 ### Coroutine Lifecycle Violations
 
-Five variants of the same root cause: coroutine work outliving its intended lifecycle.
+Coroutine work outliving its intended lifecycle. Five variants of the same root cause:
 
-**Variant A — Unscoped CoroutineScope (original "leaked scopes"):**
-`CoroutineScope(Dispatchers.IO).launch { }` or `GlobalScope.launch { }` created inline without being stored and cancelled. The scope is never cancelled, so coroutines run until the process dies. On iOS, this causes unbounded memory growth across navigation pushes. Fix: use `viewModelScope`.
+| Variant | Pattern | Symptom | Fix |
+|---------|---------|---------|-----|
+| A: Unscoped | `CoroutineScope(Dispatchers.IO).launch {}` inline | Never cancelled, unbounded memory on iOS | Use `viewModelScope` |
+| B: Nested VM | ViewModel as `val` field in another ViewModel | `viewModelScope` never cleared by framework | Refactor to plain class accepting `CoroutineScope` from parent |
+| C: UseCase scope | UseCase creates own `CoroutineScope(Dispatchers.IO)` | Caller can't cancel | Accept `scope: CoroutineScope` as constructor param |
+| D: Untracked jobs | `val job = viewModelScope.launch {}` not in `jobGroup` | Can't cancel on logout | Track in `jobGroup`, cancel in `handleDispose()` |
+| E: Fire-and-forget | `GlobalScope.launch {}` migrated to `viewModelScope.launch {}` | Analytics/audit cancelled on fast navigation | Use `viewModelScope.launch(NonCancellable) {}` |
 
-**Variant B — ViewModel instantiated as a field (nested ViewModel):**
-A class extending `ViewModel` created as a `val` field inside another ViewModel. Its `viewModelScope` is never cleared by the framework — only GC (non-deterministic) ends it. Fix: refactor to a plain class accepting `CoroutineScope` from the parent, or promote to a DI-registered ViewModel.
-
-**Variant C — UseCase with self-created scope:**
-A UseCase/helper that creates its own `CoroutineScope(Dispatchers.IO)` internally rather than accepting one from its caller. Fix: accept `scope: CoroutineScope` as a constructor parameter — the caller owns the lifecycle. Note: `withContext(Dispatchers.IO)` inside a properly-scoped suspend function is fine.
-
-**Variant D — Untracked jobs (jobGroup pattern):**
-`val job = viewModelScope.launch { }` where the job is stored but never added to a `jobGroup` for targeted cancellation. The job runs until `viewModelScope` cancels — which may be too late (e.g., stop syncing on logout). Fix: track all significant jobs in `jobGroup` and cancel in `handleDispose()`.
+**Generalization:** If a coroutine must complete regardless of screen lifecycle, it needs `NonCancellable`. Plain `viewModelScope.launch` is correct for UI-driven work; wrong for analytics, audit trails, and server-side mutations.
 
 ```kotlin
-// Bad — job is untracked, can't cancel on logout
+// Variant D — Bad: job is untracked, can't cancel on logout
 val syncJob = viewModelScope.launch { startSync() }
 
-// Good — tracked, cancelled in handleDispose
+// Variant D — Good: tracked, cancelled in handleDispose
 init { jobGroup += viewModelScope.launch { startSync() } }
 override fun handleDispose() {
     super.handleDispose()
@@ -490,20 +488,13 @@ override fun handleDispose() {
 }
 ```
 
-**Variant E — Fire-and-forget work cancelled on fast navigation:**
-Original Android code used `GlobalScope.launch { }` for fire-and-forget work (analytics events, server-side recording, audit logging) that must complete regardless of screen lifecycle. Migrating this to plain `viewModelScope.launch { }` is wrong — the scope is cancelled when the user navigates away before the work finishes.
-
-Fix: use `viewModelScope.launch(NonCancellable) { }` for any work that must survive scope cancellation.
-
-**Generalization:** If a coroutine must complete regardless of screen lifecycle, it needs `NonCancellable`. Plain `viewModelScope.launch` is correct for UI-driven work that should stop on navigation; it is wrong for analytics, audit trails, and server-side state mutations where partial completion causes data inconsistency.
-
 ```kotlin
-// Bad — cancelled on fast back navigation, analytics event lost
+// Variant E — Bad: cancelled on fast back navigation, analytics event lost
 fun onPurchaseComplete(orderId: String) {
     viewModelScope.launch { analyticsRepository.recordPurchase(orderId) }
 }
 
-// Good — survives scope cancellation, event always delivered
+// Variant E — Good: survives scope cancellation, event always delivered
 fun onPurchaseComplete(orderId: String) {
     viewModelScope.launch(NonCancellable) { analyticsRepository.recordPurchase(orderId) }
 }
@@ -652,10 +643,10 @@ val viewModelModule = module {
 Bad:
 ```kotlin
 @Composable
-fun WithdrawalsScreen(
-    onOpenWhatsapp: (String) -> Unit = {} // dead button — never passed from parent
+fun MyScreen(
+    onContactSupport: (String) -> Unit = {} // dead button — never passed from parent
 ) {
-    Button(onClick = { onOpenWhatsapp(supportNumber) }) {
+    Button(onClick = { onContactSupport(supportNumber) }) {
         Text("Need Help?")
     }
 }
@@ -664,17 +655,17 @@ fun WithdrawalsScreen(
 Good:
 ```kotlin
 @Composable
-fun WithdrawalsScreen(
-    onOpenWhatsapp: (String) -> Unit // no default — parent MUST pass it
+fun MyScreen(
+    onContactSupport: (String) -> Unit // no default — parent MUST pass it
 ) {
-    Button(onClick = { onOpenWhatsapp(supportNumber) }) {
+    Button(onClick = { onContactSupport(supportNumber) }) {
         Text("Need Help?")
     }
 }
 
 // Parent:
-WithdrawalsScreen(
-    onOpenWhatsapp = { number -> viewModel.processAction(OpenWhatsapp(number)) }
+MyScreen(
+    onContactSupport = { number -> viewModel.processAction(ContactSupport(number)) }
 )
 ```
 

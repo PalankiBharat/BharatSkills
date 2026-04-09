@@ -30,10 +30,14 @@ hooks:
     - hooks:
         - type: command
           command: "cat | ${CLAUDE_PLUGIN_ROOT}/skills/kmm-workflow/scripts/check-phase-status.sh"
-  PreCompact:
+  TeammateIdle:
     - hooks:
         - type: command
-          command: "cat | ${CLAUDE_PLUGIN_ROOT}/skills/kmm-workflow/scripts/backup-before-compact.sh"
+          command: "cat | ${CLAUDE_PLUGIN_ROOT}/skills/kmm-workflow/scripts/validate-completion.sh"
+  TaskCompleted:
+    - hooks:
+        - type: command
+          command: "cat | ${CLAUDE_PLUGIN_ROOT}/skills/kmm-workflow/scripts/validate-completion.sh"
 ---
 
 # KMM Migration Orchestrator
@@ -44,25 +48,40 @@ hooks:
 Zero improvisation. Zero combining. Zero signature changes.
 Any behavioral change → REQUIRES_APPROVAL.
 
+## On Invocation — Load Project Context
+
+Before asking the user which mode, load project-specific knowledge:
+1. Detect project: `git remote get-url origin` → extract repo identifier
+2. Look up `knowledge/index.md` for a matching pattern
+3. If found → read `knowledge/<project>.md` — this is the project profile (SDK constraints, backend quirks, build commands, architecture decisions, migration history)
+4. If not found → inform user: "No project knowledge found. First migration on this project?"
+
+Then ask: Create / Continue / Improve / Verify / Audit.
+
 ## On Invocation — Always Ask
 
 On ANY invocation, always ask: Create / Continue / Improve / Verify / Audit. Never auto-resume. Never assume.
 
-- **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md, PROGRESS.md, migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. Write session marker. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
-- **Continue** → if exactly one non-stale gameplan exists, auto-resume it (report: "Resuming <name> — Phase N: <description>. Say STOP to switch."). If multiple gameplans exist, list all with status, user picks. Write session marker → read PLAN.md + PROGRESS.md → verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`) → continue from last checkpoint.
-- **Improve** → **FIRST: `cd ~/dev/claude-code-skills`** — ALL file edits use paths under that directory (NEVER `~/.claude/plugins/`). Then: read open GitHub issues with `skill:kmm-workflow` label, classify learnings, create branch, consolidate into skill files (NEVER append — rewrite to absorb), measure file growth, bump patch version in `plugin.json`, raise PR, self-review (Consolidation Mandate rule 6). See `references/self-improvement.md`.
+- **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md (pure data format — `<!-- KMM-PLAN v1 | skill: 6.5.0 | module: <name> -->` header, execution blueprint, NO workflow instructions), PROGRESS.md (outcome-based tasks), migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
+- **Continue** → if exactly one non-stale gameplan exists, auto-resume it (report: "Resuming <name> — Phase N: <description>. Say STOP to switch."). If multiple gameplans exist, list all with status, user picks. Then:
+  1. Read PLAN.md header → check `skill: <version>`. If older than current skill version (6.5.0) or missing → run Version Compatibility Protocol (see `references/planning-and-execution.md`): upgrade missing fields, generate execution blueprint if absent, report to user "Plan upgraded from vX to vY."
+  2. If PLAN.md has old-style workflow instructions (self-documenting header, inline Rules section) → ignore them. Workflow comes from THIS skill version, not the plan file. The plan is DATA only.
+  3. Read PROGRESS.md → determine current phase/task.
+  4. Verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`).
+  5. Continue from last checkpoint using current skill's team dispatch patterns.
+- **Improve** → lightweight review mode. List open retro PRs (`gh pr list --label "skill:kmm-workflow"`), list orphaned issues, batch-consolidate orphans, cross-check for redundant/conflicting PRs, review merged PRs for post-merge issues. No team needed — orchestrator handles alone. See `references/self-improvement.md`.
 - **Verify** → unified verification of a migrated module. Runs 3 layers in order:
   - Layer 1 (Static): anti-pattern scan, parity-check.sh, cross-platform parity, phase checklists — no devices needed, fast
   - Layer 2 (Completeness): ViewModel flow inventory audit, callback completeness trace, UI branch audit, DI binding verification — code analysis, no devices. Runs deterministic scripts (flow-collector-check.sh, koin-binding-check.py) plus AI-powered callback and branch analysis.
   - Layer 3 (Device): appium-mcp E2E, 3-build screenshot comparison (master Android vs migrated Android vs iOS), runtime DI check — needs devices, slow
   If devices unavailable: Layers 1-2 run fully, Layer 3 reports warning. Always gets useful results.
   Detects existing gameplan state (v6 / pre-v6 / none), upgrades or reverse-engineers migration-guide.md.
-  See `references/verify-protocol.md`.
+  Uses verify-team with intra-layer parallel sub-agents. See `references/verify-protocol.md`.
 - **Audit** → takes a PR URL or branch name. Standalone post-merge/post-PR review — no gameplan needed. Reverse-engineers context from the PR diff + affected files. Runs the same 3-layer verification as Verify but with focused context (only loads diff, not full migration history). Classifies each finding as:
   - **BUG** — introduced by the migration, must fix
   - **PRE-EXISTING** — was broken before migration, document but don't block
   - **INTENTIONAL** — deliberate change, document rationale in findings.md
-  Generates fixes for BUG findings by severity (CRITICAL first), commits & pushes. Reports summary table of all findings with classification.
+  Generates fixes for BUG findings by severity (CRITICAL first), commits & pushes. Reports summary table of all findings with classification. Same verify-team parallel dispatch as Verify, scoped to PR diff.
 - On completion (all phases done + committed): delete session marker.
 
 ## Workflow
@@ -78,78 +97,81 @@ The skill is file-based — nothing is lost on `/clear`. The orchestrator MUST s
 | Phase 1 (PLAN) | Research + Q&A fills context |
 | Phase 3 (SHARED CODE MIGRATION) | Per-file TDD loops bloat context 300K+ tokens |
 
+### Execution Model
+
+3-tier hierarchy: Orchestrator (Opus) → Team Members (Sonnet, tmux panes) → Sub-Agents (Sonnet/Haiku, in worktrees). All execution through agent teams. N independent files → N sub-agents → Nx speed.
+
+Read `references/agent-protocol.md` for: Model Routing, Agent Team Protocol, Haiku Dispatch Protocol, Tmux Integration.
+
 ## Phases
 
 ### Phase 1: PLAN
-
-- Create worktree, research codebase, write migration-guide.md (enriched template with 15 fields), findings.md (with Decisions section), PLAN.md, PROGRESS.md
-- Generate build-verify.sh, parity-check.sh; boot emulator/simulator; record device serials in PLAN.md header
-- Dispatch plan-analyzer → fix all BLOCKERs → user approval
-- Run Phase 1 checklist (`references/phase-checklists.md`) before approval
-- Read `references/planning-and-execution.md` for full protocol
+- Create `planning-team`. "researcher" teammate fires parallel Haiku sub-agents for codebase analysis + migration-guide.md population
+- "plan-analyzer" teammate reviews plan → orchestrator fixes BLOCKERs → user approval
+- Execution blueprint generated in PLAN.md (per-file deps, parallelism annotations)
+- Read `references/planning-and-execution.md`
 
 ### Phase 2: SCAFFOLD
+- "scaffolder" teammate fires N sub-agents (one per interface, each in worktree)
+- build-verify.sh → CHECKPOINT COMMIT
+- Read `references/kmm-architecture.md`
 
-- Create interfaces in commonMain + androidMain actuals; scaffold commonTest, kotlinx-atomicfu if needed
-- build-verify.sh → CHECKPOINT COMMIT "scaffold: interfaces for <module>"
-- Run Phase 2 checklist (`references/phase-checklists.md`) — Read `references/kmm-architecture.md`
+### Phase 3: SHARED CODE MIGRATION
+- Create `migration-team`. "migration-coordinator" fires N sub-agents per DAG level (each in worktree, full TDD pipeline)
+- Overlapping verification: Haiku verifiers fire as each migrator completes
+- Early-start: per-file deps, not per-level — start downstream files as soon as their specific deps are verified
+- Integration build after each level (orchestrator owns Gradle lock)
+- Auditor sweep + checklist validation (parallel) after all levels
+- Read `references/dependency-replacements.md`, `references/rules-and-guardrails.md`, `references/platform-api-gotchas.md`
 
-### Phase 3: SHARED CODE MIGRATION (dependency-level parallelism)
-
-- Build DAG from migration-guide.md "Migrate after" fields
-- PARALLEL subagents per file (full TDD pipeline) — agents read `references/agent-protocol.md`
-- TDD enforcement: FILE_VERIFIED with tests >= Expected tests from migration-guide.md; `tests: 0` is rejected
-- Original deletion (two-step): orchestrator deletes before dispatch, verifies after all agents complete
-- After all levels: full test suite, auditor sweep, Phase 3 checklist (`references/phase-checklists.md`)
-- CHECKPOINT COMMIT — Read `references/dependency-replacements.md`, `references/rules-and-guardrails.md`, `references/platform-api-gotchas.md`
-
-### Phase 4+5: WIRE ANDROID + iOS (parallel where possible)
-
-- Spawn agent team if available (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1), else parallel subagents
-  - Android-wirer: imports, DI (Hilt→Koin), delete originals, build+tests
-  - iOS UI migration (Phase 5A): can start in parallel with Phase 4 — UI screens only depend on shared ViewModel API from Phase 3, not on Android wiring
-  - iOS wiring (Phase 5B): Koin iOS, navigation+pbxproj, build+tests — must wait for Phase 4 to complete (needs confirmed bindings)
-  - Team members communicate about shared-code issues (missing Koin bindings, API mismatches)
-- After both complete: Verification Pipeline (see below) → CHECKPOINT COMMIT
-- Run Phase 4 and Phase 5 checklists (`references/phase-checklists.md`)
-- Read `references/android-wiring.md`, `references/ios-wiring.md`, `references/appium-mcp-testing.md`, `references/cross-platform-parity.md`
+### Phase 4+5: WIRE ANDROID + iOS
+- Create `wiring-team` with "android-wirer" and "ios-coordinator" teammates (both in tmux panes)
+- Phase 4: android-wirer fires N Haiku sub-agents (consumers) + Sonnet (DI), each in worktree
+- Phase 5A: ios-coordinator fires N Sonnet sub-agents (per screen, in worktrees) — starts IN PARALLEL with Phase 4
+- Phase 5B: navigation + pbxproj — blocks on Phase 4 completion (needs confirmed bindings)
+- Inter-agent messaging: teammates DM each other about bindings, API mismatches
+- Read `references/android-wiring.md`, `references/ios-wiring.md`, `references/appium-mcp-testing.md`
 
 ## Verification Pipeline
 
-Mandatory at Phase 4/5 boundaries — no skipping, no reordering:
-1. build-verify.sh — build + unit tests
-2. parity-check.sh — static analysis, zero tokens
-3. flow-collector-check.sh — ViewModel flow → iOS collector cross-reference (deterministic)
-4. koin-binding-check.py — DI resolution verification (deterministic)
-5. appium-mcp E2E — 3-build comparison (`references/appium-mcp-testing.md`), both platforms
+Mandatory at Phase 4/5 boundaries — no skipping, no reordering. Deterministic checks run as Haiku sub-agents; device testing runs as Sonnet sub-agents.
+
+1. build-verify.sh — orchestrator runs (Gradle lock)
+2. parity-check.sh — Haiku sub-agent (zero tokens, zero devices)
+3. flow-collector-check.sh — Haiku sub-agent (deterministic)
+4. koin-binding-check.py — Haiku sub-agent (deterministic)
+5. appium-mcp E2E — Sonnet sub-agents (one per platform, parallel on separate devices). See `references/appium-mcp-testing.md`
 6. Manual test — structured checklist from migration-guide.md breaking changes
+
+Steps 2-4 run as parallel Haiku sub-agents (all independent). Step 5 fires 2 Sonnet sub-agents (Android + iOS simultaneously).
 
 If any layer fails → fix → rerun from that layer. If manual testing finds a new check → add it to parity-check.sh.
 
 ## Migration Retrospective
 
-BLOCKING gate before every `/clear` instruction. The orchestrator MUST run this autonomously — if it has not run, the `/clear` instruction MUST NOT be given:
-1. Read `references/self-improvement.md` for full protocol
-2. Scan conversation + findings.md; cross-reference existing skill files; deduplicate
-3. Create/update GitHub issues on skill repo with label `skill:kmm-workflow`
+BLOCKING gate before every `/clear` instruction. Runs in-session with full conversation context.
 
-Output per learning: `{category, target_file, existing_rule_to_update, proposed_1_line_change, rationale}`
-Generalization mandatory — strip project-specific names, extract reusable patterns. Runs before /clear.
+**Phase 1 — OBSERVE (autonomous):** Scan conversation for 7 categories (A-G: Decision Gaps, Missing Guardrails, Process Improvements, Platform Gotchas, Library Knowledge, Steering Corrections, System & Performance). Score against skill-worthiness gate.
 
-## Agent Dispatch Table
+**Phase 2 — DISCUSS (interactive):** Present findings by risk tier. System/process observations → propose optimization with trade-offs → user approves/modifies/skips. Steering corrections → propose rule → user approves. Code/library → batch summary → user approves.
 
-All agents read `references/agent-protocol.md` before starting.
+**Phase 3 — APPLY (after approval):** Create `retro-team`, fire parallel Sonnet sub-agents per target file. Bump version, raise PR, self-review.
 
-| Task | Prompt | Model | Returns |
-|------|--------|-------|---------|
-| Migrate file (full TDD pipeline: stage, test, migrate, verify) | agent-prompts/migrator.md | sonnet | FILE_VERIFIED / FILE_BLOCKED |
-| Verify migration (structural diff) | agent-prompts/verifier.md | haiku | VERIFY_PASS / VERIFY_FAIL |
-| Write characterization tests (standalone — Verify mode and pre-characterization only) | agent-prompts/test-writer.md | sonnet | TDD_COMPLETE / TDD_BLOCKED |
-| Debug failure | agent-prompts/debugger.md | sonnet | DEBUG_COMPLETE / DEBUG_BLOCKED |
-| UI migration (per screen) | agent-prompts/ui-migrator.md | sonnet | UI_VERIFIED / UI_BLOCKED |
-| Audit code (Phase 3 inline) | agent-prompts/auditor.md | sonnet | AUDIT_COMPLETE / AUDIT_BLOCKED |
-| Verify module (3-layer) | agent-prompts/verifier-full.md | sonnet | VERIFY_COMPLETE / VERIFY_BLOCKED |
-| Analyze plan | agent-prompts/plan-analyzer.md | sonnet | PLAN_ANALYSIS |
+See `references/self-improvement.md` for full protocol including scan patterns, scoring criteria, and consolidation mandate.
+
+## Agent Teams & Dispatch
+
+All modes use agent teams. Teammates fire sub-agents. Orchestrator handles judgment + builds.
+
+**Model routing:** Opus = orchestrator (decisions, builds) | Sonnet = teammates + code sub-agents | Haiku = mechanical sub-agents
+
+**Teams:** planning-team (Phase 1), scaffold-team (Phase 2), migration-team (Phase 3), wiring-team (Phase 4+5), verify-team (Verify/Audit), retro-team (Retrospective)
+
+**Agent definitions:** See `agents/` directory — each role has a subagent definition file with model, tools, isolation, maxTurns. These are used as teammate types when spawning.
+
+**Sub-agent prompts:** See `references/agent-prompts/` — migrator.md, verifier.md, test-writer.md, debugger.md, ui-migrator.md, auditor.md, plan-analyzer.md, verifier-full.md
+
+Read `references/agent-protocol.md` for the full dispatch protocol.
 
 ## References (read ONLY when entering relevant phase)
 
@@ -194,3 +216,4 @@ All agents read `references/agent-protocol.md` before starting.
 11. **Retrospective before /clear** — mandatory and autonomous; skipping means learnings lost permanently
 12. **parity-check.sh before appium-mcp E2E** — static analysis first, device testing second; never skip either layer
 13. **Verified output, not just completed output** — every agent must produce evidence of verification (deterministic scan + adversarial self-review) before reporting completion; the orchestrator rejects completion signals without evidence fields; see `references/agent-protocol.md` Verified-Output Protocol; orchestrator reads evidence fields from agent output — if deterministic_scan or peer_review fields are absent or critical > 0, re-dispatch the agent with rejection reason
+14. **Teams everywhere, sub-agents for parallelism** — all work dispatched via TeamCreate; team members fire sub-agents for N independent files (never process sequentially); orchestrator never fires sub-agents directly; Haiku sub-agents return data to parent (never write shared files); see `references/agent-protocol.md` Agent Team Protocol
