@@ -421,6 +421,70 @@ class MyDataRepository(private val sdkRepo: SdkDataRepository) : DataRepository 
 
 ---
 
+## Compose Multiplatform (CMP) Patterns
+
+### State-Based Navigation (replaces NavHost)
+
+AndroidX `NavHost`/`rememberNavController` is not available in CMP. Use a state-based navigation pattern:
+
+```kotlin
+// commonMain — screen mapper
+@Composable
+fun ScreenMapper(state: AppState, onAction: (Action) -> Unit) {
+    when (state) {
+        is AppState.Home -> HomeScreen(onAction = onAction)
+        is AppState.Settings -> SettingsScreen(onAction = onAction)
+        is AppState.Detail -> DetailFlow(state, onAction = onAction)
+    }
+}
+
+// Per-flow sub-navigation uses internal sealed class + remember { mutableStateOf }
+@Composable
+fun DetailFlow(state: AppState.Detail, onAction: (Action) -> Unit) {
+    var subScreen by remember { mutableStateOf<DetailSubScreen>(DetailSubScreen.Overview) }
+    when (subScreen) {
+        is DetailSubScreen.Overview -> DetailOverview(onNext = { subScreen = DetailSubScreen.Edit })
+        is DetailSubScreen.Edit -> DetailEdit(onBack = { subScreen = DetailSubScreen.Overview })
+    }
+}
+```
+
+**Do NOT read `nav_graph.xml`** — it can be 10K+ lines and causes context bloat. The screen mapper only needs the state enum values and existing composable screen names, both available in the shared module.
+
+### expect/actual for Platform-Only Media Libraries
+
+For Android-only media libraries (Lottie, Glide, ExoPlayer), use `expect @Composable fun` in commonMain + `actual` implementations per platform:
+
+```kotlin
+// commonMain
+@Composable
+expect fun PlatformVideoPlayer(url: String, modifier: Modifier)
+
+@Composable
+expect fun PlatformLottieAnimation(asset: String, modifier: Modifier)
+```
+
+```kotlin
+// androidMain — wraps real library
+@Composable
+actual fun PlatformVideoPlayer(url: String, modifier: Modifier) {
+    AndroidView(factory = { ExoPlayerView(it).apply { setUrl(url) } }, modifier = modifier)
+}
+```
+
+```kotlin
+// iosMain — stub or AVPlayer wrapper
+@Composable
+actual fun PlatformVideoPlayer(url: String, modifier: Modifier) {
+    // Stub: show placeholder. Host app can override via Koin if needed.
+    Box(modifier = modifier) { Text("Video: $url") }
+}
+```
+
+This keeps commonMain clean while allowing platform-specific implementations without code duplication across feature files.
+
+---
+
 # 2. Battle-Tested Gotchas
 
 Hard-won learnings from real production KMM migrations. Every item here burned time on a real project. Project-agnostic.

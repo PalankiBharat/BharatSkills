@@ -31,6 +31,7 @@ When migrating an Android SDK to KMM, every Android-only dependency needs a deci
 | **AndroidX ViewModel (< 2.8.0)** | Replace (upgrade) | `androidx.lifecycle:lifecycle-viewmodel` 2.8.7+ | KMP-native since 2.8.0; ViewModel + viewModelScope work directly in commonMain. No expect/actual needed. Just upgrade. **Artifact disambiguation:** Use `androidx.lifecycle:lifecycle-viewmodel`, NOT `org.jetbrains.androidx.lifecycle:lifecycle-viewmodel` (JetBrains repackaged variant with different versioning). |
 | **Retrofit + OkHttp** | Replace | Ktor Client | Platform engines via expect/actual (CIO/Android for Android, Darwin for iOS). |
 | **RxJava** | Replace | kotlinx-coroutines + Flow | Standard KMM reactive. |
+| **SKIE (co.touchlab.skie)** | Add (Phase 5) | N/A — Swift interop plugin, no replacement needed | 0.8.0+ supports Kotlin 2.0.0; current 0.10.x supports Kotlin 2.0.0–2.3.x. Always use latest version. Do NOT defer SKIE due to Kotlin version concerns — it has supported K2 since mid-2024. |
 | **Hilt/Dagger** | Replace | Koin | KMM-compatible. When migrating a library consumed by a Hilt app: keep Hilt in the app, add Koin alongside for the library's types, bridge via small module. **Kotlin/Native warning (non-blocking):** Koin 4.0 and kotlinx-serialization reference `kotlin.uuid.Uuid` internally. On Kotlin 2.0.x, iOS native compilation emits warnings like "Unresolved reference: kotlin.uuid.Uuid." Informational only — no build failures or runtime crashes. Resolves on Kotlin 2.1+. |
 | **Android Log** | Replace | Custom Logger or Napier/Kermit | Use existing Logger if project has one, otherwise Napier. |
 | **java.util.UUID** | Replace | `kotlin.uuid.Uuid` (Kotlin 2.0+) | Built into Kotlin stdlib. |
@@ -49,6 +50,17 @@ These libraries version-lock with kotlin-stdlib — mixing causes KLIB ABI error
 | 2.0.x | 2.3.x | 1.8.x | 1.7.x | 0.6.x |
 
 **`Dispatchers.IO` on Native:** Available since coroutines 1.7.0 as an **extension property** — requires `import kotlinx.coroutines.IO` (IDE may not auto-suggest it). Works on JVM + Native targets. NOT available on JS/Wasm — use `expect`/`actual` if targeting those. See `references/platform-api-gotchas.md` for the full platform API reference.
+
+## SKIE version guidance
+
+SKIE (Swift Kotlin Interface Enhancer) is added in Phase 5 for Swift-friendly sealed class/Flow/suspend interop.
+
+| Kotlin version | Min SKIE version | Notes |
+|---|---|---|
+| 2.0.x | 0.8.0+ | K2 support added in 0.8.0 |
+| 2.1.x–2.3.x | 0.10.x | Latest recommended; always use newest available |
+
+**Do NOT defer SKIE.** It is compatible with Kotlin 2.0.0+ and should be added during Phase 5 without hesitation. Deferring due to assumed incompatibility wastes investigation time.
 
 ## Wire protobuf specifics
 

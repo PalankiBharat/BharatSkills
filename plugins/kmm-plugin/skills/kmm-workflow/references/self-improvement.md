@@ -232,7 +232,7 @@ Finding: {
 }
 ```
 
-When creating GitHub issues, group findings by target_file. Each issue should be actionable by the Improve mode — classify, find home, rewrite to absorb.
+Group findings by target_file when applying. Each finding should be copy-pasteable into the target file's existing structure.
 
 ## Consolidation Mandate
 

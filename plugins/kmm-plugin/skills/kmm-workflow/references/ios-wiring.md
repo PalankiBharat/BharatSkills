@@ -570,6 +570,30 @@ val key: SecKeyRef? = keyOut.value
 
 CF pointer ownership follows standard CF rules (Create Rule / Get Rule). `.reinterpret<T>()` does not transfer ownership — manage retain/release explicitly or use `CFAutorelease`.
 
+### Rendering Stubs Rule
+
+iOS platform implementations involving CoreImage, CoreGraphics, or UIKit rendering (QR codes, image processing, bitmap manipulation) should be **stubs by default**. The Swift host app provides real implementations via Koin injection.
+
+**Why:** K/N interop for CIFilter, CGBitmapContext, and related APIs is unreliable — factory methods aren't exported, types erase to `Any?`, and explicit memory management functions are missing. Building full rendering in K/N wastes 2+ compilation cycles before discovering it's impractical.
+
+**Pattern:**
+1. iosMain actual impl returns sensible defaults (empty/white images, no-op)
+2. Document in the stub's KDoc that the host app must override via Koin
+3. Swift host app registers real implementation at startup
+
+```kotlin
+// iosMain — stub
+actual class PlatformQrGenerator : QrGenerator {
+    /** Stub — host app provides real impl via Koin */
+    override fun generate(data: String, size: Int): ByteArray = ByteArray(size * size * 4) { 0xFF.toByte() }
+}
+```
+
+```swift
+// Swift host app
+container.register(QrGenerator.self) { _ in SwiftQrGenerator() }
+```
+
 ---
 
 ## 6. Screen Template + Effect Handling

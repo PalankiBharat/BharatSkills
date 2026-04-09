@@ -1,6 +1,6 @@
 {
   "name": "kmm-plugin",
-  "version": "6.5.1",
+  "version": "6.5.3",
   "description": "KMM module migration orchestrator. 3-tier hierarchical parallelism (Opus orchestrator → Sonnet team members in tmux → Haiku/Sonnet sub-agents per file). Agent teams with shared task lists, inter-agent messaging, per-file dependency tracking, and execution blueprints. 5-phase workflow with TDD, appium-mcp E2E 3-build comparison, 3-layer verify mode, and discussion-first retrospective with 7 learning categories.",
   "author": {
     "name": "PunchHQ",
