@@ -224,7 +224,7 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 > **Parallel research batches:** Tasks 1.7-1.9 form Batch 1 (4 independent Haiku sub-agents fired by the "researcher" team member). Tasks 1.11-1.12 form Batch 2 (2 Haiku sub-agents). Each batch runs simultaneously; batches are sequential. The researcher team member collects results and returns structured data to the orchestrator for merging into plan files.
 
 - **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes in findings.md. (parallelizable — Haiku sub-agent, Batch 1)
-- **Task 1.7b:** Boot an Android emulator and iOS simulator for this gameplan. Record device serials in PLAN.md header (`<!-- DEVICE: android=<serial> | ios=<UDID> -->`). Verify appium-mcp is available (`npx appium-mcp@latest --version`). No port allocation needed — appium-mcp manages sessions internally. (parallelizable — Haiku sub-agent, Batch 1)
+- **Task 1.7b:** Create a gameplan-scoped Android emulator (`avdmanager create avd -n <gameplan-name> ...`) and iOS simulator (`xcrun simctl create <gameplan-name> ...`) — or reuse existing ones matching the gameplan name. Boot them, record serials in PLAN.md header (`<!-- DEVICE: android=<serial> | ios=<UDID> -->`). Verify appium-mcp is available. Do NOT use the reserved `master-build` AVD (emulator-5556) for gameplan work. (parallelizable — Haiku sub-agent, Batch 1)
 - **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases. (parallelizable — Haiku sub-agent, Batch 1)
 - **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md. (parallelizable — Haiku sub-agent, Batch 1)
 - **Task 1.10:** Dependency decision framework — Read `references/dependency-decision-framework.md`. For each Android-only dependency in the module:
@@ -701,7 +701,7 @@ This technique found the `platform` header root cause in 5 minutes after 2+ hour
 - All phases in PROGRESS.md marked `[x]`
 - `findings.md` saved for next migration (Known Fixes, Gotchas, Library Versions)
 - `migration-guide.md` and `PLAN.md` kept for reference or deleted per user preference
-- **Device cleanup:** delete dedicated emulator AVD (`avdmanager delete avd -n <name>`) and iOS simulator (`xcrun simctl delete <UDID>`) that were allocated for this gameplan. Release ports.
+- **Device cleanup:** ask user before deleting gameplan AVD (`avdmanager delete avd -n <gameplan-name>`) and simulator (`xcrun simctl delete <UDID>`). Do not auto-delete. Never touch `master-build` (emulator-5556).
 
 ---
 
