@@ -39,9 +39,15 @@ lsof -ti tcp:4723 | xargs kill -9 2>/dev/null || true
 adb forward --remove-all
 ```
 
+**Device selection:** When multiple emulators/simulators exist, list all (`adb devices` / `xcrun simctl list devices booted`) and confirm with user. Default suggestion: the gameplan-named device for gameplan work. Never auto-select without confirmation.
+
+**Reserved device — `master-build` (emulator-5556):** Permanent master baseline AVD. Never install non-master builds on it. Never run gameplan Appium sessions against it (only for master screenshot baselines in Build 1). Never delete or modify during cleanup.
+
+**Build install discipline:** Gameplan builds use strict sequence: `adb -s $ANDROID_SERIAL uninstall <pkg>` → build → `adb -s $ANDROID_SERIAL install <apk>`. No `install -r` over existing builds — stale state causes false-positive test passes. Master builds on `master-build` are only reinstalled when explicitly requested.
+
 ```
 1. select_platform → "android" or "ios"
-2. select_device → target emulator serial or simulator UDID
+2. select_device → target gameplan emulator serial or simulator UDID
 3. create_session → returns session ID (handles server lifecycle internally)
 4. ... run tests ...
 5. delete_session → cleanup

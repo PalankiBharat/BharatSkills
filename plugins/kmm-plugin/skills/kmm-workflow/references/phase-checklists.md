@@ -16,7 +16,7 @@ Run before presenting plan to user.
 - [ ] findings.md: Decisions table populated with all planning decisions + rationale
 - [ ] findings.md: Library versions verified via web search (not training data)
 - [ ] PLAN.md: Build commands use verified Gradle task names (from Task 1.13)
-- [ ] PLAN.md: Device serials recorded in header
+- [ ] PLAN.md: Gameplan-named device serials recorded in header (not `master-build`)
 - [ ] Dependency DAG: no cycles, topological order matches PLAN.md task order
 - [ ] manual-test-checklist.md generated with per-screen test steps
 - [ ] Plan quality review: zero BLOCKERs, zero HIGH issues remaining
