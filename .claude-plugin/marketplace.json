@@ -99,6 +99,15 @@
       "category": "productivity",
       "tags": ["refactoring", "legacy-code", "technical-debt", "characterization-tests", "seams", "kotlin", "android"],
       "keywords": ["refactor", "legacy", "technical-debt", "seam", "characterization", "sprout", "wrap"]
+    },
+    {
+      "name": "release",
+      "source": "./plugins/release",
+      "description": "Claude plugin to Release Builds with correct Release Notes",
+      "version": "1.0.0",
+      "category": "productivity",
+      "tags": ["release", "playstore release", "android build"],
+      "keywords": ["release", "playstore release", "playstore push"]
     }
   ]
 }
