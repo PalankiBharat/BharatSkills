@@ -108,6 +108,15 @@
       "category": "productivity",
       "tags": ["release", "playstore release", "android build"],
       "keywords": ["release", "playstore release", "playstore push"]
+    },
+    {
+      "name": "instructions-feedback",
+      "source": "./plugins/instructions-feedback",
+      "description": "End-of-session auditor that reviews the conversation for instruction corrections and 'always/never' directives, then drafts GitHub Issues proposing amendments to CLAUDE.md, path-scoped rules, or the project constitution. Every issue is user-approved before creation.",
+      "version": "1.0.0",
+      "category": "developer-tools",
+      "tags": ["instructions", "feedback", "audit", "github-issues", "constitution", "claude-md", "continuous-improvement"],
+      "keywords": ["instructions-feedback", "audit", "retrospective", "constitution", "claude-md", "improve"]
     }
   ]
 }
