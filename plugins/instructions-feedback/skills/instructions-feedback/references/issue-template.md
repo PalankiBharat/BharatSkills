@@ -59,7 +59,7 @@ gave a reason, quote it>
 
 ---
 
-*Raised by the `rule-feedback` skill. Do not implement without reviewing
+*Raised by the `instructions-feedback` skill. Do not implement without reviewing
 the quote and interpretation above — the detection pass can misread
 intent, and the review-gate approval is not a substitute for judgment
 by the principle owner.*
@@ -68,7 +68,7 @@ by the principle owner.*
 ## Labels
 
 Always apply:
-- `rule-feedback`
+- `instructions-feedback`
 - One of: `claude-md` / `constitution` / `path-rule` / `memory-only`
 - One of: `priority:P0` / `priority:P1` / `priority:P2`
 

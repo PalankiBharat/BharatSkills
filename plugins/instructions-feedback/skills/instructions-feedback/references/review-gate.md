@@ -22,7 +22,7 @@ Proposed issue:
   Title: <short, imperative>
   Body:
     <rendered body from issue-template.md>
-  Labels: rule-feedback, <classification>, priority:<P>
+  Labels: instructions-feedback, <classification>, priority:<P>
 
 Action? [r]aise / [e]dit / [s]kip
 ─────────────────────────────────────────────────────────
