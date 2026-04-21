@@ -35,22 +35,32 @@ Read this file's entry from migration-guide.md. Follow the spec exactly.
 
 Execute these steps in order. Do not skip any.
 
+### Step 0: Live-docs lookup for every library touched
+
+Before writing any migration code, for every library listed in this file's `Swaps` field (from migration-guide.md), run a live-docs lookup to confirm the current API shape:
+1. Grep the project's `build.gradle.kts` and any existing usages first — live code beats external sources
+2. Context7 (`mcp__context7__query-docs`) for the library's current API
+3. find-docs / web search as fallback
+
+Training data is NEVER the first source. If you can't verify via live docs, emit REQUIRES_APPROVAL with "unable to verify <library> API shape via live docs" rather than guessing. Known training-data regressions: Paging3 KMM availability, `Dispatchers.IO` on Native (requires `import kotlinx.coroutines.IO`), library versions outdated by 6+ months.
+
 ### Step 1: Use Staged Code
 
-If a TDD_COMPLETE exists for this file (check PROGRESS.md), the test-writer already staged it.
+If a TDD_COMPLETE exists for this file (check PROGRESS.md), the test-writer already staged it in `shared/src/androidMain/`.
 - Read the staged path from TDD_COMPLETE output
 - Do NOT re-stage — use the existing staged copy
-- If no TDD_COMPLETE exists (standalone migration), stage it yourself per the original protocol below:
+- The original file at `src/main/java/` is still present. Do NOT delete it yet — deletion happens in Step 8 at the moment commonMain is created, to guarantee no duplicate-declaration window.
+- If no TDD_COMPLETE exists (standalone migration), stage it yourself per the protocol below.
 
-**Stage original and remove from Android source set (only if no TDD_COMPLETE exists):**
+**Stage (only if no TDD_COMPLETE exists):**
 
 - Copy the Android source file into `shared/src/androidMain/` at the appropriate package path
-- **IMMEDIATELY delete the original file from `src/main/java/`** (or `src/main/kotlin/`) — commonMain compiles into all platform targets including Android, so keeping the original causes duplicate class declaration errors
 - Update the package declaration to match the KMM module's package structure
 - Update any imports that reference scaffolded interfaces or types already in `commonMain` — these must now use the `commonMain` package paths
 - Make MINIMAL changes only: package, namespace, imports to resolve compilation in the KMM context
 - Zero behavioral changes. Zero dependency replacements. Zero API adaptations.
 - The staged code must behave identically to the original
+- Do NOT delete the original at `src/main/java/` yet — that happens atomically in Step 8 when commonMain appears.
 
 ### Step 2: Compile check
 
@@ -136,7 +146,7 @@ Run the tests:
 - Android is the source of truth — replicate behavior, do not improve it
 - **Platform API check:** Before writing any code, cross-reference ALL APIs used in the file against `references/platform-api-gotchas.md`. Replace any API listed as unavailable with its documented replacement. Common traps: `Dispatchers.IO` (requires `import kotlinx.coroutines.IO` on Native — not auto-imported), `@Volatile` (use `@kotlin.concurrent.Volatile`), `String.format()` (use custom formatter), `removeFirst()` (use `removeAt(0)`).
 - If Android code has a logic bug, migrate the bug as-is and mark it with a `// BUG:` comment — do not block migration for logic bugs
-- If there is architectural ambiguity that could silently break consumers: output REQUIRES_APPROVAL rather than guessing
+- If there is architectural ambiguity that could silently break consumers: output REQUIRES_APPROVAL and continue to FILE_BLOCKED. Do not guess. The migration-coordinator batches REQUIRES_APPROVAL items at the DAG level boundary (see `rules-and-guardrails.md` Escalation Protocol) — your job is to flag, not to pause mid-phase. Phase-boundary batching is the orchestrator's responsibility, not yours.
 
 **Apply dependency swaps:**
 
@@ -206,12 +216,15 @@ val user = Json { ignoreUnknownKeys = true }.decodeFromString<User>(json)
 
 Do NOT use `expect`/`actual` as a shortcut for dependency swaps that have pure-`commonMain` solutions.
 
-### Step 8: Delete the staged androidMain copy
+### Step 8: Delete the staged androidMain copy AND the original
 
-- Delete the file from `shared/src/androidMain/` that was staged in Step 1
-- This MUST happen before running tests — both `commonMain` and `androidMain` compile into the Android target, so keeping both causes duplicate class declaration errors
-- After this step: the migrated code exists ONLY in `shared/src/commonMain/`
-- The original `src/main/java/` file was already deleted in Step 1
+Order matters — in a single atomic step, after `commonMain` has been written in Step 7:
+
+- Delete the staged `shared/src/androidMain/` file from Step 1
+- Delete the original `src/main/java/` (or `src/main/kotlin/`) file
+- Both must be deleted BEFORE running tests. `commonMain` compiles into all platform targets including Android; keeping either the staged copy or the original alongside commonMain creates a duplicate-class error.
+- After this step: the code exists ONLY in `shared/src/commonMain/`. Consumer import updates come next (Step 10).
+- Grep-before-delete on the original: `grep -r "<FullyQualifiedClassName>" <androidApp>/src/` and confirm every remaining reference uses the new `commonMain` package path, OR is a consumer slated for import update in Step 10. Any stray reference outside that list → REQUIRES_APPROVAL before deleting.
 
 ### Step 9: Run SAME tests against commonMain — must ALL PASS
 
@@ -230,29 +243,7 @@ Run the same test suite again (no changes to tests):
 
 ### Step 9b: Self-verification (mandatory before completion)
 
-Two-layer verification of your own output:
-
-**Layer 1 — Deterministic scan:**
-Grep the migrated commonMain file for:
-- `runBlocking` (outside test code) → CRITICAL
-- `TODO()` or `TODO("` → CRITICAL
-- ` as `, ` as?`, ` as!` (type casts) → CRITICAL
-- Inline `CoroutineScope(` not assigned to a class field → HIGH
-- `setState(getState().copy(` or equivalent non-atomic pattern → HIGH
-- Callback params with default `= {}` → HIGH
-
-Record counts. Fix any CRITICAL items before proceeding. Fix straightforward HIGH items.
-
-**Layer 2 — Adversarial self-review:**
-Re-read the original Android source (from git history: `git show <base-branch>:<path>`) and your migrated file side by side. Check:
-- Every default value matches original exactly
-- Every string literal is character-for-character identical
-- Every conditional branch in original exists in migrated
-- Every error handling path preserved
-- Concurrency structure preserved (parallel stays parallel)
-- No methods combined, split, or renamed
-
-Any difference that changes behavior → fix or REQUIRES_APPROVAL.
+Run the Verified-Output Protocol from `references/agent-protocol.md` on the migrated commonMain file. Migrator-specific adversarial focus: compare the migrated file against `git show <base-branch>:<original-path>` side-by-side for default values, string literals, conditional branches, error paths, and concurrency structure. Record `deterministic_scan` + `peer_review` in the completion output.
 
 ### Step 10: Wire imports for consumers
 
@@ -311,6 +302,8 @@ FILE_VERIFIED: shared/src/commonMain/kotlin/com/example/LoginRepository.kt
   defaults_match: 4/4
   strings_match: 7/7
 ```
+
+**Also write the full FILE_VERIFIED block to `<gameplan-dir>/wiring-manifest.md`** (append a new entry under the file's name). The wiring agents in Phase 4/5 read this file — NOT PROGRESS.md — to find the per-file breaking/di-bindings/wiring-notes. PROGRESS.md stays a one-line checklist per Rule 10.
 ```
 FILE_VERIFIED: shared/src/commonMain/kotlin/com/example/UserMapper.kt
   target: shared/src/commonMain/kotlin/com/example/UserMapper.kt

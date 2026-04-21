@@ -2,34 +2,6 @@
 
 This file is the combined reference for both plan structure and iterative execution in KMM workflow migrations.
 
-## Table of Contents
-
-1. [Two-Phase Model](#two-phase-model)
-2. [Output Files](#output-files)
-3. [PLAN.md: Pure Data Header](#planmd-pure-data-header)
-4. [PLAN.md: STATUS Block](#planmd-status-block)
-5. [PLAN.md: Title, Context, and Decisions](#planmd-title-context-and-decisions)
-6. [PLAN.md: Build Verification Template](#planmd-build-verification-template)
-7. [PLAN.md: Plan Presentation](#planmd-plan-presentation)
-8. [Execution Blueprint](#execution-blueprint)
-9. [Workflow Phases Overview](#workflow-phases-overview)
-10. [Phase 1: PLAN (BLOCKING)](#phase-1-plan-blocking)
-11. [Phase Template: Shared Migration](#phase-template-shared-migration)
-12. [Per-File Migration Loop](#per-file-migration-loop)
-13. [Wire Android Phase](#wire-android-phase)
-14. [Wire iOS Phase](#wire-ios-phase)
-15. [Parallel Execution](#parallel-execution)
-16. [Agent Execution Strategy](#agent-execution-strategy)
-17. [PROGRESS.md Template](#progressmd-template)
-18. [migration-guide.md Structure](#migration-guidemd-structure)
-19. [findings.md Structure](#findingsmd-structure)
-20. [Summary Table Step](#summary-table-step)
-21. [Compact Format](#compact-format)
-22. [Plan Quality Rules](#plan-quality-rules)
-23. [Safeguards and Key Risks](#safeguards-and-key-risks)
-24. [Session Completion](#session-completion)
-25. [Version Compatibility Protocol](#version-compatibility-protocol)
-26. [API 500 Debug Protocol](#api-500-debug-protocol-curl-bisection)
 
 ---
 
@@ -97,7 +69,7 @@ These all live in SKILL.md and reference files, which evolve with skill updates.
 
 ## PLAN.md: STATUS Block
 
-The first 10 lines of PLAN.md are injected by hooks on every message and before every Write/Edit. Structure these lines as a compact data summary — status only, no workflow instructions:
+The first 15 lines of PLAN.md are injected by hooks on every message and before every Write/Edit (see `scripts/resolve-gameplan.sh` — `head -15`). Structure the leading lines as a compact data summary — status only, no workflow instructions. The block shown below is 7 lines; expand as needed for your project, but do not exceed 15 lines before the first prose content or the hook will miss trailing status.
 
 ```
 <!-- KMM-PLAN v1 | skill: 6.5.0 | module: <module-name> -->
@@ -224,7 +196,7 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
 > **Parallel research batches:** Tasks 1.7-1.9 form Batch 1 (4 independent Haiku sub-agents fired by the "researcher" team member). Tasks 1.11-1.12 form Batch 2 (2 Haiku sub-agents). Each batch runs simultaneously; batches are sequential. The researcher team member collects results and returns structured data to the orchestrator for merging into plan files.
 
 - **Task 1.7:** Read every source file in scope. Identify every API endpoint the module calls. Record request/response shapes in findings.md. (parallelizable — Haiku sub-agent, Batch 1)
-- **Task 1.7b:** Create a gameplan-scoped Android emulator (`avdmanager create avd -n <gameplan-name> ...`) and iOS simulator (`xcrun simctl create <gameplan-name> ...`) — or reuse existing ones matching the gameplan name. Boot them, record serials in PLAN.md header (`<!-- DEVICE: android=<serial> | ios=<UDID> -->`). Verify appium-mcp is available. Do NOT use the reserved `master-build` AVD (emulator-5556) for gameplan work. (parallelizable — Haiku sub-agent, Batch 1)
+- **Task 1.7b:** Ask the user for the Android emulator serial and iOS simulator UDID (user is responsible for booting them). Record serials in PLAN.md header (`<!-- DEVICE: android=<serial> | ios=<UDID> -->`). Verify appium-mcp is installed (`npx appium-mcp@latest --version`). (parallelizable — Haiku sub-agent, Batch 1)
 - **Task 1.8:** Verify platform navigation architecture — read the actual Android `Router.kt`/`NavHost` and iOS `AppRouter`/`Coordinator` to determine how each platform handles navigation. Record the verified architecture in findings.md. Do NOT assume navigation patterns — verify them before writing Wire phases. (parallelizable — Haiku sub-agent, Batch 1)
 - **Task 1.9:** Verify SDK availability — for every external SDK class referenced by migration targets, grep the KMM SDK source sets (`commonMain`, `androidMain`, `iosMain`) to confirm the class exists. Record availability in findings.md as a table (`Class | commonMain | androidMain | iosMain`). If unavailable, add to the scaffold list in PLAN.md. (parallelizable — Haiku sub-agent, Batch 1)
 - **Task 1.10:** Dependency decision framework — Read `references/dependency-decision-framework.md`. For each Android-only dependency in the module:
@@ -265,12 +237,6 @@ Phase boundaries are drawn **by architectural layer** — not by arbitrary task 
   Additionally, generate these verification scripts from the project structure:
   - `flow-collector-check.sh` — customize SHARED_SRC and IOS_SRC paths from the template
   - `koin-binding-check.py` — customize koin module glob and shared source path from the template
-- **Task 1.18:** Generate `manual-test-checklist.md` in the gameplan directory from migration-guide.md. For each platform-stay screen:
-  1. Navigate to: <screen name> (navigation path from parent)
-  2. Verify visually: <key visual elements from UI Branches field>
-  3. Test interactions: <each callback from Callbacks field — tap X, verify Y happens>
-  4. Verify data: <expected data elements from Public API field>
-  This turns the manual test gate from a vague "test the app" into a specific, reproducible checklist.
 - **Checkpoint 1** committed in the worktree. Commit message: `chore: begin KMM migration for [module-name]`
 
 ---
@@ -571,18 +537,6 @@ Checkbox states: `[x]` = done, `[ ]` = pending, `[~]` = deferred (add inline rea
 
 ---
 
-## Session Gameplans
-
-Session-scoped gameplans live at:
-
-```
-~/dev/gameplans/.sessions/<session_id>.active
-```
-
-Not a global `.active` file. Each session has its own scoped active file so concurrent sessions do not collide.
-
----
-
 ## migration-guide.md Structure
 
 One entry per file. Agents consume this during execution — they do not re-read source code or make decisions.
@@ -640,22 +594,6 @@ Every row must have a VERIFY result. If any row is VERIFY_FAIL, fix it before ma
 
 ---
 
-## Compact Format
-
-Use compact table format when plan exceeds 50 tasks to reduce PLAN.md size. Replace verbose task prose with a table inside each phase section:
-
-```
-| # | Task | File(s) | Classification | Notes |
-|---|------|---------|----------------|-------|
-| 2.1 | Add UserRepository interface | shared/src/commonMain/kotlin/data/UserRepository.kt | Create | — |
-| 2.2 | Implement AndroidUserRepository | shared/src/androidMain/kotlin/data/AndroidUserRepository.kt | Create | depends on 2.1 |
-| 2.3 | Delete LegacyUserDao | android/src/main/java/data/LegacyUserDao.kt | Delete | grep-before-delete |
-```
-
-Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHECK`.
-
----
-
 ## Plan Quality Rules
 
 - **Tasks must be atomic** — a single file or single logical change, retryable independently
@@ -683,43 +621,18 @@ Classification values: `Create`, `Modify`, `Delete`, `Read`, `Verify`, `PRE-CHEC
 
 ---
 
-## API 500 Debug Protocol (curl bisection)
-
-When a Ktor API call returns 500 but the same endpoint works from master/original code:
-
-1. **Add debug logging** — log the full URL, headers, and body being sent by Ktor
-2. **Reproduce via curl** — copy the exact request as a curl command
-3. **Bisect headers** — remove headers one at a time until the 500 becomes a valid response (e.g., 422, 200)
-4. **Identify the offending header/param** — the header whose removal fixes the 500 is the root cause
-
-This technique found the `platform` header root cause in 5 minutes after 2+ hours of code-level analysis. Always try curl bisection before diving into server-side debugging.
-
----
-
 ## Session Completion
 
 - All phases in PROGRESS.md marked `[x]`
 - `findings.md` saved for next migration (Known Fixes, Gotchas, Library Versions)
 - `migration-guide.md` and `PLAN.md` kept for reference or deleted per user preference
-- **Device cleanup:** ask user before deleting gameplan AVD (`avdmanager delete avd -n <gameplan-name>`) and simulator (`xcrun simctl delete <UDID>`). Do not auto-delete. Never touch `master-build` (emulator-5556).
+- **Device cleanup:** user owns device lifecycle. Skill does not delete AVDs or simulators.
 
 ---
 
 ## Version Compatibility Protocol
 
-PLAN.md records `skill: <version>` in its header. When the skill loads a plan created by an older version:
-
-1. **Read skill version from header** — e.g., `skill: 6.4.3`
-2. **Compare with current skill version** — e.g., current is `6.5.0`
-3. **If same version** → proceed normally
-4. **If older version** → run lightweight data upgrade:
-   - Check if migration-guide.md has all expected fields (add missing fields with defaults or by re-analyzing code)
-   - Check if execution blueprint exists in PLAN.md (generate from migration-guide.md DAG if missing)
-   - Check if PROGRESS.md uses outcome-based tasks (if old format with tool/agent references, don't rewrite — map old tasks to current workflow internally)
-   - Report to user: "Plan was created with skill v6.4.3, now running v6.5.0. Data upgraded. Workflow uses current skill version."
-5. **Never rewrite existing plan data** — only add missing fields. Decisions, progress, and findings are preserved.
-
-This generalizes the existing verify-protocol.md Step 2a (upgrade pre-v6 gameplan) to handle any version gap.
+PLAN.md records `skill: <version>` in its header. On load, compare with current skill version; if mismatch, report to the user ("Plan was created with skill vX, running vY — proceeding with current workflow") and proceed. Never rewrite existing plan data.
 
 ---
 

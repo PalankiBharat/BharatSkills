@@ -11,7 +11,7 @@ hooks:
   UserPromptSubmit:
     - hooks:
         - type: command
-          command: "cat | ${CLAUDE_PLUGIN_ROOT}/skills/kmm-workflow/scripts/inject-plan-context.sh"
+          command: "cat | ${CLAUDE_PLUGIN_ROOT}/skills/kmm-workflow/scripts/resolve-gameplan.sh plan-header"
   PreToolUse:
     - matcher: "Write|Edit"
       hooks:
@@ -48,42 +48,34 @@ hooks:
 Zero improvisation. Zero combining. Zero signature changes.
 Any behavioral change → REQUIRES_APPROVAL.
 
-## On Invocation — Load Project Context
+## Docs lookup order — NEVER training data first
 
-Before asking the user which mode, load project-specific knowledge:
-1. Detect project: `git remote get-url origin` → extract repo identifier
-2. Look up `knowledge/index.md` for a matching pattern
-3. If found → read `knowledge/<project>.md` — this is the project profile (SDK constraints, backend quirks, build commands, architecture decisions, migration history)
-4. If not found → inform user: "No project knowledge found. First migration on this project?"
-5. Check agent teams: `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`. If unset or empty → ask user to enable (`export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) and restart. Agent teams are REQUIRED for all phases — do not silently fall back to plain sub-agents.
+For ANY library version, API shape, or KMM compatibility question: (1) grep the project's `build.gradle.kts` and source first — live code beats external sources; (2) Context7 (`mcp__context7__query-docs`) or `find-docs` — authoritative current docs; (3) web search — for rapidly-moving KMP libraries; (4) skill references — battle-tested patterns and caveats; (5) training data — NEVER the first resort. Training data has caused real incidents (Paging3 KMP availability, Dispatchers.IO import, library versions). If live lookup fails, explicitly state "unable to verify via live docs" — never fall back to training data silently.
 
-Then ask: Create / Continue / Improve / Verify / Audit.
+## On Invocation — Preflight
 
-## On Invocation — Always Ask
+1. If this is a Continue/Verify invocation, read the current gameplan's `findings.md` (in `~/dev/gameplans/<name>/`) for project-specific learnings captured from prior migrations. Project-specific context lives in findings.md, not in the skill.
+2. Check agent teams: `echo $CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`. If unset, ask the user to enable (`export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) and restart. Agent teams are REQUIRED for all phases — do not silently fall back to plain sub-agents.
 
-On ANY invocation, always ask: Create / Continue / Improve / Verify / Audit. Never auto-resume. Never assume.
+Then ask: Create / Continue / Verify.
 
-- **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md (pure data format — `<!-- KMM-PLAN v1 | skill: 6.5.4 | module: <name> -->` header, execution blueprint, NO workflow instructions), PROGRESS.md (outcome-based tasks), migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
-- **Continue** → if exactly one non-stale gameplan exists, auto-resume it (report: "Resuming <name> — Phase N: <description>. Say STOP to switch."). If multiple gameplans exist, list all with status, user picks. Then:
-  1. Read PLAN.md header → check `skill: <version>`. If older than current skill version (6.5.4) or missing → run Version Compatibility Protocol (see `references/planning-and-execution.md`): upgrade missing fields, generate execution blueprint if absent, report to user "Plan upgraded from vX to vY."
-  2. If PLAN.md has old-style workflow instructions (self-documenting header, inline Rules section) → ignore them. Workflow comes from THIS skill version, not the plan file. The plan is DATA only.
+## On Invocation — Always Ask for Mode
+
+On ANY invocation, always ask which mode: Create / Continue / Verify. Never auto-pick the mode. The auto-resume behavior described under Continue applies ONLY after the user has explicitly picked Continue — it is not a bypass of the mode prompt.
+
+- **Create** → ask module name, base branch, goal (one question at a time). Research codebase. Write PLAN.md (pure data format — `<!-- KMM-PLAN v1 | skill: 6.6.0 | module: <name> -->` header, execution blueprint, NO workflow instructions), PROGRESS.md (outcome-based tasks), migration-guide.md, findings.md to `~/dev/gameplans/<name>/`. After approval: tell user `/clear` → `/kmm-workflow` → Continue.
+- **Continue** (user picked Continue) → if exactly one gameplan exists, auto-resume it (report: "Resuming <name> — Phase N: <description>. Say STOP to switch."). If multiple gameplans exist, list all with status, user picks. Then:
+  1. Read PLAN.md header → check `skill: <version>`. If older than current skill version → report mismatch and proceed with current workflow (the plan is DATA; workflow comes from this skill version).
+  2. If PLAN.md has old-style workflow instructions (self-documenting header, inline Rules section) → ignore them. The plan is DATA only.
   3. Read PROGRESS.md → determine current phase/task.
   4. Verify/create worktree (`git worktree add <path> <base-branch> -b feature/<name>`, copy `local.properties`).
-  5. Continue from last checkpoint using current skill's team dispatch patterns.
-- **Improve** → lightweight review mode. List open retro PRs (`gh pr list --label "skill:kmm-workflow"`), list orphaned issues, batch-consolidate orphans, cross-check for redundant/conflicting PRs, review merged PRs for post-merge issues. No team needed — orchestrator handles alone. See `references/self-improvement.md`.
-- **Verify** → unified verification of a migrated module. Runs 3 layers in order:
+  5. Continue from last checkpoint.
+- **Verify** → unified verification of a migrated module, optionally scoped to a PR diff (`verify --scope=pr <url>`). Runs 3 layers in order:
   - Layer 1 (Static): anti-pattern scan, parity-check.sh, cross-platform parity, phase checklists — no devices needed, fast
   - Layer 2 (Completeness): ViewModel flow inventory audit, callback completeness trace, UI branch audit, DI binding verification — code analysis, no devices. Runs deterministic scripts (flow-collector-check.sh, koin-binding-check.py) plus AI-powered callback and branch analysis.
-  - Layer 3 (Device): appium-mcp E2E, 3-build screenshot comparison (master Android vs migrated Android vs iOS), runtime DI check — needs devices, slow
-  If devices unavailable: Layers 1-2 run fully, Layer 3 reports warning. Always gets useful results.
-  Detects existing gameplan state (v6 / pre-v6 / none), upgrades or reverse-engineers migration-guide.md.
-  Uses verify-team with intra-layer parallel sub-agents. See `references/verify-protocol.md`.
-- **Audit** → takes a PR URL or branch name. Standalone post-merge/post-PR review — no gameplan needed. Reverse-engineers context from the PR diff + affected files. Runs the same 3-layer verification as Verify but with focused context (only loads diff, not full migration history). Classifies each finding as:
-  - **BUG** — introduced by the migration, must fix
-  - **PRE-EXISTING** — was broken before migration, document but don't block
-  - **INTENTIONAL** — deliberate change, document rationale in findings.md
-  Generates fixes for BUG findings by severity (CRITICAL first), commits & pushes. Reports summary table of all findings with classification. Same verify-team parallel dispatch as Verify, scoped to PR diff.
-- On completion (all phases done + committed): delete session marker.
+  - Layer 3 (Device): appium-mcp E2E, 3-build screenshot comparison (master Android vs migrated Android vs iOS), runtime DI check — needs devices, slow.
+  Layers 1-2 always run. Layer 3 skips with warning if devices unavailable.
+  Classifies each finding: BUG (introduced by migration — must fix), PRE-EXISTING (broken before — document, don't block), INTENTIONAL (deliberate — document in findings.md). With `--scope=pr`, reverse-engineers context from the PR diff + affected files only. Verify REPORTS findings — fixing is a separate phase entered only on user approval (see `references/verify-protocol.md` §Fix Protocol). See `references/verify-protocol.md`.
 
 ## Workflow
 
@@ -222,7 +214,7 @@ Opus = orchestrator (decisions, builds, merging) | Sonnet = teammates + code sub
 
 See `agents/` — each role has a definition file. The orchestrator spawns MULTIPLE INSTANCES of the same definition when the workload exceeds one teammate's budget (5-8 files).
 
-**Sub-agent prompts:** `references/agent-prompts/` — migrator.md, verifier.md, test-writer.md, debugger.md, ui-migrator.md, auditor.md, plan-analyzer.md, verifier-full.md
+**Sub-agent prompts:** `references/agent-prompts/` — migrator.md, verifier.md, test-writer.md, debugger.md, ui-migrator.md, auditor.md, plan-analyzer.md
 
 ## References (read ONLY when entering relevant phase)
 
@@ -244,13 +236,7 @@ See `agents/` — each role has a definition file. The orchestrator spawns MULTI
 
 ## Recovery Protocols
 
-**Orphaned Agent:** Check PROGRESS.md for partial state. If staged androidMain copy exists → re-dispatch migrator. If missing → test-writer first, then migrator. Mark re-queued in PROGRESS.md.
-
-**Failed Checkpoint:** Do NOT proceed. Dispatch debugger per failing file (3-strike). On 3-strike exhausted → REQUIRES_APPROVAL. Rollback: `git reset --hard <last-checkpoint>` (user must approve).
-
-**Wrong Branch:** On Continue, verify worktree is on `feature/<name>` and base branch matches PLAN.md header. Mismatch → STOP, report, do not proceed.
-
-**Stale Sessions:** On Continue, check `.sessions/*.active` age. Older than 24 hours → mark "(stale)". User chooses to clean up or resume.
+On any unexpected state — orphaned agent, failed checkpoint, wrong branch, or an in-progress gameplan whose status the orchestrator cannot interpret — STOP and emit REQUIRES_APPROVAL with the observed state and a minimal fix proposal. Never rollback, reset, or re-dispatch without user approval.
 
 ## Rules
 
@@ -261,7 +247,7 @@ See `agents/` — each role has a definition file. The orchestrator spawns MULTI
 5. **TDD non-negotiable** — tests must pass on original AND migrated; FILE_VERIFIED with `tests: 0` is rejected
 6. **No deferring tasks** — complete fully or flag as genuinely blocked; "it's complex" is not a valid reason
 7. **No type casting** — no `as`, `as?`, `as!`; use polymorphism, generics, or protocol conformance
-8. **Gameplan-scoped devices** — on Create, create AVD/simulator named after the gameplan (e.g., `funds-screen`), record serial in PLAN.md header; on Continue, reuse existing or create; on Completion, ask user before deleting. `$ANDROID_SERIAL`/`$IOS_UDID` in every adb/xcrun/appium-mcp call. AVD `master-build` (emulator-5556) is permanent — never install non-master builds, never delete, never run gameplan Appium sessions against it. When multiple devices exist, list and confirm with user (default: gameplan-named device). Gameplan builds: uninstall→build→install (no `install -r`)
+8. **User provides devices** — the user is responsible for creating/booting emulators and simulators. On Create, ask the user for the Android serial and iOS UDID and record them in PLAN.md header (`<!-- DEVICE: android=<serial> | ios=<UDID> -->`). Every adb/xcrun/appium-mcp call MUST include `$ANDROID_SERIAL` / `$IOS_UDID` explicitly — never `booted` or implicit device. When multiple devices exist, list and confirm with user. Build-install sequence: uninstall → build → install (no `install -r`, which leaves stale state).
 9. **Verify every fix automatically** — rebuild + parity-check.sh + flow-collector-check.sh + koin-binding-check.py + appium-mcp E2E before reporting; never report without verification
 10. **PROGRESS.md is checklist not journal** — one line per task; details belong in findings.md
 11. **Retrospective before /clear** — mandatory and autonomous; skipping means learnings lost permanently

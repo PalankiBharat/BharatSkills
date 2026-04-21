@@ -23,7 +23,7 @@ On `verify` invocation:
 
 Check `~/dev/gameplans/<module-name>/` for an existing gameplan.
 
-### Path A: Gameplan exists with v6 fields (15 fields in migration-guide.md)
+### Path A: Gameplan exists with v6 fields (19 fields in migration-guide.md)
 
 Verify by checking if migration-guide.md contains `Platform APIs:` and `Expected tests:` fields.
 
@@ -66,7 +66,7 @@ Create `~/dev/gameplans/<module-name>/` with:
 
 1. **Identify migrated files** — scan `shared/src/commonMain/` for the module. List every file that was migrated.
 2. **Identify consumers** — grep the Android and iOS app code for imports from the shared module. Map which consumers use which shared files.
-3. **Build migration-guide.md** — one entry per migrated file, all 15 fields populated using the same enrichment logic as Step 2a (infer from code, git history, and import statements)
+3. **Build migration-guide.md** — one entry per migrated file, all 19 fields populated using the same enrichment logic as Step 2a (infer from code, git history, and import statements)
 4. **Write PLAN.md** — verify mode header, module context, verification-only phases
 5. **Write findings.md** — empty Decisions table, Known Fixes from git blame if available
 6. **Generate parity-check.sh** — from actual module structure
@@ -255,9 +255,10 @@ Wait for user approval before proceeding to fixes.
 
 ---
 
-## Fix Protocol
+## Fix Protocol (invoked ONLY after user approval)
 
-If the user says "fix", follow the understand-first protocol from `references/agent-protocol.md`:
+Verify mode's primary output is the findings report. Fixing is a separate phase the orchestrator enters ONLY when the user explicitly says "fix" (or equivalent) after reviewing the report. The verifier agent itself never writes code — it reports. If the user approves fixes, the orchestrator dispatches a fresh fix-team (migrator / debugger sub-agents) and follows this protocol:
+
 1. Read master (original Android code) — `git show master:<path>` to check original patterns (dispatchers, concurrency, error handling)
 2. Read current migrated implementation
 3. Identify the specific delta — fix must match original behavioral intent, not just compile

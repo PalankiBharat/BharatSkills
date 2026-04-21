@@ -2,16 +2,15 @@
 
 Consolidated reference for wiring the iOS phase of a KMM migration. Covers the full protocol from first screen to commit, component mapping, SKIE interop patterns, and build/runtime verification.
 
-Phase 5A (UI screens) can start in parallel with Phase 4. Phase 5B (Koin, navigation, build, verify) runs AFTER Android is committed. Fresh context recommended — tell user to `/clear` before starting.
+Phase 5A (UI screens) starts in parallel with Phase 4. Phase 5B (navigation + pbxproj + build + verify) runs AFTER Android is committed — it needs confirmed Koin bindings from the android-wirer. No `/clear` between Phase 4 and Phase 5 (the orchestrator's plan is that Phases 4+5 share the same context window, per SKILL.md Workflow). The mandatory `/clear` gates are before Phase 2 and after Phase 3 only — see SKILL.md.
 
 ---
 
-## Pre-Wire: Read Wiring Manifests
+## Pre-Wire: Read Wiring Manifest
 
-Before starting, read every FILE_VERIFIED output from Phase 3 (stored in PROGRESS.md).
-For each file with `breaking` != "none": these consumer-visible changes affect iOS wiring.
-For each file with `di-bindings` != "none": these Koin bindings need adding to the iOS DI module.
-Do not rediscover — use the manifest.
+Before starting, read `<gameplan-dir>/wiring-manifest.md` — the canonical record of per-file migration outputs from Phase 3. For each file with `breaking` != "none": the consumer-visible change affects iOS wiring. For each file with `di-bindings` != "none": add the listed Koin binding to the iOS DI module. Do not rediscover — use the manifest.
+
+(PROGRESS.md is a one-line-per-task checklist per SKILL.md Rule 10 — full FILE_VERIFIED blocks live in wiring-manifest.md, not in PROGRESS.md.)
 
 ## Table of Contents
 
@@ -886,6 +885,67 @@ For each screen:
 ---
 
 ## 9. iOS Gotchas
+
+### One framework per iOS app target — never create secondary KMP modules that depend on the SDK
+
+A KMM SDK consumed by an iOS app must produce exactly ONE framework. Do not create a secondary KMP module (e.g., `:demo-shared`) that depends on the SDK and produces its own framework to share Kotlin types between the SDK and the demo Swift code.
+
+If you do:
+1. **Type identity breaks.** A Kotlin type exposed through two frameworks appears as TWO DIFFERENT types in Swift — each prefixed with its framework's module name (e.g., `SdkConfig` vs `DemoSharedSdkConfig`). Swift code receiving a type from framework A cannot pass it to an API expecting the same type from framework B.
+2. **SKIE wrappers vanish cross-framework.** Flow→AsyncSequence, sealed-class `onEnum`, and suspend→async bridges are regenerated per-framework. The secondary framework sees the SDK's types without SKIE wrappers: `for-in loop requires 'any Flow' to conform to 'AsyncSequence'`, `cannot find 'onEnum' in scope`.
+3. **Gradle task dependency hell.** Xcode runs both `:sdk:embedAndSignAppleFrameworkForXcode` and `:demo-shared:embedAndSignAppleFrameworkForXcode` in the same build phase; Gradle fails with "task uses this output without declaring an explicit or implicit dependency."
+4. **Xcode project pollution on cleanup.** Removing the secondary module requires editing `FRAMEWORK_SEARCH_PATHS`, `OTHER_LDFLAGS -framework`, and the `embedAndSign` shellScript in pbxproj for both Debug and Release.
+
+**Instead:** if the demo app needs Kotlin glue, put it in the SDK's `iosMain` (it's part of the SDK's iOS surface). If glue is demo-specific, write it in pure Swift in the demo's Xcode project (Swift can implement Kotlin protocols including `suspend` functions via the `__` prefix pattern — see §4). If multiple iOS apps share a helper, ship it as a Swift package, not a KMP module.
+
+### iOS SDK entry point — factory class, not Koin modules
+
+When a KMM SDK needs an iOS-facing public API for wiring, expose a plain factory class in `iosMain` with constructor injection and lazy service properties. Do NOT expose Koin modules as the SDK's iOS entry point.
+
+**Why Koin DSL fails from Swift:** Koin's `module { single { ... } }` DSL uses Kotlin lambda receivers annotated with `@DslMarker`. SKIE cannot translate lambda receivers or DSL markers into Swift — they surface as `__SkieLambdaErrorType` or become uncallable. Swift code cannot write the Kotlin equivalent of `startKoin { modules(module { single<FooService> { ... } }) }`.
+
+**The right pattern — factory class:**
+
+```kotlin
+// SDK iosMain
+class MySDKFactory(
+    httpClient: HttpClient,
+    webSocketClientFactory: () -> IWebSocketClient,
+    config: MySDKConfig,
+    logger: Logger,
+    // mandatory callbacks — no no-op defaults
+    onSyncEvent: (SyncEvent) -> Unit,
+) {
+    val someUseCase: ISomeUseCase by lazy { SomeUseCaseImpl(httpClient, config) }
+
+    // Wrap Ktor builder types and Result<T> in convenience methods so Swift never sees them directly
+    fun connectFeedWebSocket(wsUrl: String) {
+        feedWebSocketService.connect { url(wsUrl) }
+    }
+
+    companion object {
+        fun withDefaults(config: MySDKConfig, onSyncEvent: (SyncEvent) -> Unit, logger: Logger): MySDKFactory {
+            // Build defaults for HttpClient and WebSocket factory for simple consumers
+        }
+    }
+}
+```
+
+```swift
+// Swift demo app
+let sdk = MySDKFactory.companion.withDefaults(
+    config: config,
+    onSyncEvent: { event in /* ... */ },
+    logger: ConsoleLogger.shared
+)
+let useCase = sdk.someUseCase
+```
+
+**Ktor builder types and suspend `Result<T>`:** wrap both inside the factory's convenience methods. `connectFeedWebSocket(wsUrl:)` hides the `{ url(...) }` builder. `getSingleFeed(channelName:)` hides the `Result<T>` that Swift sees as `Any?` (see §platform-api-gotchas Result<T> entry).
+
+**Consumer using Koin internally:** a Koin-based consumer can wrap the factory in its own Koin module — `single { MySDKFactory(...) }` and `single<ISomeUseCase> { get<MySDKFactory>().someUseCase }`. The factory stays DI-agnostic; consumers choose.
+
+---
 
 **pbxproj registration** — New `.swift` files not added to the Xcode project are silently ignored at edit time but fail at build time. Always verify after adding files.
 

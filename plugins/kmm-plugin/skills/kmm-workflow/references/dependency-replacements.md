@@ -175,7 +175,7 @@ Changes:
 - Inner mapper classes may be renamed (e.g., `StringToJSONMapper` → `StringToJsonObjectMapper`)
 - Consumer DI modules that construct these ApiClient instances need updating
 
-**Phase 6 action:** Grep consumer DI for `ApiClient<.*JSONObject>` and update to `JsonObject`.
+**Phase 4 action (Android wiring):** Grep consumer DI for `ApiClient<.*JSONObject>` and update to `JsonObject`.
 
 ---
 

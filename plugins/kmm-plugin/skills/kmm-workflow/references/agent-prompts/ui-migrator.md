@@ -172,24 +172,7 @@ Read the `UI Strategy:` field. Use that strategy exactly. Do not override it. If
 
 ## Self-Verification (mandatory before completion)
 
-**Layer 1 — Deterministic scan:**
-Scan your output for:
-- Type casts (`as `, `as?`, `as!`) → CRITICAL
-- `TODO()` or placeholder text → CRITICAL
-- Empty callback closures (`= {}`, `= { }`) not overridden by parent → HIGH
-- Missing `.task {}` blocks (count < Flows field count) → HIGH
-- Missing conditional branches (count < UI Branches field count) → HIGH
-
-Fix all CRITICAL items. Fix HIGH items or report in UI_BLOCKED.
-
-**Layer 2 — Adversarial self-review:**
-Re-read the Android source composable/XML and your iOS/CMP output side by side:
-- Every padding/spacing value matches (16.dp → 16 points)
-- Every color token matches
-- Every text string is character-for-character identical
-- Every conditional rendering branch exists
-- Every interactive element is wired to a real action
-- If device available: take appium-mcp screenshot and compare visually with master Android
+Run the Verified-Output Protocol from `references/agent-protocol.md`. UI-specific adversarial focus: compare the Android composable/XML against your iOS/CMP output for padding/spacing values, color tokens, string literals, conditional branches, and every interactive element wired to a real action (never `= {}`). Also verify `.task {}` count == Flows field count and branch count == UI Branches field count. If a device is available, take an appium-mcp screenshot and compare visually with master Android. Record `deterministic_scan` + `peer_review` + `flows_subscribed` + `ui_branches` + `callbacks_wired` in UI_VERIFIED output.
 
 ---
 
