@@ -531,11 +531,6 @@ Hard-won learnings from real production KMM migrations. Every item here burned t
 - `:shared:linkDebugFrameworkIosSimulatorArm64` compiles iOS framework only
 - Use `assemble` or `linkDebugFramework` when pre-existing test failures block build verification
 
-### SKIE SuspendInterop Breaks Third-Party KMM SDK Companions
-- When shared module exports a pre-built KMM SDK via `api()` + `export()`, SKIE SuspendInterop generates incorrect Companion wrappers (`static member 'shared' cannot be used on instance of type 'X.Companion'`)
-- Fix: disable SuspendInterop for the SDK package, keep FlowInterop enabled
-- Root cause: SDK wasn't built with SKIE, generated wrappers reference non-existent symbols
-
 ### iOS ATS Blocks Staging HTTP URLs Silently
 - Staging HTTP URLs silently blocked by ATS — no crash, buttons do nothing
 - Fix: `NSAppTransportSecurity.NSAllowsArbitraryLoads = true` in Info.plist
@@ -647,12 +642,6 @@ coroutineScope {
 - You MUST subscribe to BOTH separately from Swift
 - If you only subscribe to `effect`, you miss ALL navigation events from `navigationEvents`
 - Always check the VM for ALL public Flow properties, not just `state` and `effect`
-
-### SKIE Nested Dot Notation
-- SKIE generates nested dot notation for sealed class subtypes
-- Swift: `PinVerificationEvent.OTPEnter`, NOT flat `OTPEnter`
-- This affects action dispatch and effect handling from Swift
-- Sealed subtypes from Swift: `Effect.NavigateToNext`, not `NavigateToNext`
 
 ### Backtick Test Names Crash Kotlin/Native
 - `` fun `test my behavior`() `` compiles on JVM but CRASHES on Kotlin/Native

@@ -42,6 +42,7 @@ Execute these steps in order. Do not skip any.
 - Make MINIMAL changes only: fix package declarations, namespace references, and imports so the file compiles in the KMM project
 - Zero behavioral changes. Zero dependency replacements. Zero API adaptations.
 - The staged code must behave identically to the original
+- **DO NOT delete the original from `src/main/java/` yet.** The original stays until the migrator creates the commonMain file in Step 7 of migrator.md. Deleting the original now would leave the file referenced only from `androidMain`; deleting later (when `commonMain` exists) is what prevents the duplicate-class error. The migrator owns that deletion (migrator.md Step 8 / wire phase).
 
 ### Step 4: Write characterization tests in `commonTest`
 

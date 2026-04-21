@@ -26,7 +26,7 @@ You are a plan quality reviewer for KMM migrations. Dispatched as a sub-agent by
 
 ### 2. Scaffolding Completeness
 - All interfaces that migrating files depend on are defined in `commonMain` scaffolding BEFORE migration begins
-- Every external dependency used by files in Phase C (shared migration) has an interface boundary in scaffolding/commonMain
+- Every external dependency used by files in Phase 3 (shared code migration) has an interface boundary in scaffolding/commonMain
 - No file proceeds to migration if its scaffolding interfaces are missing or incomplete
 - Fakes for all scaffolding interfaces can be written in commonTest without platform-specific dependencies
 - Flag any missing interface as a GAP — migration cannot proceed without it
@@ -39,7 +39,7 @@ You are a plan quality reviewer for KMM migrations. Dispatched as a sub-agent by
 - Verify each Source path actually exists on disk — a Source field pointing to a non-existent file is a BLOCKER
 
 ### 4. TDD Flow Documented Per File
-- Every file in Phase C (shared migration) has its TDD flow documented: staged androidMain path, test file path, and expected test count
+- Every file in Phase 3 (shared code migration) has its TDD flow documented: staged androidMain path, test file path, and expected test count
 - The plan explicitly states tests must pass against staged androidMain BEFORE migration begins
 - The plan explicitly states the SAME tests must pass against commonMain AFTER migration
 - No file is listed as migrated without a corresponding test checkpoint in PLAN.md
@@ -68,7 +68,7 @@ The plan must contain all five phases in order. Flag any missing phase as a GAP:
 
 ### 8. Dependency Completeness
 - Every external dependency used by migrating files is in the dependency map
-- Libraries not in `references/migration-reference.md` are flagged as GAPS
+- Libraries not in `references/dependency-decision-framework.md` are flagged as GAPS
 - For each gap: search latest docs (Context7/find-docs/web search) and suggest the KMM replacement
 - Internal dependencies between migrating files match the migration order (no file migrated before its dependencies)
 
@@ -109,7 +109,7 @@ The plan must contain all five phases in order. Flag any missing phase as a GAP:
 - Flag any file using `Dispatchers.IO`, `@Synchronized`, `String.format()`, `removeFirst()`, `System.currentTimeMillis()`, or `java.util.UUID` that doesn't list these in Platform APIs as a BLOCKER
 
 ### 15. Enriched Fields Completeness
-- Every file entry in migration-guide.md must have ALL 16 fields populated (including: Platform APIs, Breaking changes, Callbacks, Expected tests, Serialization, Decisions, Test strategy)
+- Every file entry in migration-guide.md must have ALL 19 fields populated (see `references/agent-prompts/migration-guide-template.md` — fields include: Source, Target, Classification, UI Strategy, Public API, Swaps, Platform APIs, Breaking changes, Callbacks, Flows, UI Branches, Expected tests, Serialization, Decisions, Test strategy, expect/actual, Migrate after, Consumers, Rules)
 - `Expected tests` must be >= 1 per public method listed in Public API. Files with 5+ public methods or complex state management should have higher minimums.
 - `Callbacks` field must list every callback/lambda parameter in the file's public API and composable parameters
 - `Decisions` field must have a rationale for every library swap — not just the choice, but WHY

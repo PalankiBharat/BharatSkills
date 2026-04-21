@@ -7,13 +7,11 @@ Runs AFTER all shared code migration phases are checkpointed. BEFORE iOS.
 
 ---
 
-## Pre-Wire: Read Wiring Manifests
+## Pre-Wire: Read Wiring Manifest
 
-Before starting, read every FILE_VERIFIED output from Phase 3 (stored in PROGRESS.md).
-For each file with `breaking` != "none": these call sites need updating — follow the documented changes.
-For each file with `di-bindings` != "none": these Koin bindings need adding to the Android DI module.
-For each file with `wiring-notes` != "standard": follow the specific import change instructions.
-Do not rediscover — use the manifest.
+Before starting, read `<gameplan-dir>/wiring-manifest.md` — the canonical record of per-file migration outputs from Phase 3. Each entry lists `breaking`, `di-bindings`, and `wiring-notes` fields. For each file with `breaking` != "none": call sites need updating per the documented change. For each file with `di-bindings` != "none": add the listed Koin binding to the Android DI module. For each file with `wiring-notes` != "standard": follow the specific import change instructions. Do not rediscover — use the manifest.
+
+(PROGRESS.md is a one-line-per-task checklist per SKILL.md Rule 10 — full FILE_VERIFIED blocks live in wiring-manifest.md, not in PROGRESS.md.)
 
 ## Table of Contents
 
@@ -59,7 +57,7 @@ This table drives the wiring work breakdown. "Update imports" underestimates whe
 
 For every file listed under "Consumers" in migration-guide.md:
 - Update imports to point to shared module. For most files, call sites don't change (signatures are identical per the 1:1 behavioral port rule). EXCEPTION: when migration-guide.md documents a Breaking Change for this file (e.g., callback→suspend conversion), update call sites as documented. The breaking change was approved during planning — apply it now.
-- Dispatch parallel Haiku agents if consumer count > 5 (see Section 2)
+- Dispatch parallel Haiku agents — one per consumer file, regardless of count. See Section 2.
 
 **Import aliases for dual-VM screens:** During the transition window when both a Hilt ViewModel and a Koin (shared) ViewModel share the same class name, use Kotlin import aliases to avoid compilation errors:
 
@@ -104,19 +102,20 @@ single<UserRepository> { UserRepositoryDecorator(UserLocalStore(get())) }
 
 For every migrated binding: (1) read the Hilt `@Provides` method, (2) count decorator layers, (3) ensure Koin replicates the same chain.
 
-### 1.3 Delete Original Android Files
+### 1.3 Verify Original Android Files Are Deleted
 
-Before deleting each file:
+Originals were deleted by the migrator atomically with commonMain creation (migrator.md Step 8). Phase 4 verifies deletion was complete and no stale imports remain.
+
+For each migrated file, run the grep check:
 ```bash
-grep -r "OriginalClassName" androidApp/src/ --include="*.kt" -l
+grep -r "OriginalClassName" <androidApp>/src/ --include="*.kt" -l
 ```
-Confirm all usages now point to shared. If any remain → update them first.
+All hits must be consumer files that still use the OLD import path — those are the consumers you will rewire in Section 1.1. Zero hits is also valid (no unmigrated consumers).
 
-Then delete. Do not defer deletions — stale files cause ambiguous imports.
+If a grep hit references the fully-qualified OLD package (e.g., `com.app.auth.LoginRepository`) rather than just the class name, the import update in Section 1.1 will fix it. If a grep hit points at a non-scope consumer (`platform-stay` or outside migration scope) whose rewiring would trigger cascade changes:
+→ REQUIRES_APPROVAL: present options (migrate consumer now, add a typealias in androidMain bridging the old package to commonMain, defer consumer to a follow-up migration)
 
-If deletion would break a non-migrated consumer (consumer is `platform-stay` or outside scope):
-→ REQUIRES_APPROVAL: present options (migrate consumer now, keep original alongside shared,
-use typealias)
+If the original file still exists on disk, that is a migrator bug — flag BLOCKED and escalate to orchestrator. Do NOT delete it here; the migrator owns deletion to guarantee no duplicate-declaration window.
 
 **@Entity Shadow Deletion — var→val Transition**
 

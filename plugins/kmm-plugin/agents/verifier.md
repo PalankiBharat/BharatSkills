@@ -1,5 +1,5 @@
 ---
-name: verifier-role
+name: verifier
 description: >
   Owns Verify mode (3-layer verification). Fires parallel sub-agents within each layer.
   Layer 1: static checks. Layer 2: completeness. Layer 3: device E2E.

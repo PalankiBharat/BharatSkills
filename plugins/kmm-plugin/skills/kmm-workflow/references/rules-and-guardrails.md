@@ -16,7 +16,7 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
 3. [Audit Checklist by Severity](#3-audit-checklist-by-severity)
    - [CRITICAL — Must fix immediately](#critical--must-fix-immediately-app-crash-data-loss-security)
      - runBlocking on Main Thread
-     - Ktor Auth Interceptor: `append` vs `appendIfMissing`
+     - Ktor Auth Interceptor: `append` vs `appendIfNameAbsent`
      - ViewModel Effect Flow: Exactly One Collector Per Entry Point
      - MutableStateFlow Field Must Never Be Reassigned
      - Mutable State Not Cleared on Error Paths
@@ -34,7 +34,7 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
 
 ## 1. Core Guardrails (inject into all agent prompts)
 
-> **Inject this entire section verbatim into every agent prompt system block. ~500 tokens.**
+> **Inject ONLY this section (§1 Core Guardrails, roughly lines 39-67, ~500 tokens) verbatim into every agent prompt system block.** Do NOT inject §2 (Escalation Protocol) or §3 (Audit Checklist) into every agent — those are loaded on demand: migrators/debuggers read §2 via the reference link, the auditor sub-agent reads §3, verify-team reads both. Injecting the whole file blows every agent's context by ~15k tokens.
 
 **1:1 MECHANICAL PORT.** THE rule. Only Android→KMM specifics change. Any behavioral change → REQUIRES_APPROVAL. Migrated screens MUST be pixel-perfect and 1:1 in functionality and UX — CMP on Android uses the same Compose runtime, so visual parity is the default, not an option. Never ask whether parity is required; enforce it.
 
@@ -60,7 +60,10 @@ Consolidated reference combining guardrails, escalation protocol, and audit chec
 - **Dependency research (mandatory):** When looking up ANY dependency, library version, API compatibility, or KMM availability: (0) **Check existing project usage first** — grep the project's `build.gradle.kts` and source files for the library before any web search. If already used in the project, read the version and API from live code — always more accurate than external sources. (1) **Web search + Context7/find-docs** for latest availability, versions, and API status — this step is NOT optional. (2) **Skill references** (`dependency-replacements.md`, `platform-api-gotchas.md`, `dependency-decision-framework.md`) for battle-tested migration patterns, swap code examples, and known gotchas. **Combine both** — live data confirms what's current, skill references provide proven patterns and caveats learned from past migrations. Neither alone is sufficient. (3) **Provenance check** — before recommending any library not already in the project, verify maintainer count, GitHub stars, and backing org (Google, JetBrains, Square, etc.). Single-maintainer or sub-500-star libraries are NOT acceptable for production-critical infrastructure. Flag as a risk and present a battle-tested alternative. (4) **Training data NEVER** — it has caused incorrect guidance (Dispatchers.IO, Paging3 KMP, library versions). If web search is unavailable, explicitly state "unable to verify via live search" rather than falling back to training data silently.
 - **Latest stable deps.** When adding new dependencies, check the latest stable version via web search or Context7, not training data or skill reference files (which may have outdated version numbers).
 - **No "Shared" prefix** on class/file names in commonMain. Keep names natural (e.g., `LoginViewModel` not `SharedLoginViewModel`).
-- **Host app DI stays untouched.** When migrating a library SDK consumed by a host app with its own DI framework (Hilt, Dagger): keep the host app's DI as-is. Add Koin alongside for the SDK's types only. Bridge via a small module. Do NOT propose removing the host app's DI framework.
+- **SDK exports types only, not DI wiring.** A KMM library SDK artifact must expose TYPES ONLY — interfaces, data classes, use cases, repositories, platform `actual`s. Do NOT ship Koin modules, bridge modules, or DI helpers from the SDK. Every consumer wires SDK types into its own DI framework (Hilt, Koin, manual constructor injection). Demo apps that want Koin keep their Koin modules in their own app module, NOT in the SDK artifact.
+  - **Why:** Shipping Koin modules from the SDK forces Hilt-based host apps to pull in Koin transitively and ignore it; the SDK's "convenience" modules become dead code in the host binary. Move them to the demo app and the SDK becomes genuinely DI-framework-neutral.
+  - **No silent no-op defaults for host-responsibility parameters.** If your SDK's iOS factory takes callbacks (sync lifecycle events), local storage, or a logger, these MUST be mandatory constructor parameters — never default to no-op implementations. Silent no-ops mask integration bugs ("everything works" while every sync event is silently dropped). Force consumers to make a choice; let them supply explicit no-op implementations if they genuinely don't care.
+  - **Keep host app DI untouched.** Non-SDK parts of a host app continue using whatever DI they already use. Don't propose migrating a Hilt host app to Koin just because the SDK is KMM.
 - **SDK demo app source may differ from published artifact.** When porting from an SDK's demo app, verify enums, methods, and types against the actual Maven/CocoaPods artifact — not the demo source. Demo apps may be ahead or behind the published SDK version (e.g., `SdkEnum.variant1` in demo vs `.variant2` in published artifact). Always check the published artifact as the source of truth.
 - **Version catalog enforcement.** During Phase 2 SCAFFOLD, scan all `build.gradle`/`build.gradle.kts` files in migration scope for plugins declared with hardcoded `version '...'` syntax. Replace with version catalog aliases. A hardcoded plugin version that differs from the project's Kotlin version causes pre-existing build failures that block migration verification.
 - **Module dependency before original deletion.** When migrating files from an Android module to shared, add `api(project(":shared"))` (or `implementation`) to the Android module's `build.gradle` BEFORE deleting original source files. Correct sequence: (1) create files in `shared/src/commonMain/`, (2) add module dependency, (3) build to verify resolution, (4) delete originals. Never delete originals and add the dependency in the same step — the dependency must land first.
@@ -162,9 +165,9 @@ The goal of 3 strikes is to avoid both giving up too early and spinning indefini
 
 ### KMM-Specific Escalation Triggers
 
-#### Dependency Not in dependency-map.md
+#### Dependency Not in dependency-decision-framework.md
 
-If a dependency needed for migration is not listed in `dependency-map.md` (or the equivalent FINDINGS.md Dependency Map), do not guess at a replacement. Either:
+If a dependency needed for migration is not listed in `references/dependency-decision-framework.md` (or the equivalent FINDINGS.md Dependency Map), do not guess at a replacement. Either:
 
 - **Search docs first** — check the library's official KMM/CMP compatibility page and record findings in FINDINGS.md under "Research"
 - **Escalate to user** — if the compatibility status is unclear or no KMM alternative is documented, stop and present options
@@ -186,9 +189,9 @@ Wait for the user to decide before writing any expect/actual code.
 
 If an interop issue arises related to Swift/Kotlin interface exposure (e.g., generics not visible in Swift, suspend functions not bridged, flows not exposed):
 
-1. **Check `skie-interop.md` first** — the reference may already document the correct SKIE annotation or configuration for this pattern
+1. **Check `references/ios-wiring.md` Section 4 (SKIE Interop) first** — the reference may already document the correct SKIE annotation or configuration for this pattern
 2. If the answer is there, apply it and record in FINDINGS.md
-3. If `skie-interop.md` does not cover the case, escalate to the user with the specific interop failure, what you've tried, and what SKIE docs say (record the docs excerpt in FINDINGS.md before escalating)
+3. If ios-wiring.md does not cover the case, run a live lookup via Context7 (query: "SKIE <topic>") or find-docs — never rely on training data for SKIE API shape. If the live lookup doesn't resolve it either, escalate to the user with: the specific interop failure, what you tried, and the SKIE docs excerpt you found (record the excerpt in FINDINGS.md before escalating)
 
 Never suppress an interop issue by changing the API shape without user approval.
 
@@ -250,7 +253,7 @@ class AuthInterceptor(private val tokenProvider: TokenProvider) : HttpClientPlug
     override fun install(plugin: AuthInterceptor, scope: HttpClient) {
         scope.requestPipeline.intercept(HttpRequestPipeline.State) {
             val token = tokenProvider.getToken() // suspend function — no blocking
-            context.headers.appendIfMissing("Authorization", "Bearer $token")
+            context.headers.appendIfNameAbsent("Authorization", "Bearer $token")
         }
     }
 }
@@ -265,27 +268,27 @@ class TokenProvider {
 
 ---
 
-### Ktor Auth Interceptor: `append` vs `appendIfMissing`
+### Ktor Auth Interceptor: `append` vs `appendIfNameAbsent`
 
-**What to look for:** Ktor `HttpClient` auth interceptors (or any request pipeline interceptor) that call `context.headers.append("Authorization", ...)` instead of `context.headers.appendIfMissing("Authorization", ...)`.
+**What to look for:** Ktor `HttpClient` auth interceptors (or any request pipeline interceptor) that call `context.headers.append("Authorization", ...)` instead of `context.headers.appendIfNameAbsent("Authorization", ...)`.
 
 **Why it's a problem:** On retries, the interceptor fires again on the same request. `append` adds a second `Authorization` header — many servers reject requests with duplicate auth headers, causing silent auth failures on retry rather than an obvious crash.
 
-**Generalization:** Any header added inside an interceptor that can fire multiple times per request lifecycle (auth, correlation IDs, tracing headers) MUST use an idempotent setter. `appendIfMissing` is the standard guard.
+**Generalization:** Any header added inside an interceptor that can fire multiple times per request lifecycle (auth, correlation IDs, tracing headers) MUST use an idempotent setter. `appendIfNameAbsent` is the standard guard.
 
 **Where to look:**
 - `HttpClientPlugin` `install` blocks
 - `requestPipeline.intercept(...)` lambdas
 - Any `context.headers.append(...)` call where the interceptor could run more than once per logical request
 
-**How to fix:** Replace `append` with `appendIfMissing` for all headers set in interceptors.
+**How to fix:** Replace `append` with `appendIfNameAbsent` for all headers set in interceptors.
 
 ```kotlin
 // Bad — duplicates header on retry
 context.headers.append("Authorization", "Bearer $token")
 
 // Good — idempotent, safe on retry
-context.headers.appendIfMissing("Authorization", "Bearer $token")
+context.headers.appendIfNameAbsent("Authorization", "Bearer $token")
 ```
 
 ---
@@ -671,56 +674,6 @@ MyScreen(
 
 ---
 
-### Multiple SharedFlow Collectors
-
-**What to look for:** More than one composable or SwiftUI view collecting from the same `SharedFlow(replay=0)` or `Channel`.
-
-**Why it's a problem:** Only one collector receives each emission. When multiple composables independently collect from the same SharedFlow, effects are silently split between them — some effects go to collector A, some to collector B, and the user sees inconsistent behavior. This compiles and looks correct but breaks at runtime.
-
-**Where to look:**
-- NavHost-based screens migrated to state-machine navigation
-- Parent composables that collect effects AND child composables that also collect from the same flow
-- SwiftUI views with multiple `.task {}` blocks collecting the same flow
-
-**How to fix:** Ensure only ONE composable/view collects from each SharedFlow/Channel. Child composables should receive effects via parameters from the parent, not through their own collectors.
-
-**Code example:**
-
-Bad:
-```kotlin
-// Parent collects
-LaunchedEffect(Unit) {
-    viewModel.effects.collect { effect -> handleEffect(effect) }
-}
-
-// Child ALSO collects from the same flow — effects are split!
-@Composable
-fun ChildScreen(viewModel: MyViewModel) {
-    LaunchedEffect(Unit) {
-        viewModel.effects.collect { effect -> handleChildEffect(effect) }
-    }
-}
-```
-
-Good:
-```kotlin
-// Only parent collects
-LaunchedEffect(Unit) {
-    viewModel.effects.collect { effect ->
-        when (effect) {
-            is ParentEffect -> handleEffect(effect)
-            is ChildEffect -> childEffectHandler(effect)
-        }
-    }
-}
-
-// Child receives effects via parameter
-@Composable
-fun ChildScreen(onEffect: (ChildEffect) -> Unit) { ... }
-```
-
----
-
 ### Disconnected UI State (iOS only)
 
 **What to look for:** `@State` variables in SwiftUI views that are mutated by the user but never sent back to the ViewModel.
@@ -898,7 +851,7 @@ var biometryLabel: String {
 
 When migrating models that store colors as `Long` (packed ARGB), verify all color fields have non-zero values. `0L` in packed ARGB means alpha=0 (fully transparent) — text renders but is invisible.
 
-**Check during Phase 3E (CMP screens):** Grep for `Color = 0L` or `color = 0` in migrated model data classes. Verify against the original Android code's actual color values.
+**Check during Phase 5 (iOS wiring, CMP screens):** Grep for `Color = 0L` or `color = 0` in migrated model data classes. Verify against the original Android code's actual color values.
 
 ---
 

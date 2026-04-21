@@ -26,7 +26,6 @@ APIs that compile on JVM/Android but fail on Kotlin/Native (iOS) or are unavaila
 | `println()` | Output goes to stdout on iOS, NOT captured by `xcrun simctl spawn ... log stream/show`. Invisible for debugging. | Use `Napier.d()` / `Napier.e()` (which uses `NSLog` on iOS) | Always replace `println` debug statements with Napier in shared code. `println` is fine for JVM unit tests but useless for iOS runtime debugging. |
 | Extra headers in migrated HTTP clients | Ktor `HttpClientFactory` may add headers (e.g., `platform`, `app_version`) that the original OkHttp client never sent. Backend servers may 500 on unexpected headers. | Diff the exact headers sent by original vs migrated client. Remove any headers not present in the original. | Debug with curl bisection: reproduce the request via curl, remove headers one at a time until the error resolves. Also verify `app_version` sends the version name string (e.g., `"1.2.3"`), not the numeric version code. |
 | `DialogProperties.decorFitsSystemWindows` | Android Compose only, not in CMP | Remove the parameter | CMP `DialogProperties` only supports `dismissOnBackPress`, `dismissOnClickOutside`, `usePlatformDefaultWidth`. Android-specific params like `decorFitsSystemWindows` cause compile failure on iOS. |
-| SKIE `data object` vs `data class` Swift access | Kotlin `data object` subtypes of sealed classes are accessed via `.shared` property in Swift, not `()` constructor. `data class` subtypes use `()` constructor as normal. Getting this wrong causes compile errors or silent nil values. | `data object Idle : State` → Swift: `State.Idle.shared`. `data class Loaded(val items: List<Item>) : State` → Swift: `State.Loaded(items: [...])` | Applies to ALL sealed class/interface subtypes consumed via SKIE `onEnum(of:)` in SwiftUI. |
 | `return` inside composable lambda | In Kotlin, `return` inside a lambda exits the enclosing function, not just the lambda. Inside a `@Composable` lambda (e.g., `Column { ... }`), a bare `return` exits the entire composable function, silently skipping all content that follows. No compile error, no runtime warning — screen renders empty. | Replace `return` with `return@ColumnName` (labeled return), or restructure into `if` blocks. |
 | `runBlocking` in commonMain / non-suspend interface with suspend storage | If an interface has non-suspend methods but the storage layer is suspend-only (e.g., DataStore), do NOT bridge with `runBlocking`. On iOS, `runBlocking` on the main thread = deadlock. Any `runBlocking` in commonMain is a potential iOS deadlock. | Make the interface methods `suspend`, or provide a platform-specific synchronous accessor via `expect`/`actual`. |
 | CoreFoundation (CF) typed APIs in Kotlin/Native | CF types in K/N interop must use typed CF APIs: `CFDataGetBytePtr()`, `CFDataGetLength()`, `NSData.dataWithBytes()`, `.reinterpret<T>()`, typed output vars (e.g., `CPointerVar<__SecKey>`). Using `as`/`as?` with CF types produces type-erased `Any?`. Using `CFBridgingRelease` risks double-free. | Use `CFAutorelease` or explicit `CFRelease` with ownership tracking. Never cast CF types with `as`/`as?`. |
@@ -205,17 +204,14 @@ Applies to ANY method starting with `init`: `initialize()` → `doInitialize()`,
 
 **Fix:** Rename the Kotlin method (e.g., `startKoin()`) or document the `do` prefix.
 
-## Kotlin `Result<T>` Returns `Any?` in Swift — Cast Fails Silently
+## SKIE-related gotchas (Result<T>, data object/class, suspend-prefix, nested dot notation)
 
-`Result<T>` is an inline class. In K/N ObjC interop, it's boxed as `Any?`. SKIE converts `suspend fun` to `async throws`, but return type is still `Any?`.
-
-| Kotlin | Swift (SKIE) | Problem |
-|--------|-------------|---------|
-| `suspend fun get(): Result<Model>` | `func get() async throws -> Any?` | `result as? Model` → nil |
-
-**Fix:** Create a Kotlin helper that unwraps: `fun getSingle(): Model? = repo.get().getOrNull()`
-
-**Do NOT** cast `Any?` in Swift — it will always be nil.
+SKIE interop gotchas live in `references/ios-wiring.md` §4 (single source of truth). See:
+- `Result<T>` → `Any?` in Swift — cast fails silently (create a Kotlin unwrap helper)
+- `data object` uses `.shared` property; `data class` uses `()` constructor
+- Kotlin methods named `init*` get the `doInit*` Swift prefix
+- Sealed subtypes use nested dot notation (`Effect.NavigateToNext`, not flat)
+- Protocol suspend functions get a `__` prefix in Swift
 
 ## Xcode 16+ `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` Breaks ObjectBox
 

@@ -13,7 +13,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
 | `bug-finder` | 1.0.0 | Evidence-based bug/crash root cause diagnosis — flow mapping, hypothesis formation, log verification, root cause report |
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
-| `kmm-plugin` | 6.5.3 | Battle-tested KMM migration orchestrator — 5-phase workflow with TDD, parallel agent teams, static parity analysis, verify-first Appium, enriched migration guide, integrated self-improvement |
+| `kmm-plugin` | 6.6.0 | Battle-tested KMM migration orchestrator — 5-phase workflow (Plan → Scaffold → Migrate → Wire Android → Wire iOS), per-file TDD, 3-layer verification, parallel agent teams, static parity analysis, verify-first Appium, observe/discuss retrospective |
 
 ## Installation
 
@@ -53,10 +53,10 @@ skill feedback
 # Om pipeline (full dev pipeline: plan → build → review → test on device)
 /om add dark mode toggle in settings screen
 
-# KMM migration (create, continue, or self-improve)
+# KMM migration (create, continue, or verify)
 /kmm-plugin:kmm-workflow create my-feature-module
 /kmm-plugin:kmm-workflow continue
-/kmm-plugin:kmm-workflow improve
+/kmm-plugin:kmm-workflow verify
 ```
 
 ## For Teams

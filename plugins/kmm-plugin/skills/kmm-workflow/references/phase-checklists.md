@@ -8,7 +8,7 @@ Run the relevant checklist at every phase boundary. Every unchecked item is a BL
 
 Run before presenting plan to user.
 
-- [ ] migration-guide.md: ALL 15 fields populated for every file (no TBD, no blanks)
+- [ ] migration-guide.md: ALL 19 fields populated for every file (no TBD, no blanks) — see `references/agent-prompts/migration-guide-template.md` for the canonical field list
 - [ ] migration-guide.md: Platform APIs field lists every Android-only API with replacement
 - [ ] migration-guide.md: Expected tests field has minimum count >= 1 per public method
 - [ ] migration-guide.md: Callbacks field lists every callback param with parent and wiring target
@@ -16,9 +16,8 @@ Run before presenting plan to user.
 - [ ] findings.md: Decisions table populated with all planning decisions + rationale
 - [ ] findings.md: Library versions verified via web search (not training data)
 - [ ] PLAN.md: Build commands use verified Gradle task names (from Task 1.13)
-- [ ] PLAN.md: Gameplan-named device serials recorded in header (not `master-build`)
+- [ ] PLAN.md: User-provided Android serial + iOS UDID recorded in header
 - [ ] Dependency DAG: no cycles, topological order matches PLAN.md task order
-- [ ] manual-test-checklist.md generated with per-screen test steps
 - [ ] Plan quality review: zero BLOCKERs, zero HIGH issues remaining
 - [ ] build-verify.sh generated with verified build commands
 - [ ] parity-check.sh generated with all 10 static checks
@@ -69,7 +68,7 @@ Run after Android wiring, before appium-mcp E2E.
 
 - [ ] All imports updated to use shared module paths
 - [ ] DI rewired (Hilt→Koin) — all VM bindings registered
-- [ ] Original Android files deleted (grep-before-delete)
+- [ ] Originals already deleted by migrator in Phase 3 (Step 8); Phase 4 verifies grep returns only consumers-to-be-rewired
 - [ ] Stub audit: zero error("…"), TODO(), TODO("…") in non-test migrated files
 - [ ] Empty lambda audit: every callback param with default = {} traced to real action
 - [ ] Koin binding completeness: all VM constructor params AND child composable types have bindings
