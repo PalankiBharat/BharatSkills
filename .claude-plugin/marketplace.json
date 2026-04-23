@@ -117,6 +117,15 @@
       "category": "developer-tools",
       "tags": ["instructions", "feedback", "audit", "github-issues", "constitution", "claude-md", "continuous-improvement"],
       "keywords": ["instructions-feedback", "audit", "retrospective", "constitution", "claude-md", "improve"]
+    },
+    {
+      "name": "preview-compose",
+      "source": "./plugins/preview-compose",
+      "description": "Renders Jetpack Compose @Preview composables on a connected Android emulator from the terminal — no Android Studio needed. Installs the project's debug APK and launches a bundled PreviewActivity with the target preview's FQN. Auto-offers on @Preview edits and runs when the user says 'preview', 'show me', 'render this', or 'on the emulator'.",
+      "version": "0.1.0",
+      "category": "developer-tools",
+      "tags": ["compose", "preview", "android", "emulator", "ui-iteration", "jetpack-compose"],
+      "keywords": ["preview", "compose", "render", "show me", "emulator", "on the device"]
     }
   ]
 }
