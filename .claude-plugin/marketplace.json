@@ -74,15 +74,6 @@
       "keywords": ["om", "bramha", "vishnu", "pipeline", "orchestrator", "plan", "review", "regression"]
     },
     {
-      "name": "kmm-plugin",
-      "source": "./plugins/kmm-plugin",
-      "description": "Battle-tested KMM migration orchestrator — 5-phase workflow (Plan → Scaffold → Migrate → Wire Android → Wire iOS) with per-file TDD, parallel agent teams, static parity analysis, verify-first Appium, 19-field migration guide, and 3-layer Verify mode.",
-      "version": "6.6.0",
-      "category": "migration",
-      "tags": ["kmm", "kotlin-multiplatform", "migration", "tdd", "swiftui", "skie", "ios", "android", "appium"],
-      "keywords": ["kmm", "migrate", "kotlin", "multiplatform", "swift", "skie", "kmp", "ios", "appium"]
-    },
-    {
       "name": "branch-manager",
       "source": "./plugins/branch-manager",
       "description": "Complete branch dev environment lifecycle — creates git worktrees, dedicated tmux panes with Claude Code, and isolated Android emulators per branch. Interactive cleanup with safety checks.",
