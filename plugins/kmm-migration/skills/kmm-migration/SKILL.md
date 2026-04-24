@@ -45,6 +45,7 @@ argument-hint: "<feature-name> [--from-branch <branch>]"
 
 - [Orchestration flow](#orchestration-flow)
 - [Required reading](#required-reading-for-the-orchestrator-on-invocation)
+- [Preflight — superpowers dependency check](#preflight--superpowers-dependency-check-runs-once-before-phase-0)
 - [Phase 0 — Bootstrap](#phase-0--bootstrap)
 - [Phase 1 — Baseline](#phase-1--baseline)
 - [Phase 2 — Plan](#phase-2--plan)
@@ -86,6 +87,22 @@ YOU MUST read these files BEFORE taking any action on an invocation:
 - `skills/kmm-migration/schemas/state_schema.md`
 - `kmm_migration/state.json` (at the target repo root — if exists)
 - `kmm_migration/findings.md` (at the target repo root — if exists)
+
+## Preflight — superpowers dependency check (runs ONCE, before Phase 0)
+
+YOU MUST run this check as the FIRST action on every invocation, before reading `state.json`. The skill invokes three `superpowers:*` skills internally (see end of this file); if any is missing, every labour phase fails mid-migration.
+
+Procedure:
+
+1. Attempt `Skill(superpowers:verification-before-completion)` in probe mode — no arguments, just resolve the skill.
+2. If it loads, superpowers is installed. Proceed to Phase 0.
+3. If it errors with "unknown skill" or similar, STOP. Emit a `NEEDS YOUR CALL` gate (per `formats/requires_approval.md`) titled "missing dependency":
+   - **What's happening**: kmm-migration requires the superpowers plugin for git-worktree setup, verification-before-completion, and systematic-debugging. Not installed.
+   - **Choice A** — Install superpowers, then retry (`/plugin install superpowers@...`).
+   - **Choice B** — Abandon this migration.
+   - **Skill recommends A.** Why (skill rule): §14 — the three superpowers skills are non-optional; graceful-degradation fallbacks would ship untested.
+
+4. Do NOT proceed to Phase 0 until superpowers is confirmed installed.
 
 ## Phase 0 — Bootstrap
 

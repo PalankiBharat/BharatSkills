@@ -1,13 +1,31 @@
 # Superpowers Invocation Recipes
 
 > Three `superpowers:*` skills are invoked internally. No other superpowers
-> skill is invoked by this skill's dispatches.
+> skill is invoked by this skill's dispatches. **Superpowers is a HARD
+> DEPENDENCY** — the SKILL.md body runs a preflight check before Phase 0 and
+> emits a `NEEDS YOUR CALL` gate if superpowers is not installed.
 
 ## Contents
 
+- [Hard dependency](#hard-dependency)
 - [using-git-worktrees](#using-git-worktrees)
 - [verification-before-completion](#verification-before-completion)
 - [systematic-debugging](#systematic-debugging)
+
+## Hard dependency
+
+All three sub-skills are REQUIRED, not optional. Graceful-degradation
+fallbacks would ship untested and weaken the "battle-tested" claim.
+
+Install via:
+
+```
+/plugin install superpowers@claude-plugins-official
+```
+
+The skill refuses to proceed past preflight if the `Skill` tool cannot
+resolve `superpowers:verification-before-completion` (the canary probe).
+See `SKILL.md` § Preflight.
 
 ## using-git-worktrees
 

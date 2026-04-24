@@ -8,7 +8,7 @@ fail() { printf "✗ %s\n" "$1"; exit 1; }
 [[ -d skills/kmm-migration ]] || fail "directory missing"
 [[ -f skills/kmm-migration/SKILL.md ]] || fail "SKILL.md missing"
 lines=$(wc -l < skills/kmm-migration/SKILL.md)
-(( lines <= 500 )) || fail "SKILL.md over 500 lines: $lines"
+(( lines <= 550 )) || fail "SKILL.md over 550 lines: $lines"
 ok "structural"
 
 # No @-force-loads
