@@ -45,7 +45,6 @@ argument-hint: "<feature-name> [--from-branch <branch>]"
 
 - [Orchestration flow](#orchestration-flow)
 - [Required reading](#required-reading-for-the-orchestrator-on-invocation)
-- [Preflight — superpowers dependency check](#preflight--superpowers-dependency-check-runs-once-before-phase-0)
 - [Phase 0 — Bootstrap](#phase-0--bootstrap)
 - [Phase 1 — Baseline](#phase-1--baseline)
 - [Phase 2 — Plan](#phase-2--plan)
@@ -59,7 +58,7 @@ argument-hint: "<feature-name> [--from-branch <branch>]"
 - [Dispatch bundles](#dispatch-bundles)
 - [Resume flow](#resume-flow)
 - [Named escape hatches](#named-escape-hatches)
-- [Superpowers invocation](#superpowers-invocation)
+- [Self-contained — no external skill dependencies](#self-contained--no-external-skill-dependencies)
 
 ## Orchestration flow
 
@@ -88,29 +87,13 @@ YOU MUST read these files BEFORE taking any action on an invocation:
 - `kmm_migration/state.json` (at the target repo root — if exists)
 - `kmm_migration/findings.md` (at the target repo root — if exists)
 
-## Preflight — superpowers dependency check (runs ONCE, before Phase 0)
-
-YOU MUST run this check as the FIRST action on every invocation, before reading `state.json`. The skill invokes three `superpowers:*` skills internally (see end of this file); if any is missing, every labour phase fails mid-migration.
-
-Procedure:
-
-1. Attempt `Skill(superpowers:verification-before-completion)` in probe mode — no arguments, just resolve the skill.
-2. If it loads, superpowers is installed. Proceed to Phase 0.
-3. If it errors with "unknown skill" or similar, STOP. Emit a `NEEDS YOUR CALL` gate (per `formats/requires_approval.md`) titled "missing dependency":
-   - **What's happening**: kmm-migration requires the superpowers plugin for git-worktree setup, verification-before-completion, and systematic-debugging. Not installed.
-   - **Choice A** — Install superpowers, then retry (`/plugin install superpowers@...`).
-   - **Choice B** — Abandon this migration.
-   - **Skill recommends A.** Why (skill rule): §14 — the three superpowers skills are non-optional; graceful-degradation fallbacks would ship untested.
-
-4. Do NOT proceed to Phase 0 until superpowers is confirmed installed.
-
 ## Phase 0 — Bootstrap
 
 Read `kmm_migration/state.json`:
 
 - **No state** — ask feature name, base branch, and goal ONE question at a
-  time. Dispatch `00_worktree_initializer` (Haiku), which invokes
-  `superpowers:using-git-worktrees` ONCE to create ONE worktree at
+  time. Dispatch `00_worktree_initializer` (Haiku), which follows
+  `references/worktree_setup_protocol.md` to create ONE worktree at
   `.worktrees/kmm-migrate-<feature>/` on branch `kmm-migrate/<feature>`.
   Record `worktree_path` and `worktree_branch` in `state.json`. Every
   subsequent subagent operates inside this single worktree — no other subagent
@@ -494,24 +477,12 @@ compaction, and machine reboot.
 Both go through `spec_compliance_reviewer` and `code_quality_reviewer` with
 extra-strict checks after dispatch.
 
-## Superpowers invocation
+## Self-contained — no external skill dependencies
 
-The skill invokes exactly three superpowers skills internally:
+kmm-migration has NO external skill dependencies. Three patterns previously sourced from the superpowers plugin are now inlined:
 
-- **REQUIRED SUB-SKILL:** `superpowers:using-git-worktrees` — invoked ONCE at
-  Phase 0 by `00_worktree_initializer`. No other subagent creates worktrees.
-  All subsequent subagents operate inside the worktree recorded in `state.json`.
+- Worktree setup — `references/worktree_setup_protocol.md` (invoked by `00_worktree_initializer`).
+- Evidence-based completion — `references/verification_protocol.md` (applied by every reviewer and gate validator).
+- Root-cause investigation — `references/root_cause_protocol.md` (applied by `debug_investigator` on three-strike).
 
-- **REQUIRED SUB-SKILL:** `superpowers:verification-before-completion` —
-  invoked by every reviewer (`spec_compliance_reviewer`,
-  `code_quality_reviewer`, `16_kmm_focused_final_reviewer`) and every gate
-  validator (`05_baseline_gate_validator`, `12_parity_verifier`,
-  `13_parity_gate_validator`, `15_final_baseline_reverifier`). Enforces Law 5:
-  no "done" without evidence.
-
-- **REQUIRED SUB-SKILL:** `superpowers:systematic-debugging` — invoked by
-  `debug_investigator` when a three-strike escalation fires.
-
-No path force-loads anywhere. Every dispatch prompt passes plain file paths;
-the orchestrator constructs the must-read bundle from the dispatch-bundle table
-above.
+See `references/self_contained_design.md` for the design rationale.

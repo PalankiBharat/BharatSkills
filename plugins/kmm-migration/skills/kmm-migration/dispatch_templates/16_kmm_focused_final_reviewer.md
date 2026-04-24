@@ -6,7 +6,6 @@ mode: dontAsk
 tool_allowlist: [Read, Grep, Glob, Bash(git *), WebSearch, mcp__context7__*, find-docs]
 tool_denylist: [Edit, Write, Bash(./gradlew *)]
 requires_success_criterion: true
-invokes_superpowers_skills: [superpowers:verification-before-completion]
 ---
 
 # 16_kmm_focused_final_reviewer
@@ -24,6 +23,7 @@ that only surface across files.
 - skills/kmm-migration/references/code_review_criteria.md
 - skills/kmm-migration/references/behavioral_guidelines.md
 - skills/kmm-migration/references/subagent_status_contract.md
+- skills/kmm-migration/references/verification_protocol.md
 - kmm_migration/plans/<feature>_migration_guide.md
 - kmm_migration/reports/<feature>/research_notes.md
 - kmm_migration/findings.md

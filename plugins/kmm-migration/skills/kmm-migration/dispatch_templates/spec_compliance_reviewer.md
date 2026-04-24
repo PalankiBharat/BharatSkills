@@ -6,7 +6,6 @@ mode: dontAsk
 tool_allowlist: [Read, Grep, Glob, Bash(git *)]
 tool_denylist: [Edit, Write, WebSearch, mcp__context7__*]
 requires_success_criterion: true
-invokes_superpowers_skills: [superpowers:verification-before-completion]
 ---
 
 # spec_compliance_reviewer
@@ -21,6 +20,7 @@ Nothing less.
 - skills/kmm-migration/migration_laws.md
 - skills/kmm-migration/references/code_review_criteria.md
 - skills/kmm-migration/references/subagent_status_contract.md
+- skills/kmm-migration/references/verification_protocol.md
 - skills/kmm-migration/schemas/review_verdict_schema.md
 - The task spec passed in the dispatch prompt (migration_guide entry or
   inventory entry or similar)

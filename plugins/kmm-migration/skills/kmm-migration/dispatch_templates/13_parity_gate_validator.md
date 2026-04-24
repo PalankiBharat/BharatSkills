@@ -6,7 +6,6 @@ mode: dontAsk
 tool_allowlist: [Read, Grep]
 tool_denylist: [Edit, Write, Bash, WebSearch, mcp__context7__*]
 requires_success_criterion: true
-invokes_superpowers_skills: [superpowers:verification-before-completion]
 ---
 
 # 13_parity_gate_validator
@@ -20,12 +19,13 @@ Emits PASS only if both are clean.
 
 - skills/kmm-migration/migration_laws.md
 - skills/kmm-migration/references/subagent_status_contract.md
+- skills/kmm-migration/references/verification_protocol.md
 - kmm_migration/reports/<feature>/11_plan_diff_audit.md
 - kmm_migration/reports/<feature>/12_parity_verifier.md
 
 ## Procedure
 
-1. REQUIRED SUB-SKILL: superpowers:verification-before-completion.
+1. Apply the verification protocol in `references/verification_protocol.md`.
 2. parity_verifier DONE with all three suites GREEN? yes → continue.
 3. plan_diff_auditor DONE without violations? yes → continue.
 4. Emit PASS.

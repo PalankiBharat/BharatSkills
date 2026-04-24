@@ -6,7 +6,6 @@ mode: dontAsk
 tool_allowlist: [Read, Bash(git *)]
 tool_denylist: [Edit, Write, WebSearch, mcp__context7__*]
 requires_success_criterion: true
-invokes_superpowers_skills: [superpowers:using-git-worktrees]
 ---
 
 # 00_worktree_initializer
@@ -20,12 +19,11 @@ Phase 0 — create ONE worktree for the entire migration.
 - skills/kmm-migration/migration_laws.md
 - skills/kmm-migration/references/worktree_conventions.md
 - skills/kmm-migration/references/subagent_status_contract.md
+- skills/kmm-migration/references/worktree_setup_protocol.md
 
 ## Procedure
 
-1. REQUIRED SUB-SKILL: superpowers:using-git-worktrees — invoke to create
-   the worktree on branch `kmm-migrate/<feature>` rooted at
-   `.worktrees/kmm-migrate-<feature>/`.
+1. Follow the worktree setup protocol in `references/worktree_setup_protocol.md`.
 2. Verify tests green on worktree HEAD (clean baseline per Rule 5).
 3. Return worktree path + branch in your report.
 

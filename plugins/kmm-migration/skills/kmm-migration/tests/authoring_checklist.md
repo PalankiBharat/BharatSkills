@@ -25,12 +25,11 @@ Run before every release.
   per law.
 - [ ] Scenarios tested on Haiku, Sonnet, Opus.
 
-## Cross-skill
+## Self-contained
 
-- [ ] `superpowers:*` invocations marked as `**REQUIRED SUB-SKILL:**`
-  with plain paths, no `@`.
-- [ ] Only `using-git-worktrees`, `verification-before-completion`,
-  `systematic-debugging` are invoked — no others.
+- [ ] No `superpowers:*` invocations — three patterns inlined as native reference files.
+- [ ] `worktree_setup_protocol.md`, `verification_protocol.md`, `root_cause_protocol.md`
+  present in `references/` and referenced by the correct dispatch templates.
 
 ## Scoping
 

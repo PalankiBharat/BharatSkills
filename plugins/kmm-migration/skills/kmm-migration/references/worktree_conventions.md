@@ -13,8 +13,8 @@
 
 ## Creation
 
-Exactly once per migration, `00_worktree_initializer` invokes
-`**REQUIRED SUB-SKILL:** superpowers:using-git-worktrees`. The initializer:
+Exactly once per migration, `00_worktree_initializer` follows
+`references/worktree_setup_protocol.md`. The initializer:
 
 1. Verifies the target branch is clean (tests green on branch HEAD).
 2. Creates the worktree.
@@ -23,7 +23,7 @@ Exactly once per migration, `00_worktree_initializer` invokes
 ## Path and branch naming
 
 - Path: `.worktrees/kmm-migrate-<feature>/` under the target repo (or
-  follow the superpowers worktree skill's directory-selection priority).
+  follow the directory-selection priority in `references/worktree_setup_protocol.md`).
 - Branch: `kmm-migrate/<feature>`.
 
 ## Verification at dispatch

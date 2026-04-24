@@ -2,27 +2,9 @@
 
 Next-gen Android → Kotlin Multiplatform migration orchestrator. Baseline-first, 1:1-port, hard quality gates, subagent-driven execution.
 
-## Dependency — superpowers (REQUIRED)
+## Self-contained
 
-This plugin has a **hard dependency** on the `superpowers` plugin. It invokes three sub-skills internally:
-
-- `superpowers:using-git-worktrees` — once at Phase 0, by `00_worktree_initializer`.
-- `superpowers:verification-before-completion` — by every reviewer and every gate validator.
-- `superpowers:systematic-debugging` — by `debug_investigator` on three-strike escalation.
-
-Install superpowers first:
-
-```
-/plugin install superpowers@claude-plugins-official
-```
-
-Then install this plugin:
-
-```
-/plugin install kmm-migration@punchhq-skills
-```
-
-On first invocation, `SKILL.md` runs a **preflight check** — if superpowers cannot be resolved, the skill emits a `NEEDS YOUR CALL` gate with install instructions and refuses to proceed past Phase 0. Graceful degradation is not offered on purpose: untested fallbacks would weaken the skill's baseline-first, 1:1-port guarantees.
+No external skill dependencies. Install and use standalone.
 
 ## Invoke
 
@@ -68,7 +50,7 @@ kmm_migration/
 └── reports/<feature>/               # every subagent's report
 ```
 
-All git-tracked, committed, reviewable on remote — following the spec-kit / superpowers specs pattern.
+All git-tracked, committed, reviewable on remote.
 
 ## Authoring checklist
 

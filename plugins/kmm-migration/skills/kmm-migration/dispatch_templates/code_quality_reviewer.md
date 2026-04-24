@@ -6,7 +6,6 @@ mode: dontAsk
 tool_allowlist: [Read, Grep, Glob, Bash(git *)]
 tool_denylist: [Edit, Write, WebSearch, mcp__context7__*]
 requires_success_criterion: true
-invokes_superpowers_skills: [superpowers:verification-before-completion]
 ---
 
 # code_quality_reviewer
@@ -22,6 +21,7 @@ PASS (fail-fast ordering).
 - skills/kmm-migration/references/code_review_criteria.md
 - skills/kmm-migration/references/behavioral_guidelines.md
 - skills/kmm-migration/references/subagent_status_contract.md
+- skills/kmm-migration/references/verification_protocol.md
 - skills/kmm-migration/schemas/review_verdict_schema.md
 
 ## Procedure

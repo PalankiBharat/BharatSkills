@@ -6,7 +6,6 @@ mode: dontAsk
 tool_allowlist: [Read, Grep, Bash(git *), Bash(./gradlew *), Bash(maestro *), Bash(xcodebuild *)]
 tool_denylist: [Edit, Write, WebSearch, mcp__context7__*]
 requires_success_criterion: true
-invokes_superpowers_skills: [superpowers:verification-before-completion]
 ---
 
 # 15_final_baseline_reverifier
@@ -21,11 +20,12 @@ FINAL HEAD (after iOS / fixes). Phase 6 cannot advance if any fails.
 - skills/kmm-migration/migration_laws.md
 - skills/kmm-migration/references/baseline_capture_protocol.md
 - skills/kmm-migration/references/subagent_status_contract.md
+- skills/kmm-migration/references/verification_protocol.md
 - kmm_migration/baseline/<feature>/*.md
 
 ## Procedure
 
-1. REQUIRED SUB-SKILL: superpowers:verification-before-completion.
+1. Apply the verification protocol in `references/verification_protocol.md`.
 2. Re-run unit suite. Capture output.
 3. Re-run screenshot suite (Android; iOS if pursued). Capture diffs.
 4. Re-run E2E suite (Android; iOS if pursued). Capture logs.

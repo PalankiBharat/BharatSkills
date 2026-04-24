@@ -50,7 +50,7 @@ Write to `kmm_migration/reports/<feature>/strikes/<ISO-timestamp>_<subagent-name
 After writing the strike report, emit `STATUS: BLOCKED` pointing to it.
 Orchestrator chooses:
 
-1. Dispatch `debug_investigator` (wraps `superpowers:systematic-debugging`).
+1. Dispatch `debug_investigator` (applies `references/root_cause_protocol.md`).
 2. Dispatch a different-shape subagent (e.g., research-only, no code tools).
 3. Escalate to user with `REQUIRES_APPROVAL`.
 
