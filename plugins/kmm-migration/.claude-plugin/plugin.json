@@ -1,6 +1,6 @@
 {
   "name": "kmm-migration",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Android → Kotlin Multiplatform migration orchestrator with hard quality gates and subagent-driven execution. Baseline-first workflow: unit tests + screenshot goldens + E2E flows captured from legacy code become the immutable contract migrated code must satisfy. 14 iron laws enforce 1:1-port constraint, surgical changes, no speculative code, live-sourced technology decisions (no hardcoded library prescriptions). 5 user gates across 6 phases with mandatory pre-gate investigation and two-stage code review (spec compliance + code quality). Opus orchestrator never edits code — all labour in Sonnet/Haiku subagents. Self-contained — no external skill dependencies.",
   "author": {
     "name": "PunchHQ",
