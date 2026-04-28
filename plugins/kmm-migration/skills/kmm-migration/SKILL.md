@@ -142,23 +142,48 @@ from research. `TBD` / `TODO` / `implement later` are forbidden.
 - `09_plan_reviewer` (Sonnet) — spec-quality audit: ambiguity, completeness,
   explicitness.
 
-Both MUST PASS. Max 2 revision cycles before the user sees the plan.
+Both MUST PASS. **Hard cap: 2 revision cycles.** After the second
+ISSUES_FOUND verdict, the orchestrator MUST raise `REQUIRES_APPROVAL` —
+continuing past 2 cycles is forbidden. Gate options the user sees:
+(a) accept the current plan with the listed gaps documented in
+`accepted_deltas`; (b) drop scope from `plan.files_to_touch` to make the
+plan reachable; (c) abandon. The orchestrator does NOT silently re-dispatch
+the planner a third time.
 
 **Gate 2** — `REQUIRES_APPROVAL` → user approves plan.
 
 ## Phase 3 — Migrate
 
+The orchestrator owns ALL git mutations in this phase. Migrators have
+`Bash(git commit *)`, `Bash(git add *)`, `Bash(git push *)`, and reset/rebase
+on their tool denylist (see `dispatch_templates/10_migrator.md`). Read-only
+git inspection (`status`, `diff`, `log`) remains allowed.
+
 1. Orchestrator splits `plan.files_to_touch` into batches of ≤5 files by
    dependency topology. Each batch gets an explicit file list — never "the rest."
+   The orchestrator records this in-scope list in the dispatch prompt verbatim.
 2. Parallel dispatch of `10_migrator` (Sonnet, migration worktree) per batch.
    Every prompt carries a concrete success criterion (Law 14) naming the
    specific `migration_guide` entry the subagent must satisfy.
-3. After each migrator: `spec_compliance_reviewer` THEN `code_quality_reviewer`
-   (fail-fast — quality runs only after spec compliance PASS).
-4. Either reviewer reports issues → re-dispatch migrator with MODIFIED prompt
+3. **Post-dispatch scope-allowlist verification (orchestrator).** Before
+   dispatching reviewers, the orchestrator runs `git diff --name-only` in the
+   worktree and intersects against the dispatch's in-scope list:
+   - **Out-of-scope paths** (Law 3 violation) → `git checkout -- <path>` for
+     each, log to `reports/<feature>/scope_violations.md` with batch ID, then
+     re-dispatch the migrator with a stricter prompt naming the violations.
+   - **Modified baseline artifacts** under `**/snapshots/`, `**/screenshots/`,
+     `**/goldens/`, or `kmm_migration/baseline/<feature>/` (Law 2 event) →
+     `REQUIRES_APPROVAL` via `escape_hatch_rebase_baseline`. Never silently
+     accept a re-recorded golden.
+4. After scope verification: `spec_compliance_reviewer` THEN
+   `code_quality_reviewer` (fail-fast — quality runs only after spec
+   compliance PASS).
+5. Either reviewer reports issues → re-dispatch migrator with MODIFIED prompt
    carrying review findings. Never retry with identical prompt. Max 2 fix
    cycles per batch, then `REQUIRES_APPROVAL`.
-5. Three distinct failed approaches → migrator writes
+6. Both reviewers PASS → orchestrator stages the in-scope diff and commits
+   with a message naming the batch and the migration_guide entries satisfied.
+7. Three distinct failed approaches → migrator writes
    `reports/<feature>/strikes/<ts>_migrator.md` + emits `STATUS: BLOCKED`.
    Orchestrator dispatches `debug_investigator`.
 
@@ -167,12 +192,19 @@ Both MUST PASS. Max 2 revision cycles before the user sees the plan.
 1. `11_plan_diff_auditor` (Haiku) — end-of-phase scope check: git diff ∩ plan.
    Safety net for any batch-level Sonnet reviewer hallucinations.
 2. `12_parity_verifier` (Haiku) — runs all three baseline suites against
-   migrated code, respecting `accepted_deltas`; captures runner output.
-3. `13_parity_gate_validator` (Haiku) — all three GREEN within tolerance and
-   accepted deltas?
+   migrated code, respecting `accepted_deltas`; captures runner output. Then
+   performs a runtime smoke launch (`adb install` + `am start` + logcat scan
+   for `FATAL EXCEPTION`) against the migrated APK. Compile-only and
+   unit/golden/E2E suites do not exercise the runtime DI graph; the smoke
+   launch is what catches Hilt / Koin / source-set wiring crashes that
+   otherwise escape every gate.
+3. `13_parity_gate_validator` (Haiku) — all three suites GREEN within
+   tolerance, smoke launch produced no FATAL EXCEPTION, accepted_deltas
+   honoured?
 
-Any red beyond tolerance → `REQUIRES_APPROVAL`: re-migrate or abandon. Never
-silently update the baseline (Law 2 — no exceptions).
+Any red beyond tolerance OR any runtime crash within 8s of launch →
+`REQUIRES_APPROVAL`: re-migrate or abandon. Never silently update the
+baseline (Law 2 — no exceptions).
 
 **Gate 3** — `REQUIRES_APPROVAL` → iOS now, or defer?
 

@@ -121,8 +121,8 @@
     {
       "name": "kmm-migration",
       "source": "./plugins/kmm-migration",
-      "description": "Android → Kotlin Multiplatform migration orchestrator with hard quality gates and subagent-driven execution. Baseline-first — unit tests + screenshot goldens + E2E flows captured from legacy code become the immutable contract migrated code must satisfy. 14 iron laws enforce 1:1-port constraint, surgical changes, live-sourced technology decisions (no hardcoded library prescriptions — context7-first). 6 phases, 5 user gates, two-stage code review (spec compliance + code quality), pre-gate investigation. Opus orchestrates; Sonnet/Haiku subagents do all labour.",
-      "version": "0.1.0",
+      "description": "Android → Kotlin Multiplatform migration orchestrator with hard quality gates and subagent-driven execution. Baseline-first — unit tests + screenshot goldens + E2E flows captured from legacy code become the immutable contract migrated code must satisfy. 14 iron laws enforce 1:1-port constraint, surgical changes, live-sourced technology decisions (no hardcoded library prescriptions — context7-first). 6 phases, 5 user gates, two-stage code review (spec compliance + code quality), pre-gate investigation. Opus orchestrates; Sonnet/Haiku subagents do all labour. Phase 4 includes a runtime smoke-launch step (adb install + am start + logcat) to catch Hilt / DI crashes that compile-only verification misses.",
+      "version": "0.2.0",
       "category": "migration",
       "tags": ["kmm", "kotlin-multiplatform", "kmp", "migration", "android", "ios", "baseline-first", "hard-gates", "subagent-driven", "context7", "roborazzi", "maestro"],
       "keywords": ["kmm-migration", "migrate to kmm", "kotlin multiplatform", "share with ios", "move to commonmain", "kmp migration", "extract shared module"]

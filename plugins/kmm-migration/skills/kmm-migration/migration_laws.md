@@ -70,12 +70,16 @@ If none answer the question, STOP and escalate as `NEEDS_CONTEXT`.
 
 **BASELINE IS IMMUTABLE DURING MIGRATION.** Tests, goldens, and flows captured in Phase 1 do not change mid-migration. If the migration fails them, the migration is wrong. Tolerance envelopes captured in Phase 1 remain fixed; the named `rebase_baseline` escape hatch is the only way to modify baselines, and it is a distinct, user-gated operation.
 
+**Re-recording any baseline artifact is a Law 2 event.** This includes — but is not limited to — overwriting `*.png` / `*.webp` / `*.json` files under `**/snapshots/`, `**/screenshots/`, or `**/goldens/`; regenerating Roborazzi or Paparazzi reference images; updating tolerance constants; modifying any file under `kmm_migration/baseline/<feature>/`. "The migration changed pixel rendering" is precisely the case Law 2 exists to catch — it MUST surface as a `REQUIRES_APPROVAL` via `escape_hatch_rebase_baseline`, never as a silent re-record. Every code-producing subagent MUST run a `git diff --name-only` check on these paths before reporting and emit `STATUS: BLOCKED` if any baseline artifact has been modified.
+
 ### Law 02 — Rationalization table
 
 | Thought | Reality |
 |---|---|
 | "I'll just tweak the tolerance — it's barely off" | That's a silent baseline modification. Law 2 violation. Use the named `rebase_baseline` escape hatch, gated by user approval. |
 | "The emulator must be flaky — let me re-record the golden" | Re-recording without an approved `rebase_baseline` is a Law 2 violation. Document the flakiness in `findings.md` and escalate. |
+| "The migration changed pixel rendering so the golden needs updating" | Exactly the case Law 2 exists for. STOP, emit `STATUS: BLOCKED`, list the modified golden files. The orchestrator escalates via `escape_hatch_rebase_baseline`. Never silent. |
+| "The test runner overwrote the goldens automatically" | Then the runner was misconfigured for migration mode. Revert the PNGs (orchestrator handles), reconfigure to fail-not-record, escalate. |
 | "The golden is slightly off — I'll bump the threshold" | Threshold drift is never silent. The tolerance envelope was locked in Phase 1. STOP and escalate via `rebase_baseline`. |
 | "The test was too strict anyway — I'll loosen it" | You do not have authority to redefine the baseline contract mid-migration. Only an approved `rebase_baseline` operation may do this. |
 | "Small drift is probably fine — the feature still looks right" | Probably isn't evidence (Law 5). Any failure beyond tolerance is a migration bug, not a reason to adjust the baseline. |

@@ -24,8 +24,8 @@ Examples:
 - **Phase 0 — Bootstrap**: creates ONE migration worktree (recorded in `kmm_migration/state.json`), or resumes an existing migration.
 - **Phase 1 — Baseline**: captures unit tests + screenshot goldens + E2E flows from the OG Android code. These become the immutable contract migrated code must satisfy. (Gate 1.)
 - **Phase 2 — Plan**: `06_researcher` live-sources the technology stack via context7; `07_migration_planner` writes per-file plan; `08_plan_critic` + `09_plan_reviewer` audit. (Gate 2.)
-- **Phase 3 — Migrate**: parallel `10_migrator` dispatches per batch; two-stage code review (spec compliance + code quality) after each.
-- **Phase 4 — Verify**: baseline suites re-run against migrated code; `11_plan_diff_auditor` is the deterministic safety net. (Gate 3 → iOS or defer.)
+- **Phase 3 — Migrate**: parallel `10_migrator` dispatches per batch; orchestrator owns all commits (migrators have `git commit/add/push` denylisted) and runs a post-dispatch scope-allowlist check against the in-scope file list before reviewing. Two-stage code review (spec compliance + code quality) after each batch.
+- **Phase 4 — Verify**: baseline suites re-run against migrated code, plus a runtime smoke launch (`adb install` + `am start` + logcat scan for `FATAL EXCEPTION`) to catch Hilt / DI crashes that compile-only verification misses. `11_plan_diff_auditor` is the deterministic safety net. (Gate 3 → iOS or defer.)
 - **Phase 5 — iOS** (optional): `14_ios_porter` + iOS parity. (Gate 4.)
 - **Phase 6 — Closeout**: `15_final_baseline_reverifier` (hard Gate-5 precondition), `16_kmm_focused_final_reviewer` (holistic KMM review), `17_pr_body_composer` + heatmap, `18_pr_creator` (gh CLI), `19_closeout_reporter`. (Gate 5 → PR approved for merge.)
 
