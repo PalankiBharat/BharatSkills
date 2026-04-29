@@ -40,3 +40,6 @@ venv/
 
 # Speckit local init artifacts
 .specify/
+
+# kmm-pr-reviewer per-PR state and reports
+kmm_pr_review/

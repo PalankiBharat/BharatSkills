@@ -126,6 +126,15 @@
       "category": "migration",
       "tags": ["kmm", "kotlin-multiplatform", "kmp", "migration", "android", "ios", "baseline-first", "hard-gates", "subagent-driven", "context7", "roborazzi", "maestro"],
       "keywords": ["kmm-migration", "migrate to kmm", "kotlin multiplatform", "share with ios", "move to commonmain", "kmp migration", "extract shared module"]
+    },
+    {
+      "name": "kmm-pr-reviewer",
+      "source": "./plugins/kmm-pr-reviewer",
+      "description": "Regression-detection counterpart to kmm-migration. Reviews a KMM-migration PR against the prod Android app, file by file, with the same paranoia level the migration itself enforces. Read-only orchestrator: classifies every changed path (migrated / nonmigrated / ios_port / baseline / build_config), dispatches a per-file Sonnet reviewer with a classification-specific checklist (file is not complete until every box ticks — no silent skips), runs a single-pass triager that re-verifies each finding against the actual diff to drop false positives, then presents a cherry-pick markdown checklist the user edits in place. On approval, posts a single GitHub review with line-anchored inline comments via gh CLI; severity BLOCKER triggers REQUEST_CHANGES, otherwise COMMENT. 10 review laws enforce evidence-before-claims, no-trust-in-producer-reports, and read-only operation outside the final posting subagent.",
+      "version": "0.1.0",
+      "category": "code-review",
+      "tags": ["kmm", "pr-review", "code-review", "kotlin-multiplatform", "kmp", "regression-detection", "parity-verification", "subagent-driven", "1-to-1-port", "context7", "android", "ios"],
+      "keywords": ["kmm-pr-reviewer", "review kmm pr", "kmm regression review", "kotlin multiplatform pr review", "kmp pr review", "parity check"]
     }
   ]
 }
