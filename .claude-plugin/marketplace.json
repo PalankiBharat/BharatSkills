@@ -121,10 +121,10 @@
     {
       "name": "kmm-migration",
       "source": "./plugins/kmm-migration",
-      "description": "Android → Kotlin Multiplatform migration orchestrator with hard quality gates and subagent-driven execution. Baseline-first — unit tests + screenshot goldens + E2E flows captured from legacy code become the immutable contract migrated code must satisfy. 14 iron laws enforce 1:1-port constraint, surgical changes, live-sourced technology decisions (no hardcoded library prescriptions — context7-first). 6 phases, 5 user gates, two-stage code review (spec compliance + code quality), pre-gate investigation. Opus orchestrates; Sonnet/Haiku subagents do all labour. Phase 4 includes a runtime smoke-launch step (adb install + am start + logcat) to catch Hilt / DI crashes that compile-only verification misses.",
-      "version": "0.2.0",
+      "description": "Android → Kotlin Multiplatform migration orchestrator at user-chosen scope (whole feature / module / screen / file). Follows JetBrains' canonical migration workflow sourced live from kotlinlang.org per invocation: libs first → business logic → UI, leaf-first within each step. 15 iron laws — Law 15 (canonical KMP approach over short-term expedience) is the soul: no hardcoded resources, no inlined JVM-only APIs, no hand-rolled DI, no comments-as-deferrals. Per-file preconditions (resources moved before screens, JVM APIs replaced before logic, deps swapped before code) catch the canonical LLM failure modes. Migrator self-audits via comprehensive checklist before STATUS: DONE, replacing the previous two-stage reviewer dispatch — saves tokens and time, with a deterministic diff-grep tripwire as orchestrator backstop. Conditional dispatch injection: each must_read computed at dispatch time based on role × phase × file classification. Knowledge stays in the docs — skill ships behaviours and pointers, not version-bound facts. Phase 4 runtime smoke-launch step catches Hilt / DI crashes that compile-only verification misses. Opus orchestrates; Sonnet/Haiku subagents do all labour.",
+      "version": "0.3.0",
       "category": "migration",
-      "tags": ["kmm", "kotlin-multiplatform", "kmp", "migration", "android", "ios", "baseline-first", "hard-gates", "subagent-driven", "context7", "roborazzi", "maestro"],
+      "tags": ["kmm", "kotlin-multiplatform", "kmp", "migration", "android", "ios", "canonical-kmp", "kotlinlang-first", "user-chosen-scope", "self-audit", "preconditions", "leaf-first", "libs-first", "subagent-driven", "conditional-dispatch", "context7"],
       "keywords": ["kmm-migration", "migrate to kmm", "kotlin multiplatform", "share with ios", "move to commonmain", "kmp migration", "extract shared module"]
     },
     {
