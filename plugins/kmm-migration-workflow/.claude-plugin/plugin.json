@@ -1,0 +1,22 @@
+{
+  "name": "kmm-migration-workflow",
+  "version": "1.0.0",
+  "description": "Speckit-style orchestrator for Android → Kotlin Multiplatform migrations. Document-first, baseline-first, 1:1 mechanical port via diff-specifications. Opus orchestrates; sonnet/haiku subagents do labour. Live-source discipline; auto-generated retrospectives.",
+  "author": {
+    "name": "PunchHQ",
+    "email": "manish@punchhq.com"
+  },
+  "category": "migration",
+  "keywords": [
+    "kmm",
+    "kotlin-multiplatform",
+    "migration",
+    "speckit",
+    "tdd",
+    "diff-specification",
+    "1:1-port",
+    "orchestration",
+    "subagents",
+    "live-source"
+  ]
+}
