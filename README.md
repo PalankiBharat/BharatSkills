@@ -13,7 +13,6 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
 | `bug-finder` | 1.0.0 | Evidence-based bug/crash root cause diagnosis — flow mapping, hypothesis formation, log verification, root cause report |
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
-| `kmm-migration` | 0.1.0 | Next-gen KMM migration orchestrator — baseline-first (tests + Roborazzi goldens + Maestro E2E become the immutable contract), 14 iron laws with rationalization tables, 6 phases + 5 hard gates, two-stage code review (spec + quality), pre-gate investigation, live-sourced tech decisions (context7-first, zero hardcoded library prescriptions), Opus orchestrates + Sonnet/Haiku subagents, named escape hatches for Laws 1 & 2. |
 
 ## Installation
 
@@ -32,7 +31,6 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install clean-code@punchhq-skills
 /plugin install bug-finder@punchhq-skills
 /plugin install om-pipeline@punchhq-skills
-/plugin install kmm-migration@punchhq-skills
 ```
 
 ### 3. Use the skills
@@ -52,10 +50,6 @@ skill feedback
 
 # Om pipeline (full dev pipeline: plan → build → review → test on device)
 /om add dark mode toggle in settings screen
-
-# KMM migration (next-gen v0.1 — baseline-first, hard gates)
-/kmm-migration login
-/kmm-migration profile --from-branch main
 ```
 
 ## For Teams
