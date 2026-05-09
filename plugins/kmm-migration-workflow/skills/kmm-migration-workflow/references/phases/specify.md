@@ -135,7 +135,7 @@ After the sweep, present the combined patch to the user (one approval covers all
 
 Do not show diffs by default — these are mechanical patches following the project's policy. User picks `discuss` if they want per-file review.
 
-- On `y`: apply the combined patch. Commit as the first migration commit. Log a single deviation `D-1` in `migration-report.md` with `Closure: { type: "manual" }` (RATIFIED — pre-existing breakage; closure path is "owners of the affected files fix in separate PRs").
+- On `y`: apply the combined patch as a **sentinel commit** with the message prefix `chore(kmm-prelock): broken-rename — DO NOT MERGE; auto-reverted at pr-phase`. The sentinel is **not** part of the migration's substance; it exists so T-LOCK's compile gate passes locally. Log a single deviation `D-1` in `migration-report.md` with `Closure: { type: "commit:present", message-fragment: "kmm-prelock-revert" }` (RATIFIED — pre-existing breakage; closure path is "owners of the affected files fix in separate PRs"; the sentinel itself is auto-reverted at pr-phase before the PR opens, so reviewers never see rename noise in the diff). The pr-phase reads this deviation and emits the revert commit + populates the PR body's "Pre-existing master breakage (NOT touched by this PR)" section listing the broken files.
 - On `discuss`: enumerate each item with file path and failure mode, then re-ask with `y / n`.
 - On `n`: abort `specify-phase`. The user must fix master or revise scope before re-running.
 
