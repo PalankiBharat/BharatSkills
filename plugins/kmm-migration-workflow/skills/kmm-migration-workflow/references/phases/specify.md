@@ -32,6 +32,28 @@ If fired, ask one question at a time per the orchestration protocol — first th
 
 If fired and the user immediately provides files in their reply, treat the gate as satisfied and proceed.
 
+### 2.5. AndroidMain dep-direction check (silent — surfaced only when relevant)
+
+For each in-scope file (or candidate file when scope is still being narrowed), grep the file's external imports. For every imported FQN that resolves to a project module (`com.<org>.<app>.<...>`), determine which gradle module owns it:
+
+```
+grep -E "^import com\.<org>\." <in-scope-file>
+# For each matching FQN, find the module:
+grep -rln "^package com\.<org>\.<the-package>$" <repo>/<module>/src/main/java/  <repo>/<module>/src/main/kotlin/
+```
+
+If any import resolves to a module that **depends on `:shared`** (e.g., `:app` in a typical setup), surface as a non-blocking finding to record in `findings.md § Gotchas`:
+
+> **AndroidMain staging will be infeasible for this migration.**
+>
+> `<file>:<line>` imports `<symbol>` from module `<module>` (which declares `implementation(project(":shared"))`). When the file is moved to `shared/src/androidMain/...` for staging, that import cannot resolve — gradle's module dependency direction is `:<module> → :shared`, not the reverse.
+>
+> Recommendation: route this scope through the **fast-path's atomic-migrate** flow (Constitution §14). T-1, T-LOCK, and M-1 collapse into a single operation that goes directly `app → commonMain` with the swap and refactor applied. The `getIndianCalender`-style helper stays in its current module; the migrated file calls the multiplatform replacement instead.
+
+Record the finding in `findings.md` under "Gotchas" with the file:line reference. Do NOT prompt the user — this is informational; the actual routing decision happens at end of specify-phase via the trivial-heuristic evaluation.
+
+This check exists because the prior incident (sniper-v2-android GreetingUseCase, D-5) discovered this mid-flight after a failing `:shared:compileDebugKotlinAndroid`, costing ~10 minutes of redesign + a deviation-log entry. Catching it at specify-phase makes the redesign disappear.
+
 ### 3. Confirm in-scope files (CONDITIONAL — only if step 1 inferred them)
 
 If step 1 produced the file list directly from the invocation, **do not re-ask**. Trust the user's explicit input. Move on.
