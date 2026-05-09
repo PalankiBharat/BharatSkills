@@ -54,6 +54,32 @@ Record the finding in `findings.md` under "Gotchas" with the file:line reference
 
 This check exists because the prior incident (sniper-v2-android GreetingUseCase, D-5) discovered this mid-flight after a failing `:shared:compileDebugKotlinAndroid`, costing ~10 minutes of redesign + a deviation-log entry. Catching it at specify-phase makes the redesign disappear.
 
+### 2.6. Consumer-utility sniff (silent — surfaced only when migration may be a no-op)
+
+After the in-scope file list is settled (whether from step 1 or step 2's clarity gate) and before step 3's confirmation, do a fast read of the in-scope files' public outputs and grep their consumers to confirm the migration's behaviour change will actually be observable somewhere.
+
+**Procedure:**
+
+1. For each in-scope file, list its public API (classes, properties, exposed enum values, public functions).
+2. For each non-trivial public output (e.g., a property derived from runtime input, a function whose return value drives UI/business decisions), grep usage across consumer files — both direct reads and indirect reads via a ViewModel state.
+3. If a public output is **computed but never read** by any consumer, surface as a non-blocking finding:
+
+   > **Migration may be functionally invisible.**
+   >
+   > `<file>` exposes `<output>` (e.g., a `greetings` property on a ViewModel), but no caller reads it. Searched: `<grep pattern used>` across `<directories>`. The migration's behaviour-fix (e.g., correctly returning the right value for the runtime input) will be invisible at the UI/business layer until a separate fix wires the value through.
+   >
+   > Continue migrating anyway, fix the wiring first as a separate task, or descope?
+
+4. Present as a single user question (one prompt with three options + recommendation). Recommendation depends on the value of the fix:
+   - If the migration is to commonMain only (cross-platform sharing) and the fix is structural, the recommendation is **continue** — the wiring fix is a separate scope.
+   - If the migration's whole point is to fix the visible behaviour and the fix is invisible without wiring, the recommendation is **fix the wiring first**, then re-run the migration.
+
+5. Record the user's choice in `findings.md § Gotchas` for the migration-report's audit trail.
+
+This step exists because the GreetingUseCase migration (sniper-v2-android #369) discovered post-migration that `IntroViewModel.greetings` was computed but no caller wired it into the UI — every consumer used the hardcoded `GreetingUseCase.Greetings.GoodMorning.display` default. The migration was constitutionally clean but the user-visible behaviour change was zero. Catching this at specify-phase gives the user the information up front.
+
+**Skip this step** when the migration's purpose is structural-only (e.g., "move file to commonMain so iOS can consume; UI behaviour is out of scope") and the user has explicitly stated so in the goal. The sniff exists to prevent surprise; it should not block migrations the user intentionally wants to make for non-UI reasons.
+
 ### 3. Confirm in-scope files (CONDITIONAL — only if step 1 inferred them)
 
 If step 1 produced the file list directly from the invocation, **do not re-ask**. Trust the user's explicit input. Move on.
