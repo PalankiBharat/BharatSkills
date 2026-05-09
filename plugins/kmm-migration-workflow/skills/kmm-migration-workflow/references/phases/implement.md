@@ -121,6 +121,17 @@ When all Phase D tasks of the active checkpoint are `[x]`:
 - The checkpoint must be **master-mergeable** at this point (Constitution §13): declared targets compile cleanly, consumers compile cleanly, no dependency on later checkpoints.
 - If any check fails, refire the relevant `migrator`. Strike counter applies.
 
+### 7c. Gradle invocation hygiene — sequential against a single worktree.
+
+Run gradle compile and test commands sequentially against a single worktree. The Kotlin compiler daemon's `lookups.tab` page-cache (`<worktree>/<module>/build/kotlin/<task>/cacheable/caches-jvm/lookups/lookups.tab`) is held open by the running daemon and cannot be safely shared across concurrent invocations. Parallel `./gradlew` calls from the same worktree silently fall back to "compile without daemon" or fail outright with `FilePageCache.registerPagedFileStorage` stack traces — wasted wall-clock time on misleading reds.
+
+**Rules:**
+- Within a phase or level, dispatch parallel **subagents** (each does its own work) but the gradle commands they trigger must be serialized against the worktree.
+- If you genuinely need parallelism (e.g., Android compile + iOS compile), run them with separate `--gradle-user-home` directories so each gets its own daemon.
+- After killing a long-running gradle (e.g., the user aborts a sweep), call `./gradlew --stop` before the next invocation to clear zombie daemons; otherwise the next test run inherits the broken state.
+
+This rule was learned the hard way during the GreetingUseCase migration (sniper-v2-android #369): running `:shared` compile and `:app:testProductionDebugUnitTest` in parallel from the same worktree produced a `kaptGenerateStubsDebugKotlinAndroid FAILED` with a `lookups.tab registration` stack trace — pure infrastructure contention, not a real failure. Sequential re-run was clean.
+
 ### 8. Constitution check at the end of each phase.
 
 When a phase completes (all Phase A tasks done, or all Phase B done, or `T-LOCK` done, or all Phase D done within the active checkpoint):
