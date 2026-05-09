@@ -1,6 +1,6 @@
 # KMM Migration Constitution
 
-Version: 2.0.0
+Version: 2.2.0
 
 This constitution governs any work whose stated goal is migrating code from a platform-native codebase into Kotlin Multiplatform shared code. It supersedes assistant defaults and project conventions for the duration of the migration. On non-migration work, normal conventions resume.
 
@@ -52,6 +52,8 @@ Principles are ordered. Earlier principles dominate later ones when they conflic
 
 8. **Baseline is immutable. Tests first, always.** Before any file is migrated to commonMain, exhaustive tests are written for it on the pre-migration source of truth — every public method, every edge case, every error path. Tests must pass on master before migration begins. Each migration unit declares the master SHA its baseline was captured against; if master changes a scope file before the unit lands, the baseline is re-captured against the new SHA and the migration replans — never silently rebased. After migration, if a test fails, the migrated code is fixed; the test is never modified to make a failing migration pass. Re-recording a baseline requires explicit user approval and is logged as a deviation.
 
+   **Clock-bound code without an injection seam.** A class whose public API forbids a `Clock` / `Random` / `IO` parameter (e.g., a no-arg constructor consumers depend on, where adding a parameter would break Principle 7's public-API preservation) cannot be exhaustively unit-tested on master — its hidden branches are gated behind a non-deterministic input. The skill recognises this as a structural gap, not a process gap. T-1 captures only what IS deterministic on master (the public-API surface invariants, smoke tests over the valid output set). Behaviour-preservation tests for the hidden branches are introduced post-migration alongside an architecture-approved refactor (typically: extract the pure mapping into an `internal` helper that `commonTest` can exercise exhaustively). Logged as a structural deviation with `closure: { type: "manual" }`. The mitigation is the architect-approved refactor's LOW-risk classification (mechanical extract; body verbatim) plus visual diff inspection plus the post-migration exhaustive test. Forcing a `Clock` parameter into the public API to satisfy this principle would violate Principle 7 — the gap is accepted, documented, and structurally bounded.
+
 9. **No new dependencies, comments, stubs, or TODOs.**
    - *Dependencies*: only with live-sourced justification and explicit user approval. Carve-out: when a file moves into shared code and an import is platform-bound, the vendor-prescribed multiplatform replacement is part of the port (record the swap with citation in `findings.md`). Bridges to legacy async/threading models live only on the platform edge to non-migrated callers, never in shared code.
    - *Comments*: default is none. One line max, only when the *why* is genuinely non-obvious — a hidden constraint, a subtle invariant, a platform quirk that would surprise a future reader. Never explain the *what*; identifier names already do that. Migration-tracking comments (`// Phase N:`, `// was X, now Y`, `// removed X`) are stripped before any commit.
@@ -71,6 +73,57 @@ Principles are ordered. Earlier principles dominate later ones when they conflic
     - Additional checkpoints when the unit is large or has independent sub-units.
 
     Each checkpoint is a separate branch off the previous (or off master once the previous lands). Each runs its own verify-phase and pr-phase. The user approves the checkpoint plan once at architect-time; the `/kmm` orchestrator executes the rest sequentially, surfacing per-checkpoint state. **A checkpoint is master-mergeable**: it does not depend on later checkpoints, all declared targets compile, and consumers compile clean. Mid-checkpoint partial states are not allowed — a checkpoint either lands as a unit or is reverted as a unit.
+
+14. **Proportionality. Migration overhead must scale with migration scope.** A 1-file extract+swap migration that walks through architect→plan→tasks→implement→verify→pr with full subagent dispatches, runtime test sweeps, androidMain staging, T-LOCK ceremony, and the full audit-trail document set is overkill — and the overhead becomes its own failure mode (rubber-stamped reviews, abandoned migrations, friction tax that pushes contributors back to ad-hoc ports). The skill recognises **trivial migrations** at the end of specify-phase and routes them through a fast-path that preserves all the structural protections (clean-code-first, public-API preservation, deviation logging, reviewer subagents) while collapsing the workflow's ceremony.
+
+    **Trivial-migration heuristic** (all must hold):
+    - ≤3 in-scope files
+    - 0 `expect/actual` declarations needed
+    - 0 cross-file refactors (file-internal LOW-risk refactors are allowed)
+    - 0 HIGH-risk refactors
+    - All library swaps reference dependencies already declared in `gradle/libs.versions.toml`
+
+    **What the fast-path collapses:**
+    - architect→plan→tasks→implement become a single auto-bundle phase that emits all four phase docs in one orchestrator pass.
+    - architecture-reviewer + plan-analyzer subagents dispatch in parallel; only `BLOCKER` and `HIGH` findings block; `MEDIUM` findings are logged automatically without a re-edit cycle.
+    - User gates collapse to: scope confirm → combined architecture+plan approval → PR-open confirmation. Three prompts instead of seven.
+    - Master health sweep defaults to compile-only (per-target shared compile + test-source-set compile); runtime full-suite sweep is opt-in.
+    - androidMain staging is skipped when in-scope file dependencies resolve to modules that depend on `:shared` (the migration goes directly app → commonMain in a single atomic operation; T-1/T-LOCK/M-1 collapse).
+
+    **What the fast-path preserves (non-negotiable):**
+    - Every constitutional principle still applies. Public API is preserved. Refactor entries still cite `references/clean-code.md`. Deviations are still logged. Tests are still written.
+    - All audit-trail documents (`spec.md`, `architecture.md`, `plan.md`, `migration-guide.md`, `tasks.md`, `findings.md`, `migration-report.md`) are still written and committed — they're generated in one pass instead of several, but the forensic record is identical.
+    - Reviewer subagents still run.
+
+    See `references/fast-path.md` for the full recipe and the orchestrator's routing logic.
+
+    **The default is still the full pipeline.** Fast-path requires explicit detection of the trivial heuristic. Any uncertainty (scope ambiguity, surprise dependency, swap-needs-research) falls back to the full pipeline.
+
+15. **Plain language. Write so a busy reviewer can skim and get it.** Migration artifacts (`spec.md`, `architecture.md`, `plan.md`, `migration-guide.md`, `migration-report.md`, `findings.md`, `tasks.md`), user-facing prompts, PR bodies, and commit messages are read by people who do not have the constitution loaded into their head. Every sentence that requires decoding is a sentence that gets skimmed and missed — and a missed sentence in a deviation log or PR body is how the audit trail silently breaks.
+
+    The bar: a reader who knows software but does **not** know this skill's vocabulary should understand each sentence on the first read. Constitutional citations and structured labels (deviation IDs, principle numbers, RATIFIED/CLOSED states, phase names) are fine — they're labels, not arguments. But the *reasoning* should be in plain English.
+
+    **Phrases to avoid (or always pair with a plain gloss in the same sentence):**
+
+    - "scope-disproportionate" → say "more ceremony than this scope warrants" or "overkill for one file"
+    - "structurally infeasible" → say "won't compile because <concrete reason>"
+    - "constitutional accommodation" / "constitutionally clean" → say "we accept this as a trade-off" or "the principles are followed"
+    - "mechanical extract" → say "the function is moved into a helper without changing what it does"
+    - "behaviour-preservation invariant" → say "the test that proves the migrated code returns the same value"
+    - "the diff specification" → say "the line-by-line plan for editing this file"
+    - "auto-close the deviation" → say "the skill marks this deviation resolved when <X>"
+    - "scope expansion" → say "this would pull in files we said were out of scope"
+    - "rubber-stamped" → say "approved without real review"
+
+    See `references/plain-language.md` for the full swap list and worked examples drawn from real migrations.
+
+    **User-facing questions: the question text is plain.** Option labels can use technical terms when those are the skill's proper nouns (e.g., "fast-path", "T-LOCK", "expect/actual") — readers will see them again across the skill — but every option's *description* explains in plain English what happens if the user picks it. A user who has not read this constitution should be able to pick correctly.
+
+    **PR bodies: the Summary section is plain language for the 30-second skim.** Technical terms appear in the table-of-contents-style sections (Files changed, Deviations, Verification) where they're labels. Every load-bearing claim in the Summary is restated in plain English at least once.
+
+    **Commit messages: same rule.** The first sentence of the body explains what changed in plain language. Subsequent paragraphs can use technical terms because the reader has now opted into depth.
+
+    Plain language is not dumbing down. It is the difference between an audit trail that survives a year and one that goes stale the moment context changes. When in doubt, write the version a tired reviewer at 5pm on Friday can read in 30 seconds.
 
 ## Platform-boundary priority
 
@@ -136,6 +189,17 @@ Amendments to this constitution require a written diff, rationale citing which p
 - **MAJOR** — backward-incompatible governance change or principle removal
 - **MINOR** — new principle or materially expanded guidance
 - **PATCH** — clarifications
+
+### v2.1.0 — Proportionality + clock-bound clause (2026-05-09)
+
+- **New §14 — Proportionality**: trivial migrations route through a fast-path that collapses workflow ceremony while preserving every structural protection. See `references/fast-path.md`.
+- **§8 expanded — clock-bound code without an injection seam**: the master-untestability of clock-bound public APIs is recognised as a structural gap; behaviour-preservation tests for hidden branches are introduced post-migration alongside an architecture-approved seam-creating refactor.
+- Lessons sourced from the GreetingUseCase migration in `sniper-v2-android` (consumer-repo PR #369): D-2 (scope-disproportionate runtime sweep), D-4 (clock-bound testability gap), D-5 (androidMain staging infeasible) are now first-class behaviours of the skill rather than ad-hoc deviations.
+
+### v2.2.0 — Plain language (2026-05-09)
+
+- **New §15 — Plain language**: artifacts, user prompts, PR bodies, and commit messages are written so a busy reviewer can skim and understand them on the first read. Adds a swap list of common buzzwords and their plain replacements. See `references/plain-language.md`.
+- Motivation: the GreetingUseCase migration's audit trail (#369) was constitutionally clean but dense — phrases like "scope-disproportionate" and "structurally infeasible" appeared throughout. A reviewer without the skill's vocabulary loaded would skim past the load-bearing reasoning. The principle exists to keep the audit trail readable a year later when context has rotted.
 
 When the bump is ambiguous, propose reasoning before finalizing.
 

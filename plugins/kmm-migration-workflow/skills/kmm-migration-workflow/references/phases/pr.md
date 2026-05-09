@@ -23,6 +23,42 @@ Read `skills/kmm-migration-workflow/constitution.md` first.
 
 ## What you do
 
+### 0. Auto-revert the `.broken`-rename sentinel (if present).
+
+Before assembling the PR draft, scan the checkpoint's branch for a sentinel commit emitted at specify-phase step 7 (when the master health sweep had to `.broken`-rename pre-existing-broken test files for the local T-LOCK gate). The sentinel commit message starts with `chore(kmm-prelock): broken-rename`.
+
+The sentinel is **not** part of the migration's substance — it exists only because T-LOCK's compile gate needs it locally. Reviewers should never see rename noise in the PR diff. Auto-revert before opening the PR.
+
+**Procedure:**
+
+1. Find the sentinel commit on the checkpoint's branch:
+   ```
+   git log --grep="^chore(kmm-prelock): broken-rename" --pretty=%H -n 1
+   ```
+2. If no sentinel exists, skip this step (no .broken renames were applied).
+3. If a sentinel exists, find every file it renamed:
+   ```
+   git show --name-status <sentinel-sha> | grep -E "^R" | awk '{print $2, $3}'
+   ```
+   Each line is `<original-path>.kt.broken <original-path>.kt` (the rename was forward at sentinel time; revert reverses it).
+4. Revert each rename via `git mv` and emit a single revert commit on the branch tip with the message:
+   ```
+   chore(kmm): kmm-prelock-revert — restore .kt files to surface pre-existing breakage to reviewers
+
+   The .broken renames were a local workaround so :app:compileXxxUnitTestKotlin
+   could pass during T-LOCK. They are unrelated to this migration's substance and
+   would clutter the PR diff. Reverted here so the PR shows only the migration's
+   substance. The N pre-existing-broken test files are listed in the PR body
+   under "Pre-existing master breakage (NOT touched by this PR)" so reviewers
+   (or their CI) can locally rename if needed.
+
+   D-1 closure: { type: "commit:present", message-fragment: "kmm-prelock-revert" }
+   ```
+5. Close D-1 in `migration-report.md`: status moves to `RATIFIED` (it already was) with an explicit `Closed-by: commit <sha-of-revert-commit>` line. The structured `closure: { type: "commit:present", message-fragment: "kmm-prelock-revert" }` is satisfied; `/kmm-verify` would auto-close.
+6. Capture the list of `.broken`-renamed files (from step 3) — they're embedded in the PR body under "Pre-existing master breakage (NOT touched by this PR)" in step 2's body template.
+
+The net diff against the base branch now contains zero `.broken` rename noise; the substance of the migration is the only thing reviewers see.
+
 ### 1. Identify the active checkpoint and verify pre-conditions.
 
 The active checkpoint is the lowest-numbered checkpoint with all `[x]` tasks and no recorded PR URL in `tasks.md`. Pre-conditions:
@@ -86,6 +122,18 @@ If no refactors in this checkpoint: "None — this checkpoint is <relocation | s
 ## Library swaps (this checkpoint)
 
 <table from findings.md "Library Versions" — library | from | to | source — filtered to swaps applied here>
+
+## ⚠️ Pre-existing master breakage (NOT touched by this PR)
+
+<emit this section ONLY if step 0 reverted a sentinel. Otherwise omit the whole heading.>
+
+`<consumer>:compileXxxUnitTestKotlin` fails on master at the baseline SHA `<baseline-master-sha>` due to API drift in N unrelated test files. This PR's verification deliberately uses scope-focused commands, so this PR's CI does not depend on the broken test compile.
+
+If your local / CI environment runs the full app unit test suite, you'll hit these failures. The project convention is to rename the offending file to `<name>.kt.broken` (excluded by Kotlin's source-set glob). The N files are:
+
+<bulleted list of paths from step 0's capture>
+
+These were temporarily `.broken`-renamed in an earlier commit on this branch to unblock T-LOCK locally; the renames have been **reverted before merge** so this PR shows only the migration's substance. Owners of each module are expected to fix their own tests in separate PRs.
 
 ## Deviations (this checkpoint)
 

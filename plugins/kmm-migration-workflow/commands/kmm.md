@@ -11,6 +11,8 @@ This is the **only** command users need for running a migration. It auto-detects
 
 ## Phases (in order)
 
+**Full pipeline:**
+
 ```
 specify    →   architect   →   plan   →   tasks   →   implement   →   verify   →   pr
                   ↑                                       ↑              ↓         ↓
@@ -21,6 +23,18 @@ specify    →   architect   →   plan   →   tasks   →   implement   →   
                                                                                      OR migration done]
 ```
 
+**Trivial-migration fast-path** (Constitution §14 Proportionality; see `references/fast-path.md`):
+
+```
+specify    →   bundle   →   verify   →   pr
+                ↑
+                (architect + plan + tasks + implement
+                 generated as a single auto-bundle pass,
+                 reviewers in parallel, atomic-migrate inline)
+```
+
+The fast-path triggers automatically at the end of specify-phase when the trivial heuristic passes (≤3 files, 0 expect/actual, 0 cross-file refactors, 0 HIGH-risk refactors, all swaps already-declared in `gradle/libs.versions.toml`). The decision is recorded in `findings.md` and persists across `/kmm` invocations. Override with `/kmm --full-pipeline` or `/kmm --fast-path`.
+
 ## State detection (silent — no user prompt)
 
 Decide the current phase by inspecting the worktree:
@@ -28,13 +42,29 @@ Decide the current phase by inspecting the worktree:
 | Condition | Current phase | Phase file to read |
 |---|---|---|
 | User passed `<scope>`, but `<repo>/kmm/<scope>/` does not exist | Pre-spec | `references/phases/specify.md` |
-| `spec.md` exists, `architecture.md` does not | Spec'd, not architected | `references/phases/architect.md` |
+| `spec.md` exists, `findings.md` does not yet record a fast-path decision | Just-spec'd, route decision pending | (evaluate trivial heuristic — see below) |
+| `findings.md` records `fast-path: yes`, bundle artifacts not yet emitted | Fast-path entry | `references/fast-path.md` (bundle phase) |
+| `findings.md` records `fast-path: no` (or full-pipeline override), `architecture.md` does not exist | Spec'd, not architected | `references/phases/architect.md` |
 | `architecture.md` exists with `ARCHITECTURE_STATUS: APPROVED`, `plan.md` does not | Architected, not planned | `references/phases/plan.md` |
 | `plan.md` exists with `PLAN_STATUS: APPROVED`, `tasks.md` does not | Planned, not tasked | `references/phases/tasks.md` |
 | `tasks.md` has unchecked tasks (`[ ]`) in any checkpoint | In execution | `references/phases/implement.md` |
 | Active checkpoint has all `[x]` tasks but no `verify-passed` marker | Tasks done, not verified | (verify-phase logic — see below) |
 | Active checkpoint has `verify-passed`, no PR URL recorded | Verified, PR pending | `references/phases/pr.md` |
 | All checkpoints have PR URLs recorded | Migration done | Print "Migration complete." and exit |
+
+**Trivial heuristic evaluation** (run once at end of specify-phase, decision persisted in `findings.md`):
+
+```
+fast_path = (
+    in_scope_files <= 3
+    AND expect_actual_count == 0
+    AND cross_file_refactors == 0
+    AND high_risk_refactors == 0
+    AND all_swap_libraries_already_declared
+)
+```
+
+If `fast_path` is true, route to the bundle phase (`references/fast-path.md`) instead of architect-phase. If false, route to architect-phase as before. CLI overrides: `/kmm --full-pipeline` forces full pipeline regardless; `/kmm --fast-path` forces fast-path with the user accepting any structural surprises as logged deviations.
 
 **Active checkpoint** = the lowest-numbered checkpoint with at least one unchecked task OR with all `[x]` but no recorded PR URL. The orchestrator runs implement → verify → pr for the active checkpoint, then loops back to detect the next active checkpoint.
 
