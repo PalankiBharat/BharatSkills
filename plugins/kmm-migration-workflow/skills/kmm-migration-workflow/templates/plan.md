@@ -1,4 +1,4 @@
-<!-- TEMPLATE: copied to <repo>/kmm/<scope>/plan.md by /kmm-plan -->
+<!-- TEMPLATE: copied to <repo>/kmm/<scope>/plan.md by plan-phase -->
 
 # Migration plan — [scope-name]
 
@@ -99,11 +99,11 @@ Created in Phase A before any baseline capture. These are the seams `commonTest`
 
 ## Open questions
 
-[list any decision the user owes before /kmm-tasks. examples: "for [Library X], which of two equally-valid replacements?". if zero, write "None — plan is self-contained."]
+[list any decision the user owes before tasks-phase. examples: "for [Library X], which of two equally-valid replacements?". if zero, write "None — plan is self-contained."]
 
 ## Constitution check
 
-[populated by /kmm-plan after plan-analyzer returns clean]
+[populated by plan-phase after plan-analyzer returns clean]
 
 - §1 Understand before acting: every entry cites file:line — [pass/fail]
 - §3 + §4 Live sources: every library version sourced live — [pass/fail]

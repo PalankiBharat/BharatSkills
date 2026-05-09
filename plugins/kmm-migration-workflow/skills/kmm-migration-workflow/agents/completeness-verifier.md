@@ -8,21 +8,25 @@ Read `references/orchestration-protocol.md`, `references/code-graph.md`, and the
 
 ## Role
 
-You are dispatched by `/kmm-verify`. Your job is to detect false-positive completions: tasks marked done in `tasks.md` whose work is not actually finished, files claimed migrated whose state does not match the plan, deviations not properly logged, out-of-scope changes that snuck in.
+You are dispatched by `/kmm-verify` (the user-facing completeness command) OR by the verify phase auto-chained from implement (per checkpoint). Your job is to detect false-positive completions: tasks marked done in `tasks.md` whose work is not actually finished, files claimed migrated whose state does not match the plan, deviations not properly logged, out-of-scope changes that snuck in, refactor entries whose behaviour-preservation invariants no longer hold.
 
 You return either:
 - `VERIFY_COMPLETE_PASS` — every claim in the plan is reflected in actual codebase state
 - `VERIFY_COMPLETE_FAIL` — with a list of failed checks and a list of remediation tasks the orchestrator can append to `tasks.md`
 
+**Scope:** when the orchestrator passes a `checkpoint:` parameter, verify only that checkpoint's files. Otherwise verify all files in the migration. The check categories are the same; only the file set changes.
+
 ## Inputs
 
 - `<repo>/kmm/<scope>/spec.md`
+- `<repo>/kmm/<scope>/architecture.md`
 - `<repo>/kmm/<scope>/plan.md`
 - `<repo>/kmm/<scope>/migration-guide.md`
 - `<repo>/kmm/<scope>/migration-report.md`
 - `<repo>/kmm/<scope>/tasks.md`
 - `<repo>/kmm/<scope>/findings.md`
 - The worktree at `<repo>/.worktrees/kmm-<scope>/`
+- Optional `checkpoint:` parameter — when present, restrict checks to files in this checkpoint
 
 ## Checks
 
@@ -54,10 +58,20 @@ For each in-scope file, validate that the actual diff between master and migrate
 
 1. Fetch master: `git show <baseline-master-sha>:<original-source-path>`.
 2. Compute the actual diff between master and migrated.
-3. Walk every actual diff hunk: it must correspond to a `Remove` / `Add` / `Modify` entry in the spec, with master and migrated forms matching the spec verbatim. Hunks not in the spec are drift.
+3. Walk every actual diff hunk: it must correspond to a `Remove` / `Add` / `Modify` / `Refactor` entry in the spec, with master and migrated forms matching the spec verbatim. Hunks not in the spec are drift.
 4. Walk every spec entry: it must appear in the actual diff. Missing spec entries indicate the migrator failed to apply an edit.
 
-The spec is the contract. If it's correct and the migrator applied it verbatim, the actual diff matches. Any mismatch → `VERIFY_COMPLETE_FAIL` with structured remediation tasks. The plan-analyzer's Check 14 is the upstream guard — defects in the spec are caught at /kmm-plan time, not here.
+The spec is the contract. If it's correct and the migrator applied it verbatim, the actual diff matches. Any mismatch → `VERIFY_COMPLETE_FAIL` with structured remediation tasks. The plan-analyzer's Check 14 is the upstream guard — defects in the spec are caught at plan-phase time, not here.
+
+### Check 2.6: Refactor invariants are pinned by passing tests
+
+For every Refactor entry in `migration-guide.md`:
+
+1. The entry's `Test that pins this invariant` field names a specific test.
+2. That test exists in `commonTest` and ran in Check 2.3.
+3. That test passed.
+
+A Refactor entry whose behaviour-preservation test is missing or failing → `VERIFY_COMPLETE_FAIL` with the entry cited. This is the load-bearing guard for Constitution §7 — without a passing invariant test, "behaviour preserved" is unverified.
 
 ### Check 3: Constitution compliance scan (in-scope files only)
 
@@ -79,13 +93,22 @@ Run each command from `plan.md`'s "Verification commands" section:
 
 Any failure → fail with the command and the last 20 lines of stderr.
 
+### Check 4b: Checkpoint master-mergeability (when checkpoint scope is active)
+
+When verifying a single checkpoint (the `checkpoint:` parameter is set), additionally verify the checkpoint is master-mergeable per Constitution §13:
+- Declared targets compile cleanly *without* code from later checkpoints (run the compile commands against just this checkpoint's HEAD).
+- Consumers compile cleanly against this checkpoint's HEAD.
+- No file in this checkpoint imports from a file scheduled to land in a later checkpoint.
+
+A checkpoint failing this check is not safe to merge in isolation → `VERIFY_COMPLETE_FAIL` with the cross-checkpoint dependency cited.
+
 ### Check 5: Deviations consistency
 
 1. Every entry in `migration-report.md` has a numbered ID, title, status, date, principle reference, root cause, **structured `Closure:` field**.
 2. Every status is one of `OPEN`, `CLOSED`, `RATIFIED`, `SUPERSEDED`. Any other value → fail.
 3. Every `Closure:` field is one of the structured types per `templates/migration-report.md` § "Closure types" (`grep:zero`, `grep:present`, `binding:present`, `test:exists`, `commit:present`, `manual`). Free-form English in the Closure field → fail.
 4. For each `OPEN` deviation, attempt the structured auto-close check (per `commands/kmm-verify.md` § 3). The verifier reports the auto-close decisions but does NOT mutate state — the orchestrator (`/kmm-verify`) commits the status changes.
-5. Count deviations by status. `OPEN` deviations do not fail this verifier; they fail `/kmm-pr` if not closed before then.
+5. Count deviations by status. `OPEN` deviations do not fail this verifier; they fail `pr-phase` if not closed before then.
 
 ### Check 6: Out-of-scope changes
 
@@ -154,7 +177,7 @@ Each remediation task must:
 - Be actionable by the `migrator` subagent (with metadata: `subagent: migrator`, `source-staging: <path>`, etc., when applicable)
 - Be specific: never "finish migration of X" — instead cite the residual import / API call by file:line and reference the swap entry in `migration-guide.md` that should have replaced it.
 
-The orchestrator appends these tasks to `tasks.md` under `## Phase E: Remediation (round <N>)` and re-runs `/kmm-implement`, then `/kmm-verify` again.
+The orchestrator appends these tasks to `tasks.md` under `## Phase E: Remediation (round <N>)` and re-runs `implement-phase`, then `/kmm-verify` again.
 
 ## What you do NOT do
 

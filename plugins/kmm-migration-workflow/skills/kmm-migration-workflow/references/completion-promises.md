@@ -15,8 +15,8 @@ Every subagent emits exactly one completion-promise token on its **final line**,
 | `MIGRATE_BLOCKED: <file> \| reason: ... \| strike: N of 3` | migrator | Mechanical block. | Refire same agent with diagnostic; max 3 strikes. |
 | `VERIFY_PASS: <file> \| methods: N/N match \| strings: identical \| defaults: identical` | structural-verifier | Migration is structurally 1:1. | Mark migrate task `[x]`. |
 | `VERIFY_FAIL: <file> ... violations: ...` | structural-verifier | Structural divergence. | Refire `migrator` with the violation list; strike applies. |
-| `VERIFY_COMPLETE_PASS: scope=<scope> \| files=N \| tests=count \| targets=...` | completeness-verifier | Plan reflects reality; migration ready for `/kmm-pr`. | Print summary; tell user to run `/kmm-pr`. |
-| `VERIFY_COMPLETE_FAIL: scope=<scope> ... remediation: R-1, R-2, ...` | completeness-verifier | Plan-vs-reality gaps detected. | Append remediation tasks to `tasks.md`; tell user to re-run `/kmm-implement`, then `/kmm-verify`. |
+| `VERIFY_COMPLETE_PASS: scope=<scope> \| files=N \| tests=count \| targets=...` | completeness-verifier | Plan reflects reality; migration ready for `pr-phase`. | Print summary; tell user to run `pr-phase`. |
+| `VERIFY_COMPLETE_FAIL: scope=<scope> ... remediation: R-1, R-2, ...` | completeness-verifier | Plan-vs-reality gaps detected. | Append remediation tasks to `tasks.md`; tell user to re-run `implement-phase`, then `/kmm-verify`. |
 | `REQUIRES_APPROVAL: <description> ... Recommended: <option> Why: ...` | any subagent | Interpretive failure; user decision needed. | Escalate to user immediately. No retry. |
 
 ## Token grammar

@@ -1,7 +1,7 @@
 {
   "name": "kmm-migration-workflow",
-  "version": "1.0.0",
-  "description": "Speckit-style orchestrator for Android → Kotlin Multiplatform migrations. Document-first, baseline-first, 1:1 mechanical port via diff-specifications. Opus orchestrates; sonnet/haiku subagents do labour. Live-source discipline; auto-generated retrospectives.",
+  "version": "2.0.0",
+  "description": "Speckit-style orchestrator for Android → Kotlin Multiplatform migrations. Architecture-before-code, clean-code-first (refactor when source isn't clean, surgical when it is, behaviour preserved either way), checkpoint PRs for big migrations, baseline-first TDD, document-first artifacts. Opus orchestrates; sonnet/haiku subagents do labour. Live-source discipline; auto-generated retrospectives. Read-only PR audit mode for any KMM PR.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"
@@ -14,7 +14,10 @@
     "speckit",
     "tdd",
     "diff-specification",
-    "1:1-port",
+    "clean-code",
+    "architecture-first",
+    "checkpoint-prs",
+    "audit",
     "orchestration",
     "subagents",
     "live-source"

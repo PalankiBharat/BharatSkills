@@ -1,16 +1,17 @@
----
-description: Build the per-file migration plan. Opus reads every in-scope file deeply, drafts plan.md and migration-guide.md with file:line citations, dispatches the plan-analyzer subagent to gate approval, presents the plan to the user.
----
+# Phase: plan
 
-# /kmm-plan
+Read by the `/kmm` orchestrator when state-detection routes to the **plan** phase. Architecture must be approved (Constitution §1) before this phase runs — `architecture.md` must exist.
 
-You are running this command as the orchestrator. Read `skills/kmm-migration-workflow/constitution.md` and `references/code-graph.md` first.
+Read `skills/kmm-migration-workflow/constitution.md` and `references/code-graph.md` first.
 
 This is the heaviest planning step. You are Opus and you do this work directly — planning is your role, not a subagent's. **You do not dispatch sonnet/haiku for plan drafting**; you read code yourself, write the plan yourself, and only dispatch agents for live-source research and gap analysis.
+
+The plan **operationalises** the architecture. It does not re-decide refactor boundaries or library choices — those live in `architecture.md` and `findings.md`. Plan-time work is per-file diff-spec generation against architecture-approved swaps and refactors.
 
 ## Inputs
 
 - `<repo>/kmm/<scope>/spec.md` — declared scope
+- `<repo>/kmm/<scope>/architecture.md` — target architecture, refactor entries, checkpoint plan (REQUIRED)
 - The worktree at `<repo>/.worktrees/kmm-<scope>/`
 - The codebase as of the baseline SHA
 
@@ -23,7 +24,7 @@ Before any graph-first reads, confirm the `code-review-graph` is current. Per `r
 1. Call `list_graph_stats_tool` — capture `Last updated`.
 2. Get the worktree's HEAD commit time: `git -C <worktree-path> log -1 --format=%ai`.
 3. If `Last updated` is older than HEAD time (or shows `never`), call `build_or_update_graph_tool` once.
-4. Re-call `list_graph_stats_tool`. If still stale (update failed or graph still behind HEAD), log a warning in `findings.md` under "Live-source audit" and fall back to `Read` / `Grep` for the rest of this `/kmm-plan` invocation. The `completeness-verifier` will note the graph fallback at `/kmm-verify` time.
+4. Re-call `list_graph_stats_tool`. If still stale (update failed or graph still behind HEAD), log a warning in `findings.md` under "Live-source audit" and fall back to `Read` / `Grep` for the rest of this `plan-phase` invocation. The `completeness-verifier` will note the graph fallback at `/kmm-verify` time.
 5. If fresh, proceed graph-first.
 
 Print one line: `Graph: fresh` / `Graph: refreshed` / `Graph: stale, falling back`. No further detail unless user asks.
@@ -95,15 +96,18 @@ Required fields per entry (lean set):
 
 - **Source** — exact path to the Android file
 - **Target** — exact path in `commonMain` (or `androidMain` if classification is `migrate-expect-actual` and a piece stays platform-bound)
+- **Path** — `surgical` | `refactor` | `out-of-reach` (verbatim from `architecture.md`'s per-file declaration; do not re-decide here)
 - **Classification** — `migrate-pure` (all deps have multiplatform equivalents) | `migrate-expect-actual` (needs platform boundary) | `delete` (dead/duplicate)
-- **Public API** — every public method/property with full signature, exactly as it appears in the source. This is the contract.
+- **Public API** — every public method/property with full signature, exactly as it appears in the source. This is the contract; **preserved byte-identical post-migration** even when `Path: refactor` (Constitution §7).
 - **Library swaps** — exact replacements with verified versions from `findings.md` (no version comes from training data)
 - **Platform APIs** — every Android-only/JVM-only API used, with `file:line` and the verified replacement (live-sourced)
 - **expect/actual** — list each declaration needed (class/function/value); justification per Constitution platform-boundary §2
+- **Refactor entries** — only when `Path: refactor`. Copy the `R-N` entries from `architecture.md` for this file verbatim. Each entry retains its six fields: title, clean-code violation, source citation, target shape, boundary, behaviour-preservation invariant, risk. **Orphan refactors (refactor entries without an `architecture.md` parent) are rejected by `plan-analyzer` as `BLOCKER`.**
 - **Migrate after** — DAG predecessors (in-scope files this depends on)
 - **Consumers** — files outside the in-scope list whose imports must update (paths only)
-- **Expected tests** — minimum count, with explicit list (1+ per public method, plus error paths, plus edge cases). The `test-capturer` and `migrator` subagents reject under-tested files.
+- **Expected tests** — minimum count, with explicit list (1+ per public method, plus error paths, plus edge cases, **plus one per refactor's behaviour-preservation invariant when `Path: refactor`**). The `test-capturer` and `migrator` subagents reject under-tested files.
 - **Rules** — file-specific constraints that override defaults (e.g., "DO NOT combine `login(email)` and `login(phone)` into one method")
+- **Checkpoint** — the checkpoint name from `architecture.md`'s checkpoint plan that this file's migration belongs to. Files within a checkpoint can be parallelised; checkpoints are sequential. (When the checkpoint plan is a single bundle, every file gets the same checkpoint name.)
 
 Every entry must cite `file:line` for every claim. "TBD", "if needed", "minor changes" are rejected per Constitution §1.
 
@@ -115,7 +119,7 @@ UI-related fields (UI strategy, screen mapping) are not in this template by desi
 
 ### 5b. Compute the diff specification per file (precaution-first).
 
-For every in-scope file, walk master line-by-line and produce the **Diff specification** field in `migration-guide.md` (see `templates/migration-guide.md`). This is the migrator's contract — every line in the migrated output is either a verbatim line from master or an explicit Remove / Add / Modify entry with a swap citation.
+For every in-scope file, walk master line-by-line and produce the **Diff specification** field in `migration-guide.md` (see `templates/migration-guide.md`). This is the migrator's contract — every line in the migrated output is either a verbatim line from master or an explicit Remove / Add / Modify / **Refactor** entry with a citation.
 
 Procedure for each file:
 
@@ -125,14 +129,19 @@ Procedure for each file:
    - **Remove**: cite which swap removes it (an import line for a removed library, a removed annotation, etc.).
    - **Add**: cite which swap adds it (an import for the new library, a constructor parameter for a RATIFIED staging seam, etc.).
    - **Modify**: write both master form and migrated form verbatim; cite the swap; explicitly note what is preserved (variable name, method-signature shape, line position).
-3. Verify every Remove / Add / Modify cites a swap from the file's `Library swaps` or `Platform APIs` field, OR a RATIFIED deviation from `migration-report.md`. Orphan edits (no citation) → reject; revise the spec.
-4. Verify every line in the master file appears exactly once in the spec (either inside a `Lines X–Y: unchanged` range or as a Remove/Modify entry). Untouched master lines that aren't covered by an unchanged range → reject; revise.
+   - **Refactor** (only when `Path: refactor`): the line(s) are restructured per an `architecture.md` `R-N` entry. The diff entry shows the master form, the migrated form (verbatim, exact code), cites `architecture.md §R-N`, and lists the behaviour-preservation invariant (the test name in `Expected tests` that pins this behaviour). A Refactor entry can span multiple master lines (e.g., extracting a method).
+3. Verify every Remove / Add / Modify / Refactor cites:
+   - Remove/Add/Modify: a swap from the file's `Library swaps` or `Platform APIs` field, OR a RATIFIED deviation from `migration-report.md`.
+   - Refactor: an `R-N` entry in `architecture.md` for this file, AND a behaviour-preservation invariant present in the `Expected tests` list.
+   Orphan edits (no citation) → reject; revise the spec.
+4. Verify every line in the master file appears exactly once in the spec (either inside a `Lines X–Y: unchanged` range or as a Remove/Modify/Refactor entry). Untouched master lines that aren't covered by an unchanged range → reject; revise.
+5. **Refactor scope guard.** For each Refactor entry, verify that the migrated form does not introduce or reference any identifier outside the file's existing scope (no new files, no consumer-side changes). If a refactor's natural shape would touch outside the file, reject — kick back to the architect phase to either narrow the boundary or defer the refactor (Constitution §6).
 
 The spec is the authoritative description of the migration for that file. The migrator applies it verbatim. The structural-verifier checks the actual diff matches it.
 
-Variable/parameter/member naming preservation: per Constitution §6, names from master STAY unless the name literally encodes the swapped library's name as a token. The diff spec MUST mark each Modify entry with what is preserved (e.g., "preserve `<name>` from master").
+Variable/parameter/member naming preservation: per Constitution §7, names from master STAY unless the name literally encodes the swapped library's name as a token, OR the rename is part of an architecture-approved Refactor entry. The diff spec MUST mark each Modify entry with what is preserved (e.g., "preserve `<name>` from master") and each Refactor entry with the architecture citation that authorises any rename.
 
-This step is the heaviest part of `/kmm-plan` — typically 30–50% of plan-time per file. The cost buys precaution: the migrator cannot drift because there is nothing creative left to interpret.
+This step is the heaviest part of plan-phase — typically 30–50% of plan-time per file. The cost buys precaution: the migrator cannot drift because there is nothing creative left to interpret. **Refactor entries amplify this guarantee**: by encoding the new shape into the diff spec (verbatim target code), the architect's intent flows through to the migrator without re-interpretation.
 
 ### 6. Write `plan.md`.
 
@@ -146,7 +155,8 @@ Sections:
 - Verification command set: the exact `gradle` invocations `/kmm-verify` will run (per declared targets)
 - Dependency DAG diagram (text-art is fine — files in topological levels)
 - Required scaffolding interfaces (created in `commonMain` before capture begins)
-- Open questions — anything you want the user to decide before `/kmm-tasks`
+- **Checkpoint plan** — copy from `architecture.md`. Each checkpoint lists: name, goal, files included, expected diff size. Tasks generation will batch by checkpoint (Constitution §13).
+- Open questions — anything you want the user to decide before tasks-phase advances
 
 ### 7. Write `findings.md`.
 
@@ -200,10 +210,13 @@ Print a **summary** in chat — not the full file. The summary is for fast scann
 
 - Title and one-line context (from `spec.md`'s goal)
 - File count and breakdown by classification (e.g., "12 files: 9 migrate-pure, 2 migrate-expect-actual, 1 delete")
+- Path breakdown (e.g., "8 surgical, 3 refactor, 1 out-of-reach")
+- Refactor entry count by risk (LOW/MEDIUM/HIGH)
 - Dependency-level depth (e.g., "4 levels")
 - Library swaps with verified versions (one line each: `<from>` → `<to>` `<version>`)
 - `expect/actual` declaration count
 - Scaffolding interface count + names
+- Checkpoint plan: per-checkpoint file count
 - Deviations logged so far (from `migration-report.md`, by status)
 - Path to full plan: `<repo>/kmm/<scope>/plan.md`, `migration-guide.md`, `findings.md`
 
@@ -212,48 +225,52 @@ End with a single approval prompt:
 > Plan ready. Approve? [y / step / discuss]
 
 On `y`:
-- Print: `Approved. Run /clear, then /kmm to resume execution (auto-chains tasks → implement → verify; pauses on REQUIRES_APPROVAL and PR confirmation).`
-- Stop. Do NOT auto-advance through to `/kmm-tasks`.
-
-The `/clear` is recommended (not enforced) because planning fills context with file reads, library research, and DAG analysis; execution should start fresh so the orchestrator's context stays light during the long subagent dispatch loop. The user types `/clear` then `/kmm` (no args) — `/kmm`'s state-detection sees `plan.md` present and `tasks.md` absent, picks up at `/kmm-tasks` and auto-chains from there.
+- If reached via the `/kmm` chain, advance to the **tasks** phase. Print: `── tasks ──`. (Earlier versions required a `/clear` here; the simpler model lets the user invoke `/kmm` once and the orchestrator runs through to PR confirmation. If context pressure is a concern, the user can manually `/clear` and re-run `/kmm` to resume — state-detection picks up correctly.)
 
 On `step`:
-- Print: `Step mode. Run /kmm-tasks when ready.`
+- Print: `Step mode. Re-run /kmm to advance to the tasks phase.`
 - Stop.
 
 On `discuss`:
 - Open the artifacts (paste relevant excerpts) and re-ask.
 
-The user's `y` here approves the plan — it is also the green light for the downstream auto-chain after `/clear`. Downstream commands (`/kmm-tasks`, `/kmm-implement`, `/kmm-verify`) do NOT re-ask their own approval prompts.
+The user's `y` here approves the plan and is the green light for the downstream auto-chain (tasks → implement → verify). The only remaining user gate is the PR confirmation at the pr-phase.
 
-Wait for explicit approval before advancing. **Do not auto-proceed to `/kmm-tasks`.**
+Wait for explicit approval before advancing.
 
 ### 10. Constitution check.
 
-- Touched: §1 (every plan entry has `file:line`), §3 + §4 (every library decision live-sourced; no training-data fallbacks), §5 (scope unchanged from `spec.md`), §6 (no behaviour-change tasks; mechanical port only), §7 (baseline tests planned per file with expected counts), platform-boundary §2 (every `expect/actual` documented).
+- Touched: §1 (architecture.md present and approved), §2 (every plan entry has `file:line`), §4 + §5 (every library decision live-sourced; no training-data fallbacks), §6 (scope unchanged from `spec.md`; refactor entries inside scope only), §7 (clean-code-first decision tree honored; refactor entries trace to architecture.md; public API preserved), §8 (baseline tests planned per file with expected counts; behaviour-preservation tests for refactors), §13 (checkpoint plan recorded), platform-boundary §2 (every `expect/actual` documented).
 - Pass/fail checklist:
+  - `[ ]` `architecture.md` exists and is reviewer-approved
   - `[ ]` Every in-scope file has a complete migration-guide entry
   - `[ ]` Every entry cites `file:line` for every claim
+  - `[ ]` Every Refactor entry traces to an `architecture.md` `R-N` parent
+  - `[ ]` Every Refactor entry has a behaviour-preservation test in `Expected tests`
   - `[ ]` Every library version is live-sourced with URL in `findings.md`
   - `[ ]` Dependency DAG has no cycles
+  - `[ ]` Checkpoint plan recorded; every file assigned to a checkpoint
   - `[ ]` `plan-analyzer` returned `BLOCKER: 0, HIGH: 0`
   - `[ ]` User approved the plan
 - On fail: STOP. Report which checks failed.
 
 ### 11. Next step.
 
-"Plan approved. Run `/kmm-tasks` to generate the ordered task list."
+Auto-advance via `/kmm` chain to **tasks** phase, or print "Plan approved. Re-run `/kmm` to advance to the tasks phase." in step mode.
 
 ## What you do NOT do
 
+- Do not re-decide architecture. Refactor entries, library choices, and checkpoint boundaries come from `architecture.md`.
 - Do not move any code yet.
 - Do not write tests yet.
-- Do not generate `tasks.md` — that is `/kmm-tasks`.
+- Do not generate `tasks.md` — that is the tasks phase.
 - Do not commit `tasks.md` or trigger any subagent labour.
 
 ## Failure modes
 
+- **`architecture.md` is missing** — refuse to run; route the orchestrator back to the architect phase.
 - **A file's behaviour is unclear** — stop and ask the user; never guess.
 - **Researcher cannot find a live source for a library version** — reject the swap; escalate to user with options. Never fall back to training data.
 - **DAG has a cycle** — surface to user; either co-migrate atomically (rare and risky), shrink the unit, or revise scope.
-- **Required scaffolding doesn't fit one expect/actual / one new dep / no public API change** (Constitution §5) — stop, surface cost, propose deferring the file or shrinking the scope.
+- **A Refactor entry's natural shape requires touching another file** — reject; route back to the architect phase to either narrow the boundary or defer the refactor (Constitution §6).
+- **Required scaffolding doesn't fit one expect/actual / one new dep / no public API change** (Constitution §6) — stop, surface cost, propose deferring the file or shrinking the scope.

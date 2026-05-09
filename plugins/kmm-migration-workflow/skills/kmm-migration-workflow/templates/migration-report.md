@@ -1,11 +1,11 @@
-<!-- TEMPLATE: copied to <repo>/kmm/<scope>/migration-report.md by /kmm-specify -->
-<!-- Forensic record of every deviation from spec or plan. Survives the migration; reviewed at /kmm-verify; gates /kmm-pr. -->
+<!-- TEMPLATE: copied to <repo>/kmm/<scope>/migration-report.md by specify-phase -->
+<!-- Forensic record of every deviation from spec or plan. Survives the migration; reviewed at /kmm-verify; gates pr-phase. -->
 
 # Migration report — [scope-name]
 
 ## How this works
 
-Every deviation from `spec.md` or `plan.md` is recorded here, numbered and dated. Status transitions require explicit user approval (recorded inline). At `/kmm-pr` time, every entry must be `CLOSED`, `RATIFIED`, or `SUPERSEDED` — no `OPEN` deviations may ship.
+Every deviation from `spec.md` or `plan.md` is recorded here, numbered and dated. Status transitions require explicit user approval (recorded inline). At `pr-phase` time, every entry must be `CLOSED`, `RATIFIED`, or `SUPERSEDED` — no `OPEN` deviations may ship.
 
 Status meanings:
 
@@ -60,4 +60,4 @@ Every `OPEN` deviation declares a structured closure type so `/kmm-verify` can a
 | RATIFIED | 0 |
 | SUPERSEDED | 0 |
 
-[At /kmm-pr time, OPEN must be 0.]
+[At pr-phase time, OPEN must be 0.]

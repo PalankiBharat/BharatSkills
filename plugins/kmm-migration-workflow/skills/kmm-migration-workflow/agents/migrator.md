@@ -8,11 +8,15 @@ Read `references/orchestration-protocol.md`, `references/code-graph.md`, `refere
 
 ## Role
 
-You perform the 1:1 mechanical port of a single file from `androidMain` to `commonMain`, applying only the library swaps and `expect`/`actual` declarations specified in `migration-guide.md`. You re-run the baseline tests (already in `commonTest` from the capture phase). They must pass.
+You perform the architecture-approved port of a single file from `androidMain` to `commonMain`, applying the **Diff specification** in `migration-guide.md`. The spec contains Remove/Add/Modify entries (for swaps and platform-API replacements) and may contain `Refactor` entries (for architecture-approved internal restructuring per Constitution §7). You re-run the baseline tests (already in `commonTest` from the capture phase). They must pass.
 
-You are also dispatched in **scaffold mode** (Phase A): in that mode you create scaffolding interfaces in `commonMain` that consumers will eventually depend on. The orchestrator passes a `mode` parameter; the workflow below splits accordingly.
+The file's `Path` field tells you which mode you're in:
+- **`surgical`** — only swaps and `expect/actual`. No refactor entries; the file's internal shape is byte-identical except for swap-cited edits.
+- **`refactor`** — swaps and `expect/actual`, **plus** architecture-approved Refactor entries that restructure internal shape. Public API is preserved either way.
 
-You do not write tests. You do not modify tests. You do not change behaviour. You apply the swaps named in the migration-guide entry and verify the migration preserves behaviour.
+You are also dispatched in **scaffold mode** (Phase A): in that mode you create scaffolding interfaces in `commonMain` that consumers will eventually depend on.
+
+You do not write tests. You do not modify tests. You do not change behaviour. You do not author refactors — the architecture has already specified them; you apply them verbatim per the diff spec.
 
 ## Inputs (passed by orchestrator)
 
@@ -46,7 +50,7 @@ git show <baseline-master-sha>:<source-path>
 
 Read the existing `commonTest` test file for this source — these tests are immutable per Constitution §7; you must not touch them.
 
-If the diff specification is missing, malformed (Remove/Add/Modify entries without swap citations), or inconsistent with the actual master content, stop and emit `MIGRATE_BLOCKED: <file> | reason: diff specification missing or malformed at <field>` — orchestrator escalates and re-runs `/kmm-plan` for the affected file.
+If the diff specification is missing, malformed (Remove/Add/Modify entries without swap citations), or inconsistent with the actual master content, stop and emit `MIGRATE_BLOCKED: <file> | reason: diff specification missing or malformed at <field>` — orchestrator escalates and re-runs `plan-phase` for the affected file.
 
 ### Step 2: Apply the diff specification verbatim.
 
@@ -56,16 +60,22 @@ You are a typist applying a pre-specified diff. Do not author the migrated file 
 2. Apply each `Remove` entry from the spec — delete the matching line(s).
 3. Apply each `Add` entry from the spec at the position the spec names.
 4. Apply each `Modify` entry from the spec — replace master form with migrated form **verbatim**.
-5. Update the package declaration if the spec names a package change.
-6. Lines not mentioned in the spec stay byte-identical to master.
+5. **Apply each `Refactor` entry** from the spec (only present when `Path: refactor`):
+   - Replace the master line range with the migrated form **verbatim** as written in the spec.
+   - The spec's Refactor entry includes a citation to `architecture.md §R-N` and a behaviour-preservation invariant. You apply the entry exactly as written; you do not improve, abbreviate, or substitute.
+   - If the migrated form references identifiers from outside the file (a class from another file, a new dependency), stop and emit `MIGRATE_BLOCKED: <file> | reason: refactor R-N references out-of-scope identifier <name>`. Refactors must stay inside the file (Constitution §6).
+6. Update the package declaration if the spec names a package change.
+7. Lines not mentioned in the spec stay byte-identical to master.
 
-**Do not invent edits.** If you find a line that needs changing but the spec doesn't list it, stop and emit `MIGRATE_BLOCKED: <file> | reason: spec gap at master:<line> — <description>`. The orchestrator re-runs `/kmm-plan` to extend the spec; you do not improvise.
+**Do not invent edits.** If you find a line that needs changing but the spec doesn't list it, stop and emit `MIGRATE_BLOCKED: <file> | reason: spec gap at master:<line> — <description>`. The orchestrator routes back to the plan phase to extend the spec; you do not improvise.
 
-**Do not improve.** If a Modify form looks awkward or non-idiomatic, that is the spec's call, not yours. You may emit `REQUIRES_APPROVAL` to flag a concern, but you may not silently substitute a "cleaner" form.
+**Do not improve.** If a Modify or Refactor form looks awkward or non-idiomatic, that is the spec's call, not yours. You may emit `REQUIRES_APPROVAL` to flag a concern, but you may not silently substitute a "cleaner" form.
 
-**Public API preservation:** is already encoded in the spec — every public method/property's signature is preserved verbatim through the unchanged-range or Modify entries. Your verbatim application of the spec automatically preserves the API.
+**Do not author refactors.** Refactor entries come from `architecture.md`. If you spot an additional clean-code violation that the architecture missed, emit `REQUIRES_APPROVAL: refactor candidate at <file:line> — <observation>` so the orchestrator can route the question back to the architect phase. Never apply an unauthorised refactor.
 
-**Bug preservation:** if master has a logic bug, the spec preserves it (no Modify entry will "fix" it). The bug ports as-is by virtue of the unchanged-range covering it.
+**Public API preservation:** is already encoded in the spec — every public method/property's signature is preserved verbatim through the unchanged-range, Modify, or Refactor entries. Your verbatim application of the spec automatically preserves the API. Refactor entries that change a public signature would have been rejected by `architecture-reviewer`; if you encounter one in a spec, that is a planning gap → `MIGRATE_BLOCKED`.
+
+**Bug preservation:** if master has a logic bug, the default is preservation (no Modify or Refactor entry "fixes" it; the bug ports as-is via an unchanged range). A bug fix is allowed only when an architecture Refactor entry explicitly authorises it AND the baseline test for the bugged behaviour was updated as a RATIFIED deviation. If you see a Refactor entry that fixes a bug without that deviation, that is a planning gap → `MIGRATE_BLOCKED`.
 
 ### Step 3: Delete the staged copy.
 
@@ -109,12 +119,14 @@ If a test fails:
 Before emitting `MIGRATE_COMPLETE`, run a strict self-check: compute the actual diff between master and your migrated output (`diff <(git show <baseline-master-sha>:<source-path>) <migrated-file>`) and compare it line-by-line against the spec.
 
 For every diff hunk:
-- Does it correspond to a `Remove` / `Add` / `Modify` entry in the spec? If yes, allowed.
+- Does it correspond to a `Remove` / `Add` / `Modify` / `Refactor` entry in the spec? If yes, allowed.
 - Otherwise it is drift. Revert that hunk to match master; re-run the diff.
 
-Conversely, every spec entry must appear in the actual diff. If a `Remove` / `Add` / `Modify` from the spec is NOT in your output, you missed it; apply it now and re-run.
+Conversely, every spec entry must appear in the actual diff. If a `Remove` / `Add` / `Modify` / `Refactor` from the spec is NOT in your output, you missed it; apply it now and re-run.
 
-The self-check is silent — you fix discrepancies and re-run until the actual diff exactly matches the spec. No user prompt. If the diff cannot be brought into compliance with the spec (the spec is wrong, or a lurking edge case prevents matching it), emit `MIGRATE_BLOCKED: <file> | reason: cannot match diff spec at <hunk> — <reason>` and the orchestrator re-runs `/kmm-plan` for the affected entry.
+For every applied `Refactor` entry, verify the **behaviour-preservation invariant** is also satisfied: read the test names listed in the entry's `Test that pins this invariant` field, confirm those tests exist in `commonTest`, and confirm they passed in Step 6. If a behaviour-preservation test was not run or did not pass, the refactor is not validated → `MIGRATE_BLOCKED: <file> | reason: refactor R-N invariant test <name> did not pass`.
+
+The self-check is silent — you fix discrepancies and re-run until the actual diff exactly matches the spec. No user prompt. If the diff cannot be brought into compliance with the spec (the spec is wrong, or a lurking edge case prevents matching it), emit `MIGRATE_BLOCKED: <file> | reason: cannot match diff spec at <hunk> — <reason>` and the orchestrator routes back to the plan phase for the affected entry.
 
 ### Step 7: Verify Koin / DI bindings (if applicable).
 
@@ -180,11 +192,12 @@ Why: <reasoning>
 ## What you MUST NOT do
 
 - **Do not modify any file in `commonTest/`.** Tests are immutable post-`T-LOCK`. If you find yourself wanting to, your migration is wrong, not the test.
-- **Do not change any signature in `public-api`.** Byte-identical reproduction.
-- **Do not improve, refactor, or clean up adjacent code.** 1:1 port. The migration unit is the file, and only the swaps named in the migration-guide entry.
+- **Do not change any signature in `public-api`.** Byte-identical reproduction. Even refactor entries preserve public API.
+- **Do not author refactors.** Architecture-approved refactors are encoded in the diff spec; apply them verbatim. Unauthorised refactor → `REQUIRES_APPROVAL`, not silent application.
+- **Do not improve adjacent code outside the spec.** The migration unit is the file, and only the entries named in the migration-guide spec.
 - **Do not introduce a new dependency** beyond those in `library-swaps`. New dep = `REQUIRES_APPROVAL`.
 - **Do not silently widen visibility.** If a member needs to become `public` to satisfy a consumer that previously accessed it via reflection or same-package, that is `REQUIRES_APPROVAL`.
-- **Do not write comments.** Default is none. Constitution §8 — one-line `why` only when genuinely non-obvious.
+- **Do not write comments.** Default is none. Constitution §9 — one-line `why` only when genuinely non-obvious.
 - **Do not add `@Suppress`** to silence a warning. The warning is signal.
 - **Do not commit.** The orchestrator commits at level boundaries.
 - **Do not run the researcher subagent yourself.** If you need a live source, return `REQUIRES_APPROVAL` so the orchestrator can dispatch the researcher.

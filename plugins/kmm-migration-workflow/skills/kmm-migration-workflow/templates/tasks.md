@@ -1,5 +1,5 @@
-<!-- TEMPLATE: generated to <repo>/kmm/<scope>/tasks.md by /kmm-tasks -->
-<!-- Single source of truth for progress. Each task has a metadata block parsed by /kmm-implement. -->
+<!-- TEMPLATE: generated to <repo>/kmm/<scope>/tasks.md by tasks-phase -->
+<!-- Single source of truth for progress. Each task has a metadata block parsed by implement-phase. -->
 
 # Tasks — [scope-name]
 
@@ -100,7 +100,7 @@ Checkbox states:
 
 ## Phase E: Remediation (round N) — populated by /kmm-verify
 
-[Empty initially. /kmm-verify on FAIL appends remediation tasks here. Each round increments N. The orchestrator runs them via /kmm-implement.]
+[Empty initially. /kmm-verify on FAIL appends remediation tasks here. Each round increments N. The orchestrator runs them via implement-phase.]
 
 [Example after a /kmm-verify FAIL:]
 
@@ -127,7 +127,7 @@ Checkbox states:
 
 [Each command appends a one-line constitution-check pass/fail at the bottom. Audit trail.]
 
-- [DATE-TIME] /kmm-specify: PASS
-- [DATE-TIME] /kmm-plan: PASS
-- [DATE-TIME] /kmm-tasks: PASS
+- [DATE-TIME] specify-phase: PASS
+- [DATE-TIME] plan-phase: PASS
+- [DATE-TIME] tasks-phase: PASS
 - ...

@@ -1,4 +1,4 @@
-<!-- TEMPLATE: copied to <repo>/kmm/<scope>/spec.md by /kmm-specify -->
+<!-- TEMPLATE: copied to <repo>/kmm/<scope>/spec.md by specify-phase -->
 <!-- Replace bracketed placeholders. Keep the structure. -->
 
 # Migration spec — [scope-name]
@@ -29,9 +29,9 @@
 
 ## Baseline master SHA
 
-`<full SHA from git rev-parse <base-branch> at /kmm-specify time>`
+`<full SHA from git rev-parse <base-branch> at specify-phase time>`
 
-[populated at /kmm-specify; immutable from there. Constitution §7]
+[populated at specify-phase; immutable from there. Constitution §7]
 
 ## Baseline locked SHA
 
@@ -72,13 +72,13 @@ Apps / modules that consume the shared module and must compile clean after migra
 
 ## Test command (baseline)
 
-The exact gradle invocation `/kmm-specify` used to run the existing test suite to detect master-failing tests outside scope. Re-used at `T-LOCK` and at `/kmm-verify`.
+The exact gradle invocation `specify-phase` used to run the existing test suite to detect master-failing tests outside scope. Re-used at `T-LOCK` and at `/kmm-verify`.
 
 ```
 [./gradlew :<module>:testDebugUnitTest, etc.]
 ```
 
-## Master-failing tests at /kmm-specify time
+## Master-failing tests at specify-phase time
 
 [list every test failing on master at the baseline SHA that lives outside the in-scope list. proposed @Ignore patch is logged as D-1 in migration-report.md.]
 
@@ -91,4 +91,4 @@ The exact gradle invocation `/kmm-specify` used to run the existing test suite t
 
 ## Out-of-scope policy
 
-Files not in the in-scope list MAY have their imports updated by `/kmm-implement` if they are listed as `Consumers` of an in-scope file in `migration-guide.md`. ANY OTHER change to a file outside the in-scope list is a constitution violation and is rejected by `/kmm-verify` unless explicitly logged as a deviation in `migration-report.md`.
+Files not in the in-scope list MAY have their imports updated by `implement-phase` if they are listed as `Consumers` of an in-scope file in `migration-guide.md`. ANY OTHER change to a file outside the in-scope list is a constitution violation and is rejected by `/kmm-verify` unless explicitly logged as a deviation in `migration-report.md`.

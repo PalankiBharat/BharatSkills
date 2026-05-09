@@ -72,7 +72,7 @@ Every claim about:
 - configuration options (e.g., "Koin 4 uses `module {}` not `koinModule {}`")
 - migration patterns (e.g., "Retrofit Call-based methods become suspend functions in Ktor")
 
-If a claim does not cite a live source, the plan-analyzer rejects it as a `BLOCKER`. The orchestrator does not advance past `/kmm-plan` with un-sourced claims.
+If a claim does not cite a live source, the plan-analyzer rejects it as a `BLOCKER`. The orchestrator does not advance past `plan-phase` with un-sourced claims.
 
 ## What does NOT need a live source
 
@@ -86,7 +86,7 @@ Generic Kotlin language facts (e.g., "`val` is read-only") do not need a citatio
 
 `findings.md` has a "Library Versions" table where every row has a Source column and a Last-verified date. The completeness-verifier (at `/kmm-verify`) confirms every library mentioned in `migration-guide.md`'s `Library swaps` field has a row. Rows missing a source → fail.
 
-`findings.md` has a "Live-source audit" footer that the plan-analyzer checks at `/kmm-plan` time and the completeness-verifier re-checks at `/kmm-verify`. Any `⚠ TRAINING DATA — VERIFY` flag still present at `/kmm-verify` → fail.
+`findings.md` has a "Live-source audit" footer that the plan-analyzer checks at `plan-phase` time and the completeness-verifier re-checks at `/kmm-verify`. Any `⚠ TRAINING DATA — VERIFY` flag still present at `/kmm-verify` → fail.
 
 ## When a live source contradicts your memory
 

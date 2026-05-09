@@ -22,7 +22,7 @@ You do NOT critique the project's code. You critique the skill's process. Every 
 ## What to extract
 
 For every numbered deviation in `migration-report.md`:
-- Was it a planning gap (caught at T-LOCK or later because /kmm-plan didn't surface it)?
+- Was it a planning gap (caught at T-LOCK or later because plan-phase didn't surface it)?
 - Was it an agent drift (subagent ignored an explicit dispatch instruction)?
 - Was it pre-existing master breakage (skill's health-sweep step missed it)?
 - Was it a user-input boundary (a real decision the user had to make — that's working as designed, not a gap)?
@@ -35,7 +35,7 @@ For blocked tasks:
 - What protocol gap led to the block?
 
 For unanticipated REQUIRES_APPROVAL escalations:
-- Could /kmm-plan have surfaced the question earlier?
+- Could plan-phase have surfaced the question earlier?
 
 ## Output format
 
@@ -44,7 +44,7 @@ The output is a markdown block. The orchestrator writes it to `<repo>/kmm/<scope
 ```markdown
 ## kmm-migration-workflow retrospective
 
-_Generated automatically at /kmm-pr time. Project-agnostic — copy into an issue on the skill repo or apply directly to skill files._
+_Generated automatically at pr-phase time. Project-agnostic — copy into an issue on the skill repo or apply directly to skill files._
 
 **Migration unit:** <N> in-scope file(s), <T> tasks, <D> deviations (RATIFIED: <r>, CLOSED: <c>, OPEN: <o>).
 

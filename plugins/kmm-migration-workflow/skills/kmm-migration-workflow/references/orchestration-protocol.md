@@ -8,7 +8,7 @@ Every line printed to the user is terse. No preamble. No narration of internal s
 
 Concrete rules:
 
-- **Phase transitions**: single banner line. `── /kmm-plan ──`. Nothing else.
+- **Phase transitions**: single banner line. `── plan-phase ──`. Nothing else.
 - **Status summaries**: data points, not prose. `Phase B 5/5. 35 tests green. → T-LOCK.`
 - **Constitution checks**: checklist with `[x]/[ ]` and a `PASS/FAIL` tag. No prose summary unless user asks.
 - **Subagent dispatches**: silent on success. Print only failures, escalations, or batch boundaries. Do not narrate "dispatching test-capturer for T-1".
@@ -214,7 +214,7 @@ Commit `tasks.md` at batch / level boundaries — not after every single task �
 The orchestrator and every subagent stop and escalate if work would extend beyond the in-scope list, except:
 
 - Updating an import in a file listed under `Consumers` for an in-scope file (allowed without escalation).
-- Applying the `@Ignore` patch logged as `D-1` at `/kmm-specify` (allowed; already approved).
+- Applying the `@Ignore` patch logged as `D-1` at `specify-phase` (allowed; already approved).
 
 Anything else outside scope → `REQUIRES_APPROVAL`.
 
@@ -293,11 +293,11 @@ Per Constitution §1 (understand before acting) and §2 (no assumptions when stu
 
 Loop until the orchestrator has a list of concrete file paths, an entry point in the consumer app, and a clear feature boundary. Only then proceed.
 
-This is gentle but firm. The user may push back ("just trust me"). The orchestrator does not. A vague scope at `/kmm-specify` becomes a wrong scope by `/kmm-implement` — the cost of pushing back now is far smaller than the cost of unwinding a wrong-scoped migration later.
+This is gentle but firm. The user may push back ("just trust me"). The orchestrator does not. A vague scope at `specify-phase` becomes a wrong scope by `implement-phase` — the cost of pushing back now is far smaller than the cost of unwinding a wrong-scoped migration later.
 
 ## Master-drift detection
 
-At every `/kmm-implement` invocation, before dispatching the first task:
+At every `implement-phase` invocation, before dispatching the first task:
 - Read `spec.md`'s `baseline-locked-sha` (if `T-LOCK` has run) or `baseline master SHA` (if not).
 - Run `git log <base-branch> -- <each in-scope file>` since the baseline SHA.
-- If any in-scope file has been modified upstream, stop. The migration must replan against the new SHA per Constitution §7. Tell the user: "Master moved on these files since baseline. Run `/kmm-plan` against the new SHA before continuing."
+- If any in-scope file has been modified upstream, stop. The migration must replan against the new SHA per Constitution §7. Tell the user: "Master moved on these files since baseline. Run `plan-phase` against the new SHA before continuing."

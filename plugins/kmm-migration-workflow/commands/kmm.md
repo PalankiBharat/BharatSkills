@@ -1,5 +1,5 @@
 ---
-description: Single entry point for KMM migrations. Auto-detects state and runs the right next phase. Pauses only on real decisions (scope, deviations, REQUIRES_APPROVAL, PR confirmation). Default mode for the whole skill.
+description: Single entry point for KMM migrations. Auto-detects state and runs the right next phase. Pauses only on real decisions (scope, deviations, REQUIRES_APPROVAL, PR confirmation per checkpoint).
 argument-hint: "<scope-name?> [intent...]"
 ---
 
@@ -7,122 +7,204 @@ argument-hint: "<scope-name?> [intent...]"
 
 You are running this command as the orchestrator. Read `skills/kmm-migration-workflow/constitution.md` first.
 
-This is the **comfy default**. Most users never touch the named `/kmm-*` commands; they live here. The job of `/kmm` is to detect where the user is in the workflow and run the right next phase, pausing only when a real decision is needed.
+This is the **only** command users need for running a migration. It auto-detects the current phase from on-disk artifacts and runs the right one. Phase logic lives in `skills/kmm-migration-workflow/references/phases/`; this file routes between them.
+
+## Phases (in order)
+
+```
+specify    →   architect   →   plan   →   tasks   →   implement   →   verify   →   pr
+                  ↑                                       ↑              ↓         ↓
+              (NEW — clean-code                   (per checkpoint loop  ──┘         ↓
+              decisions, refactor              when architecture splits the migration ──┐
+              boundaries, checkpoints)         into checkpoints per Constitution §13)   ↓
+                                                                                    [next checkpoint
+                                                                                     OR migration done]
+```
 
 ## State detection (silent — no user prompt)
 
 Decide the current phase by inspecting the worktree:
 
-| Condition | Current phase | Next action |
+| Condition | Current phase | Phase file to read |
 |---|---|---|
-| User passed `<scope-name>`, but `<repo>/kmm/<scope>/` does not exist | Pre-spec | Run `/kmm-specify` |
-| `<repo>/kmm/<scope>/spec.md` exists, but `plan.md` does not | Spec'd, not planned | Run `/kmm-plan` |
-| `plan.md` exists, but `tasks.md` does not | Planned, not tasked | Run `/kmm-tasks` |
-| `tasks.md` has unchecked tasks (`[ ]`) | In execution | Run `/kmm-implement` |
-| All tasks `[x]`, but last constitution-check entry is not `/kmm-verify: PASS` | Done, not verified | Run `/kmm-verify` |
-| Verify PASS, no PR open for the branch | Verified, PR pending | Run `/kmm-pr` |
-| PR open and merged | Done | Print "Migration complete." and exit |
+| User passed `<scope>`, but `<repo>/kmm/<scope>/` does not exist | Pre-spec | `references/phases/specify.md` |
+| `spec.md` exists, `architecture.md` does not | Spec'd, not architected | `references/phases/architect.md` |
+| `architecture.md` exists with `ARCHITECTURE_STATUS: APPROVED`, `plan.md` does not | Architected, not planned | `references/phases/plan.md` |
+| `plan.md` exists with `PLAN_STATUS: APPROVED`, `tasks.md` does not | Planned, not tasked | `references/phases/tasks.md` |
+| `tasks.md` has unchecked tasks (`[ ]`) in any checkpoint | In execution | `references/phases/implement.md` |
+| Active checkpoint has all `[x]` tasks but no `verify-passed` marker | Tasks done, not verified | (verify-phase logic — see below) |
+| Active checkpoint has `verify-passed`, no PR URL recorded | Verified, PR pending | `references/phases/pr.md` |
+| All checkpoints have PR URLs recorded | Migration done | Print "Migration complete." and exit |
+
+**Active checkpoint** = the lowest-numbered checkpoint with at least one unchecked task OR with all `[x]` but no recorded PR URL. The orchestrator runs implement → verify → pr for the active checkpoint, then loops back to detect the next active checkpoint.
 
 If multiple `<scope>` directories exist and the user did not pass one, ask **one question** with the scopes as options + their current phase as descriptions. Recommend the most-recently-touched. Do not proceed without an answer.
 
-## Auto-chain (the comfy mode) with one /clear boundary
+## How routing works
 
-The pipeline runs in **two sessions** separated by a recommended `/clear`:
+On every `/kmm` invocation:
 
-```
-Session 1 (planning):
-  /kmm-specify  →  /kmm-plan
-                     └── ends with "Approved. Run /clear then /kmm."
+1. Detect the current phase via the table above.
+2. Read the phase file (`references/phases/<phase>.md`) into context.
+3. Execute the phase's `What you do` steps as described in the file. The phase file is authoritative — follow it precisely.
+4. On phase completion, the phase file specifies what happens next (auto-advance or stop).
 
-[user runs /clear]
+Phases auto-advance unless one of these is true:
+- User invoked `/kmm --step` (manual mode — pause between every phase).
+- A subagent emitted `REQUIRES_APPROVAL` (interpretive failure).
+- An analyzer (plan-analyzer / architecture-reviewer / completeness-verifier) surfaced a user-input-required HIGH finding.
+- About to run pr-phase for a checkpoint (always pause for the PR confirmation — public action).
 
-Session 2 (execution):
-  /kmm  (auto-detects state: plan.md present, tasks.md absent)
-    →  /kmm-tasks  →  /kmm-implement  →  /kmm-verify  →  /kmm-pr
-```
+The verify-phase logic is inline (not a separate phase file), because it's a short dispatch:
+1. Dispatch `agents/completeness-verifier.md` (sonnet, read-only) with the active checkpoint name.
+2. On `VERIFY_COMPLETE_PASS`: auto-close structured deviations, mark `verify-passed` for the checkpoint in tasks.md, advance to pr-phase.
+3. On `VERIFY_COMPLETE_FAIL`: append `Phase E: Remediation` tasks to tasks.md, route back to implement-phase.
 
-In each session, the auto-chain advances between phases unless one of these is true:
+For the full verify-phase contract (auto-close rules, remediation-task format), see `skills/kmm-migration-workflow/references/phases/verify-inline.md`. Or the user-facing `/kmm-verify` command.
 
-1. The user invoked `/kmm --step` (manual mode — pause between every phase).
-2. A subagent emitted `REQUIRES_APPROVAL` (interpretive failure — must escalate to user).
-3. The plan-analyzer surfaced a user-input-required HIGH finding (scope amendment, ambiguous decision).
-4. We're about to run `/kmm-pr` (always pause for the final PR confirmation — public action).
-5. **End of `/kmm-plan`** — always pause and instruct the user to `/clear`. Planning fills context; execution should start fresh.
-
-In auto-chain, do NOT print "approve and continue?" between phases inside a session. The single approval at end of `/kmm-specify` is the green light for the planning session; the single approval at end of `/kmm-plan` is the green light for the execution session.
-
-Print only one-line phase banners (`── /kmm-plan ──`) at each transition. Everything else stays terse per the orchestration protocol's communication-style rule.
-
-## What auto-chain DOES NOT skip
+## What auto-routing DOES NOT skip
 
 The skill always pauses for:
 
-- The **scope intent** (only if the invocation didn't already provide concrete files; see `/kmm-specify`'s goal-clarity gate).
-- The **@Ignore master-failing-tests approval** in `/kmm-specify` (one `y / n / discuss`).
+- The **scope intent** (only if the invocation didn't already provide concrete files; see specify-phase's goal-clarity gate).
+- The **@Ignore master-failing-tests approval** in specify-phase (one `y / n / discuss`).
+- The **HIGH-risk refactor approvals** in architect-phase.
+- The **architecture approval** at end of architect-phase.
+- The **plan approval** at end of plan-phase.
 - Any **REQUIRES_APPROVAL** from a subagent.
-- Any **plan-analyzer HIGH finding** that requires user input (scope amendment, library-choice ambiguity).
-- The **PR confirmation** at the end of `/kmm-pr`.
+- Any **plan-analyzer / architecture-reviewer HIGH finding** that requires user input.
+- The **PR confirmation** at the end of every pr-phase (per checkpoint).
 
 These are real decisions; they don't get auto-handled.
 
-## What the user sees in a clean run
+## What the user sees in a clean run (single-checkpoint migration)
 
 ```
 $ /kmm auth-module — migrate AuthRepository, SessionStore, TokenManager, AuthApi
                      from app/src/main/java/com/example/auth/. UI and consumers
                      out of scope.
 
-── /kmm-specify ──
+── specify ──
 Targets autodetected: commonMain, androidMain, iosArm64, iosX64.
 Base branch: main.
-2 master-failing tests outside scope. Will @Ignore + log as D-1. Continue? [y / n / discuss]
+2 master-failing tests outside scope. Will @Ignore + log as D-1. Continue? [y]
 > y
 Spec written.
 
-── /kmm-plan ──
+── architect ──
+Reading 4 files with clean-code lens. Drafting architecture...
+3 surgical, 1 refactor (1 entry: remove AuthSdkHolder — clean-code §structure.no-scaffolding-without-behaviour, LOW risk).
+Single-checkpoint migration estimated.
+Architecture ready. Approve? [y]
+> y
+
+── plan ──
 Reading 4 files. Researching libraries. Drafting plan...
-plan-analyzer: 1 user gate.
-  → User.kt is referenced by AuthApi but not in scope. Recommended: add to scope (Constitution §5). [y / discuss]
+plan-analyzer: clean.
+Plan ready. 4 files, 3 swaps, 1 refactor entry, 5 expect/actual. 1 RATIFIED deviation.
+Approve? [y]
 > y
-Plan ready. 5 files, 5 swaps. 1 RATIFIED deviation.
 
-── /kmm-tasks ──
-Generated 11 tasks (5 capture, 1 lock, 5 migrate).
+── tasks ──
+Generated 9 tasks (4 capture, 1 lock, 4 migrate).
 
-── /kmm-implement ──
-Capturing baselines (5 parallel)... 35 tests green. Locked at a8d2e91f.
-Migrating Level 0 (3 parallel)... Level 1 (1)... Level 2 (1)...
-  → <File>:<line> — <API> not in plan (planning gap). Recommended: <multiplatform replacement> per Constitution platform-boundary §1. [y / discuss]
-> y
-All migrations complete.
+── implement ──
+Capturing baselines (4 parallel)... 32 tests green. Locked at a8d2e91f.
+Migrating Level 0 (3 parallel)... Level 1 (1)... All migrations complete.
 
-── /kmm-verify ──
-Round 1: 1 false-positive (residual android.util.Log import in AuthRepository).
-Auto-fix dispatched. Re-verifying...
-PASS. 5 files migrated, 35 tests green, 3 deviations all closed/ratified.
+── verify (auth-module) ──
+PASS. 4 files migrated, 32 tests green, 1 refactor invariant pinned.
 
-── /kmm-pr ──
-Draft PR ready (open <repo>/kmm/auth-module/pr-draft.md to inspect). Open it?  [y / preview / discuss]
+── pr (auth-module) ──
+Draft PR ready. Open it? [y / preview / discuss]
 > y
 ✅ PR opened: https://github.com/example/repo/pull/247
+
+Migration complete.
 ```
 
-Four user touches: scope @Ignore, scope amendment, planning-gap fix, PR open.
+## What the user sees in a checkpointed run
+
+When architecture splits the migration into checkpoints (Constitution §13), the loop runs once per checkpoint:
+
+```
+── architect ──
+12 files: 8 surgical, 4 refactor (6 entries: 4 LOW, 2 MEDIUM). HIGH-risk: 0.
+Migration size triggers checkpoint plan:
+  CP-1: auth-relocation (12 files moved + baselines captured)
+  CP-2: auth-swaps (4 library swaps + expect/actual)
+  CP-3: auth-refactor (6 architecture-approved refactors)
+Approve checkpoints? [A: as proposed / B: single PR / C: discuss]
+> A
+Architecture approved.
+
+── plan ──
+[plan with 12 file entries, 6 refactor entries, 3 checkpoints]
+Approve? [y]
+> y
+
+── tasks ──
+Generated 27 tasks across 3 checkpoints.
+
+── implement (CP-1: auth-relocation) ──
+[capture all 12, lock]
+
+── verify (CP-1) ──
+PASS.
+
+── pr (CP-1) ──
+Draft PR ready (`kmm(auth-relocation): move auth files into androidMain + capture baselines`). Open? [y]
+> y
+✅ CP-1 PR: https://github.com/example/repo/pull/247
+
+── implement (CP-2: auth-swaps) ──
+[apply swaps to all 12 files]
+
+── verify (CP-2) ──
+PASS.
+
+── pr (CP-2) ──
+[draft, open]
+✅ CP-2 PR: https://github.com/example/repo/pull/248
+
+── implement (CP-3: auth-refactor) ──
+[apply refactors]
+
+── verify (CP-3) ──
+PASS. 6 refactor invariants pinned.
+
+── pr (CP-3) ──
+[draft, open]
+✅ CP-3 PR: https://github.com/example/repo/pull/249
+
+Migration auth-module complete: 3 PRs opened.
+```
 
 ## Manual / step mode
 
-If the user invokes `/kmm --step`, the skill pauses at every phase boundary with a `[continue / abort]` prompt. The named `/kmm-*` commands also continue to work for users who want to invoke a specific phase.
+If the user invokes `/kmm --step`, the orchestrator pauses at every phase boundary with a `[continue / abort]` prompt. The user can interleave manual edits between phases.
 
 ## Resume
 
-If the user runs `/kmm` with no args and `<repo>/kmm/` has exactly one in-flight scope, resume it silently. If multiple scopes are in flight, ask which to resume (one question, options labelled with phase). If no scopes exist and no args given, print: "No scope specified. Run `/kmm <scope>` with the migration intent, e.g., `/kmm auth-module — migrate the auth feature's data layer`."
+`/kmm` with no args: if `<repo>/kmm/` has exactly one in-flight scope, resume it silently. If multiple are in flight, ask which to resume (one question, options labelled with phase + active checkpoint). If none and no args given, print: "No scope specified. Run `/kmm <scope>` with the migration intent."
+
+## Other entry points
+
+For workflows that don't fit `/kmm`'s linear flow, three independent commands stay user-invocable:
+
+- **`/kmm-verify`** — re-run the completeness audit on a migration directory (yours or someone else's). Useful after manual edits, after a merge, or when the user wants a fresh check without re-running the whole pipeline.
+- **`/kmm-audit <pr>`** — read-only principles audit of any KMM migration PR (whether made with this skill or not). Returns a table of findings; on user opt-in, posts inline GitHub comments. Distinct from verify (which checks completeness against the skill's artifacts).
+- **`/kmm-retro`** — re-run the skill retrospective on a completed (or in-flight) migration. Useful for capturing skill-improvement signals after manual mid-flight edits.
+
+These commands run independently — they don't auto-chain into the migration pipeline.
 
 ## Constitution check
 
-`/kmm` itself does not run a constitution-check — each child phase runs its own. `/kmm`'s job is routing, not enforcement.
+`/kmm` itself does not run a constitution-check — each phase runs its own. `/kmm`'s job is routing, not enforcement.
 
 ## Failure modes
 
-- **Scope already exists with same name** — read its phase. If in-flight, resume. If complete (PR open or merged), tell the user; ask whether to start a new scope (different name) or revisit the existing one.
+- **Scope already exists with same name** — read its phase. If in-flight, resume. If complete (every checkpoint has a PR URL), tell the user; ask whether to start a new scope (different name) or revisit the existing one.
 - **State detection is ambiguous** (e.g., tasks.md shows in-progress but worktree is on a different branch) — escalate to user with a one-question state summary; do not auto-pick.
-- **The user passed `<scope>` but provided no intent** and no spec.md exists yet — proceed to `/kmm-specify`'s goal-clarity gate, which will ask. Don't guess.
+- **The user passed `<scope>` but provided no intent** and no spec.md exists yet — proceed to specify-phase's goal-clarity gate, which will ask. Don't guess.
+- **An expected phase file is missing** (e.g., `references/phases/architect.md` not present) — surface the error; the skill installation is broken.
