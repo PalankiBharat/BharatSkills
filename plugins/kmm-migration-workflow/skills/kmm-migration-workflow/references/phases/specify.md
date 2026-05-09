@@ -87,7 +87,27 @@ These three questions go silent unless detection is genuinely ambiguous.
 - If both exist and HEAD is elsewhere, ask one question with two options.
 - Otherwise (no `main`/`master`) ask with detected candidates.
 
-For each silent autodetection, print a one-line summary so the user can see what was picked: `Targets: commonMain, androidMain, iosArm64, iosX64. Base branch: main.`
+**Gradle task names — live-source the canonical task names (silent unless ambiguous):**
+
+The project's `CLAUDE.md` may declare anchors like `Tests: ./gradlew :app:testDebugUnitTest`. These can be ambiguous in projects with build flavors (e.g., `:app:testDebugUnitTest` matches `testProductionDebugUnitTest`, `testStagingDebugUnitTest`, `testAppiumTestDebugUnitTest`). Discover the canonical names live:
+
+```
+./gradlew :<consumer>:tasks --all 2>/dev/null | grep -E "^(test|compile|install)[A-Z]" | sort -u
+./gradlew :shared:tasks --all 2>/dev/null | grep -E "^(test|compile)[A-Z]" | sort -u
+```
+
+Pick the **production-flavor debug variant** as canonical (it's typically what CI uses):
+- Tests: prefer `testProductionDebugUnitTest` over `testStagingDebugUnitTest` / `testAppiumTestDebugUnitTest`. If only `testDebugUnitTest` exists (no flavors), use it.
+- Production-source compile: `compileProductionDebugKotlin` or `compileDebugKotlin` similarly.
+- Test-source compile: `compileProductionDebugUnitTestKotlin` or `compileDebugUnitTestKotlin`.
+- Shared per-target compile: `compileDebugKotlinAndroid`, `compileKotlinIosArm64`, `compileKotlinIosSimulatorArm64`, etc. — derived from the declared shared targets.
+
+If `CLAUDE.md`'s anchored name does NOT exist as a discovered task, surface a warning to the user (one-line, non-blocking):
+> ⚠ `CLAUDE.md` lists `<anchored-name>` as the test command, but it's ambiguous in this project (flavors detected). Using `<canonical-name>` instead. Suggest updating `CLAUDE.md` after this migration.
+
+Record the resolved task names in `findings.md § Verification command provenance` so plan-phase doesn't re-discover them and `/kmm-verify` runs against the same names.
+
+For each silent autodetection, print a one-line summary so the user can see what was picked: `Targets: commonMain, androidMain, iosArm64, iosX64. Base branch: main. Test command: ./gradlew :app:testProductionDebugUnitTest.`
 
 ### 5. Create the worktree
 
