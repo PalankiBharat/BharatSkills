@@ -102,21 +102,27 @@ For each silent autodetection, print a one-line summary so the user can see what
 
 Capture `git rev-parse <base-branch>` — record in `spec.md`. This is the SHA the baseline is anchored to per Constitution §7.
 
-### 7. Master-baseline health sweep (mandatory — one approval)
+### 7. Master-baseline health sweep (scope-aware)
 
-This step is **mandatory** regardless of whether the in-scope list contains test files. Pre-existing master-state breakage outside the scope, if not surfaced now, will surface later at T-LOCK or `/kmm-verify` and force mid-flight policy application — much more disruptive than handling it up front.
+Pre-existing master-state breakage outside the scope, if not surfaced now, will surface later at T-LOCK or `/kmm-verify` and force mid-flight policy application — much more disruptive than handling it up front. The sweep's depth is calibrated to the migration's scope per Constitution §14 (Proportionality).
 
-**Run two checks against the worktree:**
+**Sweep matrix:**
 
-1. **Full test suite:** the project's existing test command (autodetect; ask the user for the command via one question + options if uncertain).
-2. **Per-target compile sweep:** all production-target compile commands the migration will use at `/kmm-verify` (from `plan.md`'s Verification commands section in a reusable form — at `specify-phase` time these are autodetected from the shared module's `build.gradle.kts` declared targets).
+| Scope size | Per-target compile | Test source-set compile | Full unit test runtime suite |
+|---|---|---|---|
+| ≤3 in-scope files (trivial heuristic candidate) | mandatory | mandatory | **opt-in** (default skipped) |
+| >3 in-scope files OR any HIGH-risk refactor surfaced upstream | mandatory | mandatory | mandatory |
 
-Two failure classes need different treatment:
+**Why opt-in for trivial scopes:** `/kmm-verify` runs scope-focused tests via `--tests <fqn>`, never the full suite. Pre-existing runtime failures unrelated to the in-scope file therefore cannot block verify on a trivial migration. The full-suite runtime sweep at specify-phase exists to surface failures that *would* block multi-file migrations whose verify-phase touches a wider blast radius. For a 1-file extract+swap migration the full suite is paid time without proportional value (sniper-v2-android GreetingUseCase, D-2: ~5 min wall-clock killed mid-flight as scope-disproportionate).
+
+**Test-source-set compile is always mandatory.** If `:<consumer>:compileXxxUnitTestKotlin` fails on master, T-LOCK will fail regardless of scope size; the broken-file inventory is needed at specify time.
+
+**Two failure classes need different treatment:**
 
 - **Runtime test failures** (test compiled, executed, asserted false) → `@Ignore` annotation on the failing test methods, with cross-reference to the deviation entry. The test file otherwise stays untouched.
 - **Compile-only failures** (test source set or production source set fails to compile on a target) → `@Ignore` does NOT help (it skips runtime, not compilation). Rename the offending file to `<original>.broken` per the project convention. Files like `*.kt.broken` are excluded from compilation by Kotlin's source-set glob. Verify the project already uses this convention by greppping for `*.broken` in test directories before applying.
 
-**Subsequent test runs** (during `implement-phase` and `/kmm-verify`) use scope-focused commands only — `--tests <fqn>` for the migration's own baseline tests. The full sweep is a one-shot at `specify-phase` to inventory pre-existing failures; running it on every subsequent step would be expensive and irrelevant.
+**Subsequent test runs** (during `implement-phase` and `/kmm-verify`) use scope-focused commands only — `--tests <fqn>` for the migration's own baseline tests. The full sweep, when run, is a one-shot at `specify-phase` to inventory pre-existing failures; running it on every subsequent step would be expensive and irrelevant.
 
 After the sweep, present the combined patch to the user (one approval covers all):
 
