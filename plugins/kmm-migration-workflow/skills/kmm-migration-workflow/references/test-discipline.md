@@ -115,6 +115,64 @@ Eyeball the public method before writing tests. Number every `if` / `when` / `?:
 
 Per Constitution §7 — "exhaustive tests on the pre-migration source of truth — every case, every edge case." Skipping a branch silently moves untested code into `commonMain`.
 
+## Clock-bound code without an injection seam
+
+**The structural exception to branch coverage at T-1.** Per Constitution §8's expanded clause (v2.1.0), some classes have a public no-arg constructor whose signature consumers depend on (e.g., `class GreetingUseCaseImpl()`); adding a `Clock` (or `Random`, or `IO`) parameter to enable deterministic tests would break Principle 7's public-API preservation. These classes are **not exhaustively unit-testable on master** — their hidden branches are gated behind a non-deterministic input.
+
+Recognise this case at architect-time, not at T-1. Indicators:
+
+- The class reads `System.currentTimeMillis()`, `Calendar.getInstance()`, `Clock.System.now()`, `Random.Default.nextInt(...)`, or any other process-wide singleton that's not a test seam.
+- The class has a no-arg constructor (or a constructor whose parameters are all already-injected dependencies that consumers can't easily reconstruct).
+- The architect's clean-code lens detects no place where a constructor parameter could be added without changing public API.
+
+When recognised, the architect emits a LOW-risk Refactor entry that **extracts the pure mapping into an internal helper** the test source set can exercise. Example:
+
+```kotlin
+// Before (master) — clock-bound, untestable:
+class TimeBoundUseCase {
+    fun classify(): Category = when (Clock.System.now().hour) {
+        in 0..11 -> Category.Morning
+        in 12..16 -> Category.Afternoon
+        else -> Category.Evening
+    }
+}
+
+// After (commonMain) — extract creates the seam:
+internal fun classifyHour(hour: Int): Category = when (hour) {
+    in 0..11 -> Category.Morning
+    in 12..16 -> Category.Afternoon
+    else -> Category.Evening
+}
+class TimeBoundUseCase {
+    fun classify(): Category = classifyHour(Clock.System.now().hour)
+}
+```
+
+**Test capture protocol for this case:**
+
+1. **At T-1** (pre-migration), capture only what IS deterministic on master:
+   - Public-API surface invariants (e.g., enum display strings, constructor reflection).
+   - A smoke test that exercises the wrapper and asserts the return is in the valid output set (always passes regardless of runtime input — pins the public contract that a value is *some* valid value).
+2. **At M-1** (migration), introduce the seam-creating Refactor's behaviour-preservation tests against the new internal helper:
+   - Exhaustive coverage over the input space (e.g., parameterised over `0..23`).
+   - Boundary-hour tests at every regime change.
+3. **Log as a structural deviation** in `migration-report.md`:
+   - Title: "Hour-mapping branches not testable pre-migration (R-N's tests introduced at M-N)"
+   - Status: `RATIFIED`
+   - Closure: `{ type: "manual" }` (the gap is structural, accepted permanently for this scope)
+   - Mitigation: cite the LOW-risk classification of the Refactor (mechanical extract; body verbatim) plus the visual diff inspection plus the post-migration exhaustive test.
+
+**Why this is safe:** the migrated form's behaviour-preservation comes from three independent guarantees:
+- The Refactor is a mechanical extract — the `when` block body is byte-identical to master's.
+- The new exhaustive test runs against the post-migration form and covers the entire input space.
+- The architecture-reviewer subagent verifies R-N's `Boundary` field stays inside the in-scope file (Constitution §6).
+
+If all three hold, the structural gap (no master test for hidden branches) is bounded — a behaviour change cannot pass undetected.
+
+**Why this is constitutionally acceptable:** the alternative (forcing a `Clock` parameter into the public API) violates Principle 7's "Public API stays" rule, which is non-negotiable. The choice is "structural test gap with mitigations" vs. "API change", and Principle 7 dominates.
+
+The skill recognises this case automatically when the in-scope file matches the indicators above. The architect proposes the seam-creating Refactor; T-1 captures the deterministic subset; M-1 introduces the exhaustive tests. The structural deviation is logged at architect-phase entry, not discovered mid-T-1.
+
 ## Boundary values (mandatory)
 
 - Money / quantity: `0`, `1`, max-allowed, max+1, negative
