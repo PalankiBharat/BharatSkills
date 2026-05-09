@@ -8,20 +8,24 @@ Read `references/orchestration-protocol.md`, `references/code-graph.md`, and the
 
 ## Role
 
-Review `spec.md`, `plan.md`, `migration-guide.md`, and `findings.md` against the constitution. Find every gap, ambiguity, or constitution violation that would surface during execution. Return a structured report; the orchestrator fixes the gaps and may re-dispatch you.
+Review `spec.md`, `architecture.md`, `plan.md`, `migration-guide.md`, and `findings.md` against the constitution. Find every gap, ambiguity, or constitution violation that would surface during execution. Return a structured report; the orchestrator fixes the gaps and may re-dispatch you.
 
-You are dispatched by `/kmm-plan` step 8.
+You are dispatched by the plan phase step 8. The architecture phase has already produced `architecture.md` and the `architecture-reviewer` has approved it; your job is to verify the plan operationalises it correctly.
 
 ## What you check
 
 Walk these checks in order. For each, classify findings as `BLOCKER`, `HIGH`, or `MEDIUM`.
 
-### 1. 1:1 port compliance (Constitution §6)
+### 1. Architecture alignment (Constitution §1, §7)
 
-- Every entry in `migration-guide.md` describes a 1:1 port — no combining methods, no splitting methods, no API signature changes, no behaviour changes, no "while we're here" cleanups.
-- No task description in `plan.md` uses words like "improve", "refactor", "simplify", "consolidate", "tidy up".
+- `architecture.md` exists at `<repo>/kmm/<scope>/architecture.md` and carries `ARCHITECTURE_STATUS: APPROVED`.
+- Every in-scope file in `migration-guide.md` has a `Path` field matching `architecture.md`'s declaration for that file (`surgical` / `refactor` / `out-of-reach`).
+- Every Refactor entry in `migration-guide.md` traces to an `architecture.md` `R-N` parent (cited explicitly in the entry). Orphan refactors → `BLOCKER`.
+- For files with `Path: refactor`, `migration-guide.md` includes 1+ Refactor entries that match `architecture.md`'s entries for that file (by R-N number and title).
+- For files with `Path: surgical`, no Refactor entries appear in `migration-guide.md`. Surgical files with refactor entries → `BLOCKER`.
+- Public API for every file is byte-identical to source (regardless of path). Any signature change → `BLOCKER` (the architecture would have caught this; if it slipped through, both layers need fixing).
+- No task description in `plan.md` uses words like "improve", "simplify", "consolidate", "tidy up" outside the architecture-approved Refactor entries. (These words are allowed inside a Refactor entry's title — that's their job.) Aspirational language without an architecture trace → `BLOCKER`.
 - Every file's `Rules` field explicitly names what must NOT be combined or split where the file has overloads or near-duplicate methods.
-- Flag any task description that implies behavioural change beyond a library swap → `BLOCKER`.
 
 ### 2. file:line citations (Constitution §1, process discipline)
 
@@ -97,26 +101,36 @@ Any blank required field → `BLOCKER`.
 
 For every in-scope file, fetch master content (`git show <baseline-master-sha>:<source-path>`) and validate the **Diff specification** field in `migration-guide.md`. A correct spec is what makes the migrator drift-proof; a broken spec applies wrong edits faithfully.
 
-- **Every line of master is accounted for.** Each line is covered by a `Lines X–Y: unchanged` range or appears as a `Remove` / `Modify` entry. No gaps. → fail = `BLOCKER`.
-- **No phantom lines.** Every `Modify`/`Remove` entry's `master` form matches the actual master line at the cited line number. → fail = `BLOCKER`.
+- **Every line of master is accounted for.** Each line is covered by a `Lines X–Y: unchanged` range or appears as a `Remove` / `Modify` / `Refactor` entry. No gaps. → fail = `BLOCKER`.
+- **No phantom lines.** Every `Modify`/`Remove`/`Refactor` entry's `master` form matches the actual master line at the cited line number. → fail = `BLOCKER`.
 - **Every `Add` / `Remove` / `Modify` cites a swap.** Citation points to a `Library swaps` entry, a `Platform APIs` entry, or a RATIFIED deviation. Orphan edits → `BLOCKER`.
+- **Every `Refactor` entry cites architecture.** Citation is `architecture.md §R-N` for the file. Orphan refactors → `BLOCKER`.
+- **Every `Refactor` entry's behaviour invariant has a test.** The entry names a test in `Expected tests` that pins the invariant. Missing → `BLOCKER`.
+- **Refactor scope guard.** No Refactor entry's migrated form references identifiers from outside the file (no new files in scope, no consumer-side changes). → `BLOCKER`.
 - **Preservation annotations explicit.** Each `Modify` entry names what is preserved (variable name, member shape, line position). Missing → `BLOCKER` (migrator may not infer).
-- **Renaming rule.** No `Modify` entry renames a bare identifier unless the master name literally encodes the swapped library's name as a token. → `BLOCKER`.
-- **Structural preservation.** No `Modify` entry inlines a named local from master. → `BLOCKER`.
-- **Whitespace / blank-line discipline.** Spec does not introduce or remove blank lines or relocate members beyond what a swap mechanically forces. → `HIGH`.
+- **Renaming rule.** No `Modify` entry renames a bare identifier unless the master name literally encodes the swapped library's name as a token, OR an architecture-approved Refactor entry authorises the rename (and rename does not affect public API). → `BLOCKER` for unauthorised rename.
+- **Structural preservation.** No `Modify` entry inlines a named local from master (Refactor entries may, when architecture-authorised).
+- **Whitespace / blank-line discipline.** Spec does not introduce or remove blank lines or relocate members beyond what a swap or Refactor entry mechanically forces. → `HIGH`.
 
 These checks are the heart of precaution-first. The spec is the migrator's contract; defects here cause the migrator to faithfully apply wrong edits, which is the most expensive failure mode to recover from.
+
+### 15. Checkpoint plan operationalisation (Constitution §13)
+
+- `plan.md`'s Checkpoint plan section mirrors `architecture.md`'s checkpoint plan exactly (same checkpoint names, same file assignments, same kinds).
+- Every file in `migration-guide.md` has a `Checkpoint:` field naming a checkpoint from the plan.
+- Every checkpoint's file set is internally consistent: a `swaps` checkpoint contains files where `Library swaps` is non-empty; a `refactor` checkpoint contains files where Refactor entries are present; etc.
+- Cross-checkpoint DAG: a file in CP-K does not depend (`Migrate after`) on a file in CP-K' where K' > K. → `BLOCKER` (you'd block on a future checkpoint).
 
 ## Output format
 
 ```
 ## Plan Analysis Report
 
-### BLOCKER (must fix before /kmm-tasks; blocks all progress)
+### BLOCKER (must fix before tasks-phase; blocks all progress)
 - [ ] BLOCKER: <description> | file: <path or N/A> | impact: <what breaks>
 - ...
 
-### HIGH (must clarify before /kmm-tasks; blocks affected files)
+### HIGH (must clarify before tasks-phase; blocks affected files)
 - [ ] HIGH: <description> | file: <path> | options: <list>
 - ...
 
@@ -125,17 +139,19 @@ These checks are the heart of precaution-first. The spec is the migrator's contr
 - ...
 
 ### VERIFIED
-- [x] 1:1 port compliance: <N/N> files describe mechanical ports only
+- [x] Architecture alignment: `architecture.md` approved; <N/N> files have matching `Path`; <K/K> Refactor entries trace to architecture
 - [x] file:line citations: <N/N> entries fully cited
 - [x] Live-source citations: <N/N> library versions cited
 - [x] Migration-guide completeness: <N/N> files have all required fields
-- [x] Public API precision: <N/N> entries have full signatures
-- [x] Expected tests realistic: <N/N> files
+- [x] Public API precision: <N/N> entries have full signatures (preserved from source)
+- [x] Expected tests realistic: <N/N> files (incl. <K> behaviour-preservation tests for refactors)
 - [x] DAG sound: cycles=<count>, missing edges=<count>
 - [x] Scaffolding present: <N/N> needed seams listed
 - [x] Platform-boundary justifications: <N/N> expect/actual declarations justified
 - [x] Verification commands present: yes/no
 - [x] Compatibility floor recorded: yes/no
+- [x] Diff spec valid: <N/N> files; <K/K> refactor entries inside scope
+- [x] Checkpoint plan operationalised: <C> checkpoints; cross-checkpoint DAG sound
 
 PLAN_ANALYSIS: blockers: <N> | high: <N> | medium: <N> | verified: <X/Y> checks
 ```

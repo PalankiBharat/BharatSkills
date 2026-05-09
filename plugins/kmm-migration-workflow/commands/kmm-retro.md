@@ -7,11 +7,12 @@ argument-hint: "<scope-name?>"
 
 You are running this command as the orchestrator. Read `skills/kmm-migration-workflow/constitution.md` first.
 
-`/kmm-retro` is the standalone version of the retrospective that `/kmm-pr` runs automatically. Use it when:
+`/kmm-retro` is the standalone version of the retrospective that the pr-phase runs automatically on the final checkpoint. Use it when:
 
-- The user updated skill files manually after `/kmm-pr` and wants a fresh retrospective.
-- A migration was completed in step mode (no `/kmm-pr` auto-trigger fired).
+- The user updated skill files manually after pr-phase and wants a fresh retrospective.
+- A migration was completed in `--step` mode (no auto-trigger fired).
 - The user wants to re-read the retrospective after time has passed.
+- The user wants a retro on a non-final checkpoint (the auto-trigger only fires on the final checkpoint).
 
 ## Inputs
 
@@ -27,7 +28,7 @@ You are running this command as the orchestrator. Read `skills/kmm-migration-wor
 
 ## Constitution check
 
-- Touched: §11 (documents are the contract — retrospective is itself a document recording skill-level deviations).
+- Touched: §12 (documents are the contract — retrospective is itself a document recording skill-level deviations).
 - Pass/fail:
   - `[ ]` Artifacts present
   - `[ ]` Subagent returned `RETRO_COMPLETE` with valid self-check

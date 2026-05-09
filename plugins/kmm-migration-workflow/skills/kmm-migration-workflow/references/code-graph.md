@@ -2,13 +2,13 @@
 
 Read this before any file enumeration, consumer lookup, dependency tracing, or impact analysis. The project's `code-review-graph` MCP tools are faster, cheaper, and more accurate than `Grep` / `Glob` / `Read` for these tasks. **Use the graph first.** Fall back to `Read` / `Grep` only when the graph genuinely doesn't cover what you need.
 
-## Freshness check (run at /kmm-plan step 0)
+## Freshness check (run at plan-phase step 0)
 
 Graph staleness causes silent wrong answers. Before any graph-first reads, check freshness:
 
 1. `list_graph_stats_tool` → capture `Last updated`.
 2. `git -C <worktree> log -1 --format=%ai` → HEAD commit time.
-3. If `Last updated` < HEAD time (or `never`), call `build_or_update_graph_tool` with `postprocess="full"`. **Use full, not minimal.** Minimal mode skips cross-file import-edge resolution; `query_graph(importers_of=…)` and `query_graph(callers_of=…)` will return empty or partial results in minimal mode and silently mislead the planner. Full takes longer (~tens of seconds for a few-thousand-file repo) but produces complete edge data. The cost is one-time per /kmm-plan invocation.
+3. If `Last updated` < HEAD time (or `never`), call `build_or_update_graph_tool` with `postprocess="full"`. **Use full, not minimal.** Minimal mode skips cross-file import-edge resolution; `query_graph(importers_of=…)` and `query_graph(callers_of=…)` will return empty or partial results in minimal mode and silently mislead the planner. Full takes longer (~tens of seconds for a few-thousand-file repo) but produces complete edge data. The cost is one-time per plan-phase invocation.
 4. Re-call `list_graph_stats_tool`. If still stale, log warning in `findings.md` and fall back to `Read` / `Grep`.
 
 A one-liner reports the result: `Graph: fresh` / `Graph: refreshed` / `Graph: stale, falling back`. The completeness-verifier (`/kmm-verify`) re-checks at audit time — falling back during planning is allowed; falling back during verify means the audit is weaker and gets flagged.
@@ -36,7 +36,7 @@ A one-liner reports the result: `Graph: fresh` / `Graph: refreshed` / `Graph: st
 
 ## Plan-phase mapping
 
-`/kmm-plan` reads every in-scope file end-to-end. Replace the manual reading pass with graph calls where possible:
+`plan-phase` reads every in-scope file end-to-end. Replace the manual reading pass with graph calls where possible:
 
 1. **Enumerate in-scope files**: if the user gave file paths, accept them. If only an entry point: `query_graph(callees_of=<entry-point>)` recursively until you've walked into a stable set of files. Prefer this over `Grep "import" -r`.
 

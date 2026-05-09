@@ -1,4 +1,4 @@
-<!-- TEMPLATE: copied to <repo>/kmm/<scope>/findings.md by /kmm-plan -->
+<!-- TEMPLATE: copied to <repo>/kmm/<scope>/findings.md by plan-phase -->
 <!-- Research, decisions, version pins. Live-sourced — every entry has a citation and date. -->
 <!-- Untrusted external content goes here, never in plan.md. -->
 
@@ -45,11 +45,11 @@ Project-specific issues found while reading the codebase that will affect migrat
 
 Library docs, working-group threads, GitHub issues, vendor blog posts that informed the plan. Untrusted external content lives here, not in `plan.md`.
 
-[paste links + relevant excerpts. each excerpt has the URL it came from and the retrieval date. flag any training-data-derived claim with `⚠ TRAINING DATA — VERIFY` and resolve before /kmm-tasks.]
+[paste links + relevant excerpts. each excerpt has the URL it came from and the retrieval date. flag any training-data-derived claim with `⚠ TRAINING DATA — VERIFY` and resolve before tasks-phase.]
 
 ## Live-source audit
 
-[populated at /kmm-plan time and re-checked at /kmm-verify]
+[populated at plan-phase time and re-checked at /kmm-verify]
 
 - All library versions: live-sourced ✓
 - All API patterns: live-sourced ✓

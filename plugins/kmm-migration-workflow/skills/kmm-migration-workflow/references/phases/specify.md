@@ -1,11 +1,8 @@
----
-description: Declare the scope and out-of-scope for a KMM migration. Create the worktree, record baseline master SHA, propose @Ignore patches for unrelated failing tests.
-argument-hint: "<scope-name>"
----
+# Phase: specify
 
-# /kmm-specify
+Read by the `/kmm` orchestrator when state-detection routes to the **specify** phase. Not a user-invocable command — the user enters at `/kmm <scope> <intent>` and the router reads this file.
 
-You are running this command as the orchestrator. Read `skills/kmm-migration-workflow/constitution.md` first.
+Read `skills/kmm-migration-workflow/constitution.md` first.
 
 ## Inputs
 
@@ -90,14 +87,14 @@ This step is **mandatory** regardless of whether the in-scope list contains test
 **Run two checks against the worktree:**
 
 1. **Full test suite:** the project's existing test command (autodetect; ask the user for the command via one question + options if uncertain).
-2. **Per-target compile sweep:** all production-target compile commands the migration will use at `/kmm-verify` (from `plan.md`'s Verification commands section in a reusable form — at `/kmm-specify` time these are autodetected from the shared module's `build.gradle.kts` declared targets).
+2. **Per-target compile sweep:** all production-target compile commands the migration will use at `/kmm-verify` (from `plan.md`'s Verification commands section in a reusable form — at `specify-phase` time these are autodetected from the shared module's `build.gradle.kts` declared targets).
 
 Two failure classes need different treatment:
 
 - **Runtime test failures** (test compiled, executed, asserted false) → `@Ignore` annotation on the failing test methods, with cross-reference to the deviation entry. The test file otherwise stays untouched.
 - **Compile-only failures** (test source set or production source set fails to compile on a target) → `@Ignore` does NOT help (it skips runtime, not compilation). Rename the offending file to `<original>.broken` per the project convention. Files like `*.kt.broken` are excluded from compilation by Kotlin's source-set glob. Verify the project already uses this convention by greppping for `*.broken` in test directories before applying.
 
-**Subsequent test runs** (during `/kmm-implement` and `/kmm-verify`) use scope-focused commands only — `--tests <fqn>` for the migration's own baseline tests. The full sweep is a one-shot at `/kmm-specify` to inventory pre-existing failures; running it on every subsequent step would be expensive and irrelevant.
+**Subsequent test runs** (during `implement-phase` and `/kmm-verify`) use scope-focused commands only — `--tests <fqn>` for the migration's own baseline tests. The full sweep is a one-shot at `specify-phase` to inventory pre-existing failures; running it on every subsequent step would be expensive and irrelevant.
 
 After the sweep, present the combined patch to the user (one approval covers all):
 
@@ -112,7 +109,7 @@ Do not show diffs by default — these are mechanical patches following the proj
 
 - On `y`: apply the combined patch. Commit as the first migration commit. Log a single deviation `D-1` in `migration-report.md` with `Closure: { type: "manual" }` (RATIFIED — pre-existing breakage; closure path is "owners of the affected files fix in separate PRs").
 - On `discuss`: enumerate each item with file path and failure mode, then re-ask with `y / n`.
-- On `n`: abort `/kmm-specify`. The user must fix master or revise scope before re-running.
+- On `n`: abort `specify-phase`. The user must fix master or revise scope before re-running.
 
 ### 8. Write `spec.md`
 
@@ -137,18 +134,19 @@ Do not show diffs by default — these are mechanical patches following the proj
   - `[ ]` `spec.md` written and committed
 - On fail: STOP. Do not advance. Report which checks failed.
 
-### 10. Auto-advance (default) or stop (manual mode)
+### 10. Auto-advance to architect phase
 
-If `/kmm-specify` was reached via the `/kmm` chain (the common case), advance automatically to `/kmm-plan` after the constitution-check passes. Print a one-line transition banner: `── /kmm-plan ──`.
+After the constitution-check passes, the router auto-advances to the **architect** phase (Constitution §1 — architecture before code). Print a one-line transition banner: `── architect ──`.
 
-If `/kmm-specify` was invoked directly by the user (manual mode), print: "Spec written and committed. Run `/kmm-plan` to draft the per-file plan." and stop.
+In `--step` mode, stop here and print: "Spec written and committed. Re-run `/kmm` to advance to the architect phase."
 
 ## What you do NOT do
 
-- Do not draft the migration plan. That is `/kmm-plan`.
-- Do not generate tasks. That is `/kmm-tasks`.
+- Do not design the target architecture. That is the architect phase (Constitution §1).
+- Do not draft the migration plan. That is the plan phase.
+- Do not generate tasks. That is the tasks phase.
 - Do not modify any in-scope file. The scope is declared but no file moves yet.
-- Do not write code. This command writes only `spec.md` and (if approved) the `@Ignore` patch.
+- Do not write code. This phase writes only `spec.md` and (if approved) the `@Ignore` patch.
 
 ## Failure modes
 
