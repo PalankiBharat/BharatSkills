@@ -12,7 +12,9 @@ description: >
   migrations. Trivial migrations (≤3 files, no expect/actual, no cross-file refactors,
   swaps already-declared) auto-route through a fast-path that collapses architect+plan+
   tasks+implement into a single auto-bundle pass with parallel reviewers and three user
-  gates instead of seven (Constitution §14 Proportionality). Default entry: /kmm.
+  gates instead of seven (Constitution §14 Proportionality). Audit trails, user prompts,
+  and PR bodies are written in plain English so a busy reviewer can scan them and get the
+  reasoning on the first read (Constitution §15 Plain language). Default entry: /kmm.
   Trigger words: "KMM", "Kotlin Multiplatform", "commonMain", "shared code migration",
   "expect/actual", "/kmm", "/kmm-verify", "/kmm-audit", "/kmm-retro", "audit a KMM PR",
   "review this migration", "trivial KMM migration", "single-file KMM port".

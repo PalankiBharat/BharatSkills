@@ -1,6 +1,6 @@
 # KMM Migration Constitution
 
-Version: 2.1.0
+Version: 2.2.0
 
 This constitution governs any work whose stated goal is migrating code from a platform-native codebase into Kotlin Multiplatform shared code. It supersedes assistant defaults and project conventions for the duration of the migration. On non-migration work, normal conventions resume.
 
@@ -99,6 +99,32 @@ Principles are ordered. Earlier principles dominate later ones when they conflic
 
     **The default is still the full pipeline.** Fast-path requires explicit detection of the trivial heuristic. Any uncertainty (scope ambiguity, surprise dependency, swap-needs-research) falls back to the full pipeline.
 
+15. **Plain language. Write so a busy reviewer can skim and get it.** Migration artifacts (`spec.md`, `architecture.md`, `plan.md`, `migration-guide.md`, `migration-report.md`, `findings.md`, `tasks.md`), user-facing prompts, PR bodies, and commit messages are read by people who do not have the constitution loaded into their head. Every sentence that requires decoding is a sentence that gets skimmed and missed — and a missed sentence in a deviation log or PR body is how the audit trail silently breaks.
+
+    The bar: a reader who knows software but does **not** know this skill's vocabulary should understand each sentence on the first read. Constitutional citations and structured labels (deviation IDs, principle numbers, RATIFIED/CLOSED states, phase names) are fine — they're labels, not arguments. But the *reasoning* should be in plain English.
+
+    **Phrases to avoid (or always pair with a plain gloss in the same sentence):**
+
+    - "scope-disproportionate" → say "more ceremony than this scope warrants" or "overkill for one file"
+    - "structurally infeasible" → say "won't compile because <concrete reason>"
+    - "constitutional accommodation" / "constitutionally clean" → say "we accept this as a trade-off" or "the principles are followed"
+    - "mechanical extract" → say "the function is moved into a helper without changing what it does"
+    - "behaviour-preservation invariant" → say "the test that proves the migrated code returns the same value"
+    - "the diff specification" → say "the line-by-line plan for editing this file"
+    - "auto-close the deviation" → say "the skill marks this deviation resolved when <X>"
+    - "scope expansion" → say "this would pull in files we said were out of scope"
+    - "rubber-stamped" → say "approved without real review"
+
+    See `references/plain-language.md` for the full swap list and worked examples drawn from real migrations.
+
+    **User-facing questions: the question text is plain.** Option labels can use technical terms when those are the skill's proper nouns (e.g., "fast-path", "T-LOCK", "expect/actual") — readers will see them again across the skill — but every option's *description* explains in plain English what happens if the user picks it. A user who has not read this constitution should be able to pick correctly.
+
+    **PR bodies: the Summary section is plain language for the 30-second skim.** Technical terms appear in the table-of-contents-style sections (Files changed, Deviations, Verification) where they're labels. Every load-bearing claim in the Summary is restated in plain English at least once.
+
+    **Commit messages: same rule.** The first sentence of the body explains what changed in plain language. Subsequent paragraphs can use technical terms because the reader has now opted into depth.
+
+    Plain language is not dumbing down. It is the difference between an audit trail that survives a year and one that goes stale the moment context changes. When in doubt, write the version a tired reviewer at 5pm on Friday can read in 30 seconds.
+
 ## Platform-boundary priority
 
 When shared code needs platform-specific behaviour, walk top-down. First match wins. Never skip levels for convenience. Default is the simplest level that fits — heavier mechanisms require justification.
@@ -169,6 +195,11 @@ Amendments to this constitution require a written diff, rationale citing which p
 - **New §14 — Proportionality**: trivial migrations route through a fast-path that collapses workflow ceremony while preserving every structural protection. See `references/fast-path.md`.
 - **§8 expanded — clock-bound code without an injection seam**: the master-untestability of clock-bound public APIs is recognised as a structural gap; behaviour-preservation tests for hidden branches are introduced post-migration alongside an architecture-approved seam-creating refactor.
 - Lessons sourced from the GreetingUseCase migration in `sniper-v2-android` (consumer-repo PR #369): D-2 (scope-disproportionate runtime sweep), D-4 (clock-bound testability gap), D-5 (androidMain staging infeasible) are now first-class behaviours of the skill rather than ad-hoc deviations.
+
+### v2.2.0 — Plain language (2026-05-09)
+
+- **New §15 — Plain language**: artifacts, user prompts, PR bodies, and commit messages are written so a busy reviewer can skim and understand them on the first read. Adds a swap list of common buzzwords and their plain replacements. See `references/plain-language.md`.
+- Motivation: the GreetingUseCase migration's audit trail (#369) was constitutionally clean but dense — phrases like "scope-disproportionate" and "structurally infeasible" appeared throughout. A reviewer without the skill's vocabulary loaded would skim past the load-bearing reasoning. The principle exists to keep the audit trail readable a year later when context has rotted.
 
 When the bump is ambiguous, propose reasoning before finalizing.
 
