@@ -17,6 +17,10 @@ Every subagent emits exactly one completion-promise token on its **final line**,
 | `VERIFY_COMPLETE_FAIL: scope=<scope> ... gaps: ...` | completeness-verifier | Plan-vs-reality gaps detected. | Escalate to user with gap list. Do not auto-replan. |
 | `AUDIT_REPORT: pr=<n> \| blockers: N \| high: N \| medium: N` | pr-auditor | PR audited. | Print findings; offer to post inline comments. |
 | `RETRO_COMPLETE: scope=<scope> \| recommendations=N` | skill-retrospector | Retrospective ready. | Print to chat; user copies into skill repo. |
+| `QA_DIAGNOSE_COMPLETE: bug-id=<id> \| file=<path> \| line=<n> \| path=<surgical\|refactor> \| test-to-write=<test-name>` | qa-debugger | Bug diagnosed; proposed entry written to `bugs.md` as `PROPOSED`. | Surface to user with `[y / discuss / decline]`; on `y`, promote `PROPOSED` → `OPEN` and dispatch apply-fix. |
+| `QA_DIAGNOSE_BLOCKED: bug-id=<id> \| reason: <one-line>` | qa-debugger | Root cause not isolable. | Escalate to user; they collect more signal and re-pinpoint. No retry with same inputs. |
+| `QA_FIX_COMPLETE: bug-id=<id> \| file=<path> \| new-test=<test-name> green \| verify-red=proven \| regressions=0 \| targets-compile-clean=<list>` | qa-debugger | Failing test wrote red, fix applied per spec, test green, baselines green, targets compile. | Mark `bugs.md` entry `OPEN` → `FIXED` with `Fixed-at:` and `Fixed-by-test:`. Resume QA loop (rebuild). |
+| `QA_FIX_BLOCKED: bug-id=<id> \| reason: <one-line>` | qa-debugger | Mechanical block during fix application (verify-red didn't red, fix didn't green, regression, compile fail). | Escalate to user. Append `Block-reason` to entry. Do not silently retry. |
 | `REQUIRES_APPROVAL: <description> ... Recommended: <option> Why: ...` | any subagent | Interpretive failure; user decision needed. | Escalate immediately. No retry. |
 
 ## Token grammar
@@ -25,7 +29,7 @@ Single line. Kind (left of first colon), followed by zero or more `key: value` s
 
 Orchestrator regex:
 ```
-^(RESEARCH_COMPLETE|RESEARCH_BLOCKED|ARCHITECTURE_ANALYSIS|CAPTURE_COMPLETE|CAPTURE_BLOCKED|MIGRATE_COMPLETE|MIGRATE_BLOCKED|VERIFY_COMPLETE_PASS|VERIFY_COMPLETE_FAIL|AUDIT_REPORT|RETRO_COMPLETE|REQUIRES_APPROVAL):\s*(.*)$
+^(RESEARCH_COMPLETE|RESEARCH_BLOCKED|ARCHITECTURE_ANALYSIS|CAPTURE_COMPLETE|CAPTURE_BLOCKED|MIGRATE_COMPLETE|MIGRATE_BLOCKED|VERIFY_COMPLETE_PASS|VERIFY_COMPLETE_FAIL|AUDIT_REPORT|RETRO_COMPLETE|QA_DIAGNOSE_COMPLETE|QA_DIAGNOSE_BLOCKED|QA_FIX_COMPLETE|QA_FIX_BLOCKED|REQUIRES_APPROVAL):\s*(.*)$
 ```
 
 A malformed last line is treated as `*_BLOCKED` with reason `malformed-completion-promise` and escalated to the user.

@@ -5,15 +5,19 @@ description: >
   code (commonMain). Use whenever the user asks to migrate a module/file/feature to KMM,
   port Android code to commonMain, plan or continue a KMM migration, capture baseline tests
   for a migration, verify a migration is complete, audit any KMM PR for principle adherence,
-  or open a migration PR. ALWAYS prefer this skill over ad-hoc migration work — it enforces
-  architecture-before-code, clean-code-first, baseline-first TDD, opus-only orchestration,
-  live-sourced library decisions, graph-first file lookup, and checkpoint PRs for big
-  migrations. Trivial migrations (≤3 files, no expect/actual, no cross-file refactors,
-  swaps already-declared) auto-route through a fast-path. Audit trails, prompts, and PR
-  bodies are written in plain English. Default entry: /kmm.
+  open a migration PR, or run systematic on-device QA / debugging on KMM code with the
+  same no-silent-patches discipline. ALWAYS prefer this skill over ad-hoc migration or
+  ad-hoc on-device fix work — it enforces architecture-before-code, clean-code-first,
+  baseline-first TDD, opus-only orchestration, live-sourced library decisions, graph-first
+  file lookup, checkpoint PRs for big migrations, and structured fix workflow when bugs
+  surface during QA. Trivial migrations (≤3 files, no expect/actual, no cross-file
+  refactors, swaps already-declared) auto-route through a fast-path. Audit trails,
+  prompts, and PR bodies are written in plain English. Default entry: /kmm.
   Trigger words: "KMM", "Kotlin Multiplatform", "commonMain", "shared code migration",
-  "expect/actual", "/kmm", "/kmm-verify", "/kmm-audit", "/kmm-retro", "audit a KMM PR",
-  "review this migration", "trivial KMM migration", "single-file KMM port".
+  "expect/actual", "/kmm", "/kmm-verify", "/kmm-audit", "/kmm-retro", "/kmm-qa",
+  "audit a KMM PR", "review this migration", "trivial KMM migration", "single-file KMM
+  port", "QA a KMM migration", "debug migrated code on device", "logcat fix loop",
+  "test-first bug fix on KMM project", "validate the migration on device".
 argument-hint: "<scope?> <intent?>"
 ---
 
@@ -28,6 +32,7 @@ Speckit-style orchestrator for Android → Kotlin Multiplatform migrations.
 | `/kmm <scope> <intent>` | Run a migration end-to-end. Auto-detects state, auto-resumes. The default. |
 | `/kmm-verify` | Re-run completeness audit on an in-flight or finished migration. |
 | `/kmm-audit <pr>` | Read-only principles audit on any KMM migration PR. Returns findings; on opt-in, posts inline GitHub comments. |
+| `/kmm-qa <session-or-scope>` | Systematic on-device QA + structured bug-fix loop. Builds latest, installs, listens to logcat, runs the same no-silent-patches fix discipline as `/kmm`. Independent of `/kmm`; runs on any KMM project. |
 | `/kmm-retro` | Run skill retrospective on a completed migration (opt-in; not auto-dispatched). |
 
 `/kmm` runs seven phases: `specify → architect → plan → tasks → implement → verify → pr`. Each phase's contract lives in `references/phases/<phase>.md`. Users don't need to know about phases — `/kmm` routes between them. Phases are not user-invocable.
@@ -94,6 +99,7 @@ Loaded from `agents/` when dispatched.
 | migrator | sonnet | implement | `MIGRATE_COMPLETE` / `MIGRATE_BLOCKED` |
 | completeness-verifier | sonnet | verify, /kmm-verify | `VERIFY_COMPLETE_PASS` / `VERIFY_COMPLETE_FAIL` |
 | pr-auditor | sonnet | /kmm-audit | `AUDIT_REPORT` |
+| qa-debugger | sonnet | /kmm-qa | `QA_DIAGNOSE_COMPLETE` / `QA_FIX_COMPLETE` |
 | skill-retrospector | sonnet | /kmm-retro | `RETRO_COMPLETE` |
 
 ### Shared agent contract
@@ -113,11 +119,12 @@ If the user says "kmm migrate the auth module" with no slash command, ask which 
 - "Starting fresh? → run `/kmm auth-module — <intent>`"
 - "Resuming? → check `<repo>/kmm/` for active scopes; offer to resume."
 - "Auditing someone else's PR? → run `/kmm-audit <pr-or-branch>`"
+- "QAing on a device? → run `/kmm-qa <session-or-scope>`"
 
 Never silently start. Every command is user-initiated.
 
 ## Out of scope
 
-- UI work (Compose Multiplatform, SwiftUI, Appium, screenshots, devices). UI is excluded by design — surface that this skill targets business logic only and ask whether to proceed with logic-only.
+- UI work (Compose Multiplatform, SwiftUI, Appium, screenshots, automated UI tests). UI migration is excluded by design — surface that this skill targets business logic only and ask whether to proceed with logic-only. (`/kmm-qa` builds and installs the consumer app on a device the user is driving, but does not write UI code or run automated UI tests; the user generates the test signal by tapping through the app.)
 - Baked-in KMM library knowledge. Every library version, API surface, and migration pattern is sourced live (`references/live-sources.md`). The answer to "what library should I use" is "let's run a live lookup", never "I recall…".
 - Pushing without confirmation. The skill never opens a PR without explicit user `y`.
