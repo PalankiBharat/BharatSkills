@@ -186,6 +186,7 @@ Checklist:
 - Print every checkpoint PR URL in order.
 - Summary: total files migrated, refactors applied, deviations (count by status), tests green.
 - "Migration `<scope>` is open as `<N>` checkpoint PRs (URLs above). Worktree at `.worktrees/kmm-<scope>/` can stay until all PRs merge or be removed with `git worktree remove`. Run `/kmm-retro` if you want a skill retrospective."
+- Offer on-device validation (one-line opt-in, same pattern as `/kmm-retro` — public action, never default): "Validate the migration on a device before merging? Run `/kmm-qa <scope>` — same no-silent-patches discipline as `/kmm`. [skip / `/kmm-qa <scope>`]"
 
 ## Failure modes
 
