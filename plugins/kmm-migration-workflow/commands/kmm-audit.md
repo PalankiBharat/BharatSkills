@@ -1,122 +1,93 @@
 ---
-description: Read-only audit of any KMM migration PR — whether it was made with this skill or not. Reviews every changed line against the constitution, clean-code reference, and KMM-specific principles. Returns a table of issues. On user approval, posts selected issues as inline GitHub comments. Distinct from /kmm-verify (which is a completeness check on migrations done with this skill).
+description: Read-only audit of any KMM migration PR — whether it was made with this skill or not. Reviews every changed line against the constitution and clean-code rules. Returns a table of issues. On user approval, posts selected issues as inline GitHub comments. Distinct from /kmm-verify (which is a completeness check on migrations done with this skill).
 argument-hint: "<pr-number-or-url> | <branch-name>"
 ---
 
 # /kmm-audit
 
-You are running this command as the orchestrator. Read `skills/kmm-migration-workflow/constitution.md`, `skills/kmm-migration-workflow/references/clean-code.md`, and `skills/kmm-migration-workflow/references/orchestration-protocol.md` first.
+You are running this command as the orchestrator. Read `skills/kmm-migration-workflow/constitution.md` and `references/orchestration-protocol.md` first.
 
-Audit mode is **read-only by default**. The skill's principles are encoded once — they apply equally to migrations done with this skill and migrations done by hand. Audit lets the user benefit from the principle library on **any** PR, even legacy ones.
+Audit mode is **read-only by default**. The skill's principles apply equally to migrations done with this skill and migrations done by hand.
 
-This is **not** the verify phase. Verify checks completeness of a migration done with the skill (plan-vs-reality across architecture/plan/migration-guide/tasks). Audit checks principle adherence of a migration done by anyone, with no skill artifacts to cross-reference.
+This is **not** the verify phase. Verify checks completeness of a skill-made migration; audit checks principle adherence of any migration with no skill artifacts to cross-reference.
 
 ## When to invoke
 
-The user runs `/kmm-audit <pr>` when they want a principles-driven review of a KMM migration PR. Examples:
 - A teammate's PR that migrates files into commonMain.
-- A PR opened months ago that the user wants a second-look on.
-- A PR opened **with** this skill that the user wants a fresh principle-pass on (audit and verify are not redundant — they look at different things).
+- A PR opened months ago wanted a second look.
+- A PR opened **with** this skill the user wants a fresh principle-pass on (audit and verify are not redundant — different lenses).
 
 ## Inputs
 
-- `<pr>` — a GitHub PR number, URL, or local branch name. Resolve in this order:
-  1. If it parses as a number → `gh pr view <number>`.
-  2. If it parses as a URL → `gh pr view <url>`.
-  3. Otherwise treat as a local branch → `git diff <base>...<branch>`.
+- `<pr>` — GitHub PR number, URL, or local branch name.
 - The constitution (always loaded).
-- `references/clean-code.md` (loaded by the auditor).
 
-## What you do
+## Steps
 
-### 1. Resolve the PR and gather context.
+### 1. Resolve the PR and gather context
 
 For a GitHub PR:
 - `gh pr view <pr> --json number,title,body,baseRefName,headRefName,files,headRepository`
-- `gh pr diff <pr>` — the unified diff.
-- `gh pr view <pr> --json commits` — commit list (for retrospective context).
+- `gh pr diff <pr>` → unified diff
+- `gh pr view <pr> --json commits` → commit list
 
 For a local branch:
-- `git diff <base>...<branch>` — the unified diff (where `<base>` is the merge-base; ask once if unclear).
-- `git log <base>..<branch>` — commits.
+- `git diff <base>...<branch>` (ask once if base is unclear)
+- `git log <base>..<branch>`
 
-Write the diff to `<repo>/.kmm-audit/<pr-or-branch>/diff.patch` so the auditor can read it without re-fetching. Create the directory if it doesn't exist.
+Write the diff to `<repo>/.kmm-audit/<pr-or-branch>/diff.patch` and metadata to `metadata.json` so the auditor can read without re-fetching.
 
-### 2. Check whether the PR was made with this skill.
+### 2. Check whether the PR was made with this skill
 
-If `<pr>`'s repo contains a `kmm/<scope>/` directory whose `spec.md` references the same baseline SHA the PR diff is built on, this is a skill-made migration. In that case, tell the user:
+If `<pr>`'s repo contains `kmm/<scope>/` whose `spec.md` references the same baseline SHA the PR diff is built on, this is a skill-made migration. Tell the user:
 
 > This PR was made with `kmm-migration-workflow`. Audit will still run (different lens than verify), but you may want `/kmm-verify` for completeness. Continue with audit? [y / cancel]
 
-The user picks. Default is to continue — audit and verify look at different things, and running both is fine.
+Default is to continue.
 
-If no skill artifacts are present, this is an external migration and audit is the only relevant lens.
+If no skill artifacts present, audit is the only relevant lens.
 
-### 3. Dispatch `pr-auditor`.
+### 3. Dispatch `pr-auditor`
 
 ```
 Dispatch: agents/pr-auditor.md
 Task: Audit the KMM migration PR for principle violations.
       Diff: <repo>/.kmm-audit/<pr-or-branch>/diff.patch
-      PR metadata: <repo>/.kmm-audit/<pr-or-branch>/metadata.json
+      Metadata: <repo>/.kmm-audit/<pr-or-branch>/metadata.json
 Model: sonnet
-Mode: read-only (no Write/Edit; gh read-only fine)
+Mode: read-only
 ```
 
-The auditor walks the diff line by line, applies every applicable principle from the constitution + `clean-code.md`, and returns a structured `AUDIT_REPORT` with one row per finding.
+The auditor walks the diff and applies the constitution + clean-code rules from §7. Returns `AUDIT_REPORT` with one row per finding.
 
-Audit categories the auditor walks:
+### 4. Receive the report
 
-- **Constitution violations**: anything explicitly forbidden by the constitution shows up here. Examples: TODO/FIXME/XXX/HACK in migrated code (§9); type casts (§9); platform-bound imports in commonMain (§11); legacy threading-model adapters in commonMain (§11); migration-tracking comments (§9); scaffolding-pattern holders/wrappers without behaviour (§10); refactor that expanded scope (§6).
-- **Clean-code violations**: every section of `references/clean-code.md` produces a category (mechanism-led names, generic-name parameters, multi-purpose functions, dead code, redundant comments, scaffolding without behaviour, etc.). Each finding cites the section.
-- **KMM-specific issues**: missing `expect/actual` for a clearly-platform-bound API; `androidx.*` imports in commonMain; `LiveData`/`RxJava` references in commonMain; `as Type` unsafe casts; `@Suppress` added in migrated code; concurrency primitives other than `kotlinx.coroutines` crossing the shared boundary.
-- **Public API drift**: the diff changes a public method's name, parameter names, parameter order, or return type — this is a backward-incompatible change unless explicitly authorised. Flag every instance.
-- **Behaviour drift**: a code change that looks like it might alter behaviour (a removed null check, a changed default, a swapped operator, an inverted branch). The auditor cannot prove behaviour drift without running tests; it flags suspicions for human review.
-- **Test coverage gaps**: files newly in commonMain without a corresponding `*Test.kt` in commonTest — flag as `NO_BASELINE_TESTS`.
+Markdown table with columns: # | File | Line | Severity | Principle | Observed | Should be.
 
-Each finding carries: file, line range (in the migrated form), severity (`HIGH` / `MEDIUM` / `LOW` / `NIT`), the principle reference, what the auditor observed, and what the auditor would have done instead (the "if I (the skill) did this, I would have done it like this" framing — concrete enough that the user could turn it into an inline comment verbatim).
+Severity:
+- **HIGH** — constitution violation, public API drift, behaviour drift. Blocks merge in the auditor's view.
+- **MEDIUM** — clean-code violation creating lasting tech debt.
+- **LOW** — minor observation.
+- **NIT** — style nitpick.
 
-### 4. Receive the report.
-
-The auditor returns a markdown table the user can read in chat:
-
-```
-| # | File | Line | Severity | Principle | Observed | Should be |
-|---|---|---|---|---|---|---|
-| 1 | shared/src/commonMain/.../AuthSession.kt | 12 | HIGH | Constitution §11 | `import androidx.lifecycle.LiveData` | Drop the import; use `Flow<AuthState>` instead. LiveData is platform-bound and cannot live in commonMain. |
-| 2 | shared/src/commonMain/.../AuthSdkHolder.kt | 1–18 | HIGH | clean-code §structure.no-scaffolding-without-behaviour | `class AuthSdkHolder(val sdk: AuthSdk) { fun get() = sdk }` adds no behaviour | Remove the holder; reference `AuthSdk` directly. The wrapper is short-term scaffolding (the failure mode this skill exists to prevent — see Constitution §10). |
-| 3 | shared/src/commonMain/.../UserManagerImpl.kt | 1 | MEDIUM | clean-code §naming.intent-over-mechanism | `class UserManagerImpl` — `*Manager*Impl` is mechanism-named | Rename to a domain term, e.g., `UserDirectory` (records and looks up users). |
-| ... | ... | ... | ... | ... | ... | ... |
-```
-
-Severity rubric:
-- **HIGH** — constitution violation OR public API drift OR behaviour drift. Blocks merge in the auditor's view; the user has the final call.
-- **MEDIUM** — clean-code violation that creates lasting tech debt (mechanism-led name, holder without behaviour, function does two things, dead code, etc.).
-- **LOW** — minor clean-code observation, easy to fix.
-- **NIT** — nitpick (style, blank-line placement); the user usually ignores these.
-
-### 5. Present the report and ask the user what to do.
-
-Print the table. Then ask:
+### 5. Present and ask the user what to do
 
 > Audit found `<N>` issues: HIGH=`<H>` MEDIUM=`<M>` LOW=`<L>` NIT=`<I>`.
 >
-> Options:
->   A) Post all HIGH issues as inline comments on the PR (recommended for HIGH issues — they affect mergeability)
->   B) Post selected issues — give me a comma-separated list of issue numbers from the table
->   C) Just print the report — don't post anything (default for read-only audit; user reviews and acts manually)
->   D) Discuss — drill into a specific finding
+> A) Post all HIGH as inline comments (recommended for HIGH — they affect mergeability)
+> B) Post selected issues — give comma-separated issue numbers from the table
+> C) Just print the report — don't post (default for read-only audit)
+> D) Discuss — drill into a specific finding
 >
 > Reply: A / B / C / D
 
-Default is C — pure audit mode. The user explicitly opts into A or B if they want comments posted. Posting is a public action; never default it.
+Default is C. Posting is a public action; never default it.
 
-### 6. On A or B — post inline comments.
+### 6. On A or B — post inline comments
 
-For each issue the user selected:
+For each selected issue:
 
-- Compose the comment body: a concise statement of the finding ("`<observed>`") + the principle citation + the "should be" recommendation. Format:
-
+- Compose comment body:
   ```
   **[`<principle>`]** <observed>
 
@@ -125,44 +96,41 @@ For each issue the user selected:
   _— audited via /kmm-audit (kmm-migration-workflow)_
   ```
 
-- Post the comment on the PR using `gh pr review <pr> --comment ...` for general comments OR `gh api repos/<owner>/<repo>/pulls/<pr>/comments -F path=<file> -F line=<line> -F body=<body>` for inline comments. Inline comments are preferred when the finding is at a specific line; general comments for cross-cutting findings (e.g., "no commonTest files added").
+- Use `gh api repos/<owner>/<repo>/pulls/<pr>/comments -F path=<file> -F line=<line> -F body=<body>` for inline comments. Use `gh pr review <pr> --comment ...` for general comments (cross-cutting findings).
 
-- Use `gh api` rather than the higher-level `gh pr review` for inline-line targeting; the API supports `path` and `line` directly.
+- Throttle: post one, capture response, post the next. Don't batch via shell loop (`gh` rate-limits).
 
-- Throttle: post one comment, capture the response, post the next. Don't batch via shell loop because gh rate-limits.
-
-After all comments are posted, print a summary:
+After posting, print summary:
 ```
 Posted <N> comments on PR <url>:
   - <file>:<line> — <one-line>
-  - ...
 ```
 
-### 7. On C — print and exit.
+### 7. On C — print and exit
 
-The audit report is preserved at `<repo>/.kmm-audit/<pr-or-branch>/audit-report.md` for the user to revisit. Print the path and exit.
+Audit report preserved at `<repo>/.kmm-audit/<pr-or-branch>/audit-report.md`. Print path and exit.
 
-### 8. Constitution check (audit-mode appropriate).
+### 8. Constitution check
 
-- Touched: §3 (no silent decisions — user opts into posting comments), §4 (live-sourced reasoning — every finding cites a constitution principle or a clean-code section, never recall), §12 (everything outside spec gets logged — the audit report is the audit's documentation).
-- Pass/fail:
-  - `[ ]` Diff was fully read by the auditor (line count matches `wc -l`)
-  - `[ ]` Every finding cites a principle or section reference
-  - `[ ]` No comments posted without user approval
-- On fail: STOP. Report which checks failed.
+Touched: §3 (no silent decisions), §4 (live-sourced reasoning — every finding cites a principle), §12 (audit report is the audit's documentation).
 
-## What you do NOT do
+Checklist:
+- `[ ]` Diff fully read by the auditor
+- `[ ]` Every finding cites a principle or section
+- `[ ]` No comments posted without user approval
 
-- Do not modify the audited PR's code. Audit is read-only.
-- Do not post comments without explicit user opt-in (option A or B). Default is print-only.
-- Do not invent findings. Every finding must trace to a constitution principle or a clean-code section.
-- Do not run `/kmm-verify` — verify is for skill-made migrations and requires the skill's artifacts. Audit is the lens for everything else.
-- Do not push branches or create PRs of your own. The audit is observation; remediation is the PR author's job.
+## What you MUST NOT do
+
+- Do not modify the audited PR's code.
+- Do not post comments without explicit user opt-in.
+- Do not invent findings.
+- Do not run `/kmm-verify` — verify is for skill-made migrations.
+- Do not push branches or create PRs.
 
 ## Failure modes
 
-- **`gh` is not authenticated** — surface the error, tell the user to run `gh auth login`. Do not retry.
-- **PR not found** — surface the error; offer to retry with a different identifier.
-- **Auditor returns malformed `AUDIT_REPORT`** — refire once with explicit instruction to emit the structured table format. If second attempt fails, escalate.
-- **The PR diff is enormous (>5000 lines)** — print a warning, ask the user whether to proceed or to scope the audit to a subset of files (option presented).
-- **The PR has merge conflicts with base** — the diff may be ambiguous. Surface the warning; the user picks whether to audit the head-only diff or the rebased state.
+- **`gh` not authenticated** — surface error; tell user `gh auth login`. Don't retry.
+- **PR not found** — surface; offer retry with different identifier.
+- **Auditor returns malformed `AUDIT_REPORT`** — escalate to user with output.
+- **Diff is enormous (>5000 lines)** — print warning, ask whether to proceed or scope to a subset of files.
+- **Merge conflicts with base** — diff may be ambiguous. Surface; user picks head-only or rebased state.

@@ -103,7 +103,7 @@ Created in Phase A before any baseline capture. These are the seams `commonTest`
 
 ## Constitution check
 
-[populated by plan-phase after plan-analyzer returns clean]
+[populated by plan-phase after self-review against the constitution check]
 
 - §1 Understand before acting: every entry cites file:line — [pass/fail]
 - §3 + §4 Live sources: every library version sourced live — [pass/fail]

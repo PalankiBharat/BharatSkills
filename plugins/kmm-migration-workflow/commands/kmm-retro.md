@@ -1,5 +1,5 @@
 ---
-description: Re-run the skill retrospective on a completed (or in-flight) migration. Useful after manually updating skill files mid-flight, or for a final pass before opening a follow-up issue.
+description: Run the skill retrospective on a migration. Opt-in (not auto-dispatched at end of pr-phase). Useful after manual edits, or for a final pass before opening a follow-up issue on the skill repo.
 argument-hint: "<scope-name?>"
 ---
 
@@ -7,36 +7,31 @@ argument-hint: "<scope-name?>"
 
 You are running this command as the orchestrator. Read `skills/kmm-migration-workflow/constitution.md` first.
 
-`/kmm-retro` is the standalone version of the retrospective that the pr-phase runs automatically on the final checkpoint. Use it when:
-
-- The user updated skill files manually after pr-phase and wants a fresh retrospective.
-- A migration was completed in `--step` mode (no auto-trigger fired).
-- The user wants to re-read the retrospective after time has passed.
-- The user wants a retro on a non-final checkpoint (the auto-trigger only fires on the final checkpoint).
+`/kmm-retro` runs the skill retrospective. **Opt-in** — pr-phase no longer auto-dispatches the retrospector at end of every migration (that was a cure-shaped capture pattern; the skill now improves only when the user asks).
 
 ## Inputs
 
-- `<scope-name>` — optional. If omitted and `<repo>/kmm/` has exactly one scope, use that scope. If multiple scopes, ask which (one question, options).
+- `<scope-name>` — optional. If omitted and `<repo>/kmm/` has exactly one scope, use that. If multiple, ask which.
 
-## What you do
+## Steps
 
-1. Confirm the scope's artifacts exist: `<repo>/kmm/<scope>/spec.md` and `migration-report.md` are required.
+1. Confirm artifacts exist: `<repo>/kmm/<scope>/spec.md` and `migration-report.md` are required.
 2. Dispatch `skill-retrospector` (read-only, sonnet) with the artifact paths.
-3. Write the result to `<repo>/kmm/<scope>/skill-retro.md` (overwriting any prior file).
+3. Write the result to `<repo>/kmm/<scope>/skill-retro.md` (overwriting any prior).
 4. Print the markdown block to chat for copy-paste.
 5. Tell the user: "Retrospective written. Copy into an issue on the skill repo or apply directly to skill files."
 
 ## Constitution check
 
-- Touched: §12 (documents are the contract — retrospective is itself a document recording skill-level deviations).
-- Pass/fail:
-  - `[ ]` Artifacts present
-  - `[ ]` Subagent returned `RETRO_COMPLETE` with valid self-check
-  - `[ ]` `skill-retro.md` written
-- On fail: STOP, report which check failed.
+Touched: §12 (retrospective is itself a document recording skill-level signals).
 
-## What you do NOT do
+Checklist:
+- `[ ]` Artifacts present
+- `[ ]` Subagent returned `RETRO_COMPLETE`
+- `[ ]` `skill-retro.md` written
 
-- Do not modify skill files. The retrospective is advisory; the user decides what to do with it.
-- Do not auto-create GitHub issues. The user does that manually if they want.
-- Do not enrich findings beyond what the retrospector subagent emits — its output is the canonical artifact.
+## What you MUST NOT do
+
+- Do not modify skill files. Retrospective is advisory.
+- Do not auto-create GitHub issues.
+- Do not enrich findings beyond what the retrospector emits.

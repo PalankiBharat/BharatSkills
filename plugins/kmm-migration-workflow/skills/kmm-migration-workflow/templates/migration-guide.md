@@ -5,7 +5,7 @@
 
 This file is the contract subagents read during execution. After `/clear`, this is the source of truth for per-file specs — not the conversation.
 
-Every claim in every entry cites `file:line`. "TBD", "if needed", "as appropriate" are rejected by the plan-analyzer.
+Every claim in every entry cites `file:line`. "TBD", "if needed", "as appropriate" are rejected at plan-phase self-review.
 
 ---
 
@@ -36,26 +36,16 @@ Every claim in every entry cites `file:line`. "TBD", "if needed", "as appropriat
   ### R-1: [title from architecture.md]
 
   - **Architecture trace:** `architecture.md §R-1` (mandatory citation)
-  - **Clean-code violation:** `§<reference from references/clean-code.md>`
+  - **Clean-code violation:** `§<reference from constitution §7>`
   - **Source citation:** `[file:line range]`
-  - **Target shape:** [verbatim from architecture.md]
-
-    ```kotlin
-    // Before (master)
-    [code]
-
-    // After
-    [code]
-    ```
-  - **Boundary:** [the file or contiguous block; MUST be inside this file]
+  - **Target shape:** [verbatim from architecture.md, code block for before/after]
+  - **Boundary:** [file or contiguous block; MUST be inside this file]
   - **Behaviour-preservation invariant:** [verbatim from architecture.md]
   - **Test that pins this invariant:** `test_[name]` (must appear in `Expected tests` below)
   - **Risk:** `LOW` | `MEDIUM` | `HIGH`
 
-  ### R-2: ...
-
-  [if `Path: surgical`: write "none — file is already clean; no refactor authorised."]
-  [if `Path: out-of-reach`: write "none — tech debt deferred to a future migration. See `findings.md` § Tech debt."]
+  [if `Path: surgical`: "none — file is already clean."]
+  [if `Path: out-of-reach`: "none — tech debt deferred. See `findings.md` § Tech debt."]
 - **Migrate after:** `[FileX].kt, [FileY].kt` | `none`
 - **Consumers** (files outside scope whose imports must update):
   - `[ConsumerA].kt` (currently imports `[old path]`; after migration imports `[new path]`)
