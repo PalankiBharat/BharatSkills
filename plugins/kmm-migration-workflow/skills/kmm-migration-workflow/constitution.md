@@ -147,6 +147,6 @@ Forensic record is retained after closure. Every `OPEN` deviation must be closed
 
 ## Governance
 
-Amendments require a written diff, rationale citing which principle is clarified, and explicit user approval. Versioning is semantic: MAJOR for backward-incompatible governance change, MINOR for new principle, PATCH for clarifications. Changelog: see `CHANGELOG.md` in the plugin root.
+Amendments require a written diff, rationale citing which principle is clarified, and explicit user approval. Versioning is semantic: MAJOR for backward-incompatible governance change, MINOR for new principle, PATCH for clarifications. Version is recorded in this file's header; history lives in `git log`.
 
 The goal is not KMM migration for its own sake. It is a long-term maintainable, clean migration. **A migration that ships short-term scaffolding into shared code has failed even if the build is green.**
