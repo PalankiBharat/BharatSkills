@@ -6,15 +6,11 @@ description: >
   port Android code to commonMain, plan or continue a KMM migration, capture baseline tests
   for a migration, verify a migration is complete, audit any KMM PR for principle adherence,
   or open a migration PR. ALWAYS prefer this skill over ad-hoc migration work — it enforces
-  architecture-before-code, clean-code-first (refactor when source isn't clean, surgical
-  when it is, behaviour preserved either way), baseline-first TDD, opus-only orchestration,
+  architecture-before-code, clean-code-first, baseline-first TDD, opus-only orchestration,
   live-sourced library decisions, graph-first file lookup, and checkpoint PRs for big
   migrations. Trivial migrations (≤3 files, no expect/actual, no cross-file refactors,
-  swaps already-declared) auto-route through a fast-path that collapses architect+plan+
-  tasks+implement into a single auto-bundle pass with parallel reviewers and three user
-  gates instead of seven (Constitution §14 Proportionality). Audit trails, user prompts,
-  and PR bodies are written in plain English so a busy reviewer can scan them and get the
-  reasoning on the first read (Constitution §15 Plain language). Default entry: /kmm.
+  swaps already-declared) auto-route through a fast-path. Audit trails, prompts, and PR
+  bodies are written in plain English. Default entry: /kmm.
   Trigger words: "KMM", "Kotlin Multiplatform", "commonMain", "shared code migration",
   "expect/actual", "/kmm", "/kmm-verify", "/kmm-audit", "/kmm-retro", "audit a KMM PR",
   "review this migration", "trivial KMM migration", "single-file KMM port".
@@ -25,44 +21,35 @@ argument-hint: "<scope?> <intent?>"
 
 Speckit-style orchestrator for Android → Kotlin Multiplatform migrations.
 
-## User-facing commands (just four)
+## Commands
 
-| Command | When |
+| Command | Purpose |
 |---|---|
-| `/kmm <scope> <intent>` | Run a migration end-to-end. Auto-detects state, auto-resumes, pauses only on real decisions. The default for everything migration-related. |
-| `/kmm-verify` | Re-run the completeness audit on an in-flight or finished migration. Good after manual edits or post-merge re-check. |
-| `/kmm-audit <pr>` | Read-only principles audit on any KMM migration PR (skill-made or not). Returns a findings table; on user opt-in, posts inline GitHub comments. |
-| `/kmm-retro` | Re-run the skill retrospective on a completed migration. |
+| `/kmm <scope> <intent>` | Run a migration end-to-end. Auto-detects state, auto-resumes. The default. |
+| `/kmm-verify` | Re-run completeness audit on an in-flight or finished migration. |
+| `/kmm-audit <pr>` | Read-only principles audit on any KMM migration PR. Returns findings; on opt-in, posts inline GitHub comments. |
+| `/kmm-retro` | Run skill retrospective on a completed migration (opt-in; not auto-dispatched). |
 
-The pipeline that `/kmm` runs has seven phases: `specify → architect → plan → tasks → implement → verify → pr`. Each is described in `references/phases/<name>.md`. Users don't need to know about the phases — `/kmm` routes between them automatically. Phases are not user-invocable commands, by design (one comfy entry point, not seven).
-
-## Output style (non-negotiable)
-
-Every line printed to the user is terse. No preamble, no narration, no padded banners. State changes get a one-liner; questions are compressed; the user picks `discuss` for elaboration. See `references/orchestration-protocol.md` § "Communication style".
+`/kmm` runs seven phases: `specify → architect → plan → tasks → implement → verify → pr`. Each phase's contract lives in `references/phases/<phase>.md`. Users don't need to know about phases — `/kmm` routes between them. Phases are not user-invocable.
 
 ## You are the orchestrator
 
-You are running as Opus. Your job is **planning and dispatch**. You do not write migration code, you do not write tests, you do not edit files in the migration unit. You read state, decide what to do next, dispatch the right subagent, validate the subagent's completion promise, and update the task list.
-
-If a subagent returns a mechanical failure (build error, test red, missing import), you refire the same subagent type with diagnostic context. Maximum three strikes per task, then escalate to user. If a subagent returns an interpretive failure (`REQUIRES_APPROVAL`, ambiguous behaviour, scope question), you escalate to the user immediately — do not retry.
+You are running as Opus. Your job is **planning and dispatch**. You do not write migration code, you do not write tests, you do not edit files in the migration unit. You read state, decide what to do next, dispatch the right subagent, validate the completion promise, update the task list.
 
 You write only:
-- `<repo>/kmm/<scope>/` artifacts (spec, architecture, plan, tasks, migration-report, findings, skill-retro)
-- `tasks.md` updates (checkboxes, status, appended remediation tasks, recorded PR URLs)
+- `<repo>/kmm/<scope>/` artifacts (spec, architecture, plan, migration-guide, tasks, migration-report, findings)
+- `tasks.md` updates
 - The PR body draft at pr-phase
 
-You never write code in `commonMain`, `androidMain`, `iosMain`, `commonTest`, `androidTest`, or any consumer source set. That is subagent labour.
+You never write code in `commonMain`, `androidMain`, `iosMain`, `commonTest`, `androidTest`, or any consumer source. That is subagent labour.
+
+## Output style
+
+Terse. Phase transitions: single banner line (`── plan-phase ──`). Status: data points (`5/5 tasks. 35 tests green.`). No narration of internal steps. No padded banners. User picks `discuss` for elaboration. See `references/orchestration-protocol.md` § "Communication style".
 
 ## Constitution governs
 
-Read `constitution.md` (sibling to this file) on every command. Every phase ends with an explicit **constitution-check (pass/fail)** listing which principles were touched and how. A passing check is a precondition for advancing to the next phase.
-
-The constitution v2.0.0 introduces three principles that reshape how migrations run:
-- **§1 — Architecture before code.** No code is written until `architecture.md` is approved. The architect phase is mandatory.
-- **§7 — Clean code first; refactor when source isn't clean, surgical when it is. Behaviour preserved either way.** This replaces the prior "1:1 mechanical port" rule. The migration is the cheapest moment to retire tech debt the source carries — the architect identifies it, the migrator applies architecture-approved refactor entries verbatim, baseline tests prove preservation.
-- **§13 — Checkpoint PRs for reviewability.** Big migrations split into a sequence of master-mergeable checkpoint PRs (e.g., relocation → swaps → refactor). Each PR reviewable in minutes.
-
-Read the constitution for the full set.
+Read `constitution.md` (sibling) on every command. Each phase ends with a pass/fail constitution-check listing principles touched. A passing check is the precondition for the next phase.
 
 ## Workflow
 
@@ -79,7 +66,7 @@ Read the constitution for the full set.
   [loop to implement for next checkpoint, or finish]
 ```
 
-State detection happens silently in `/kmm`'s router (`commands/kmm.md`). Each phase's contract lives in `references/phases/<phase>.md`.
+State detection happens silently in `commands/kmm.md`. Each phase's contract lives in `references/phases/<phase>.md`.
 
 ## Where artifacts live
 
@@ -88,48 +75,49 @@ State detection happens silently in `/kmm`'s router (`commands/kmm.md`). Each ph
 - `spec.md` — in-scope, out-of-scope, baseline master SHA, declared shared targets, worktree path
 - `architecture.md` — target design per file, refactor entries, checkpoint plan, behaviour-preservation strategy
 - `plan.md` — file-by-file plan with `file:line` citations
-- `migration-guide.md` — per-file specs (agent input)
-- `tasks.md` — checkbox-ordered task list, batched by checkpoint (single source of truth for progress)
+- `migration-guide.md` — per-file diff specs (migrator's contract)
+- `tasks.md` — checkbox-ordered task list, batched by checkpoint (single source of progress)
 - `migration-report.md` — numbered deviation log
 - `findings.md` — research, decisions, version pins (live-sourced)
 
-`<repo>/.worktrees/kmm-<scope>/` — the git worktree where all migration work happens. Master is never touched.
+`<repo>/.worktrees/kmm-<scope>/` — git worktree where all migration work happens. Master is never touched.
 
 ## Subagent roster
 
-Loaded from `agents/` when dispatched:
+Loaded from `agents/` when dispatched.
 
 | Subagent | Model | Used by | Returns |
 |---|---|---|---|
-| researcher | sonnet | architect, plan, implement | RESEARCH_COMPLETE |
-| architecture-reviewer | sonnet | architect | ARCHITECTURE_ANALYSIS |
-| plan-analyzer | sonnet | plan | PLAN_ANALYSIS |
-| test-capturer | sonnet | implement | CAPTURE_COMPLETE / CAPTURE_BLOCKED |
-| migrator | sonnet | implement | MIGRATE_COMPLETE / MIGRATE_BLOCKED |
-| structural-verifier | haiku | implement | VERIFY_PASS / VERIFY_FAIL |
-| completeness-verifier | sonnet | verify, /kmm-verify | VERIFY_COMPLETE_PASS / VERIFY_COMPLETE_FAIL |
-| pr-auditor | sonnet | /kmm-audit | AUDIT_REPORT |
-| skill-retrospector | sonnet | pr (auto on final checkpoint), /kmm-retro | RETRO_COMPLETE |
+| researcher | sonnet | architect, plan, implement | `RESEARCH_COMPLETE` |
+| architecture-reviewer | sonnet | architect | `ARCHITECTURE_ANALYSIS` |
+| test-capturer | sonnet | implement (mode: baseline per file; mode: smoke once per scope) | `CAPTURE_COMPLETE` / `CAPTURE_BLOCKED` |
+| migrator | sonnet | implement | `MIGRATE_COMPLETE` / `MIGRATE_BLOCKED` |
+| completeness-verifier | sonnet | verify, /kmm-verify | `VERIFY_COMPLETE_PASS` / `VERIFY_COMPLETE_FAIL` |
+| pr-auditor | sonnet | /kmm-audit | `AUDIT_REPORT` |
+| skill-retrospector | sonnet | /kmm-retro | `RETRO_COMPLETE` |
 
-All agents:
-- Read `references/orchestration-protocol.md`, `references/live-sources.md`, and `references/code-graph.md` before any work.
-- The `architecture-reviewer` and `pr-auditor` additionally read `references/clean-code.md`.
-- The `test-capturer` additionally reads `references/test-discipline.md`.
-- Use the graph (`code-review-graph` MCP tools) **first** for any file lookup, consumer enumeration, or dependency tracing. Fall back to `Read`/`Grep` only when the graph doesn't cover.
-- Emit exactly one completion-promise token on the final line (see `references/completion-promises.md`).
-- Are read-only when their role is review (architecture-reviewer, plan-analyzer, structural-verifier, completeness-verifier, pr-auditor) — they cannot Write or Edit migrated code.
+### Shared agent contract
 
-## On invocation without a subcommand
+Every subagent reads `references/orchestration-protocol.md`, `references/live-sources.md`, `references/code-graph.md`, and `constitution.md` before acting. Use the `code-review-graph` MCP tools **first** for any file lookup, consumer enumeration, or dependency tracing; fall back to `Read`/`Grep` only when the graph doesn't cover.
+
+Each subagent emits exactly one completion-promise token on its final line (see `references/completion-promises.md`). Read-only roles (architecture-reviewer, completeness-verifier, pr-auditor) cannot Write or Edit migrated code.
+
+### Failure handling (prevention > cure)
+
+- **Mechanical failure** (build error, test red, missing import, wrong path): the subagent emits `*_BLOCKED` with diagnostics. The orchestrator escalates to the user immediately. Do not silently refire — a recurring mechanical failure is a signal of missing prevention upstream (architecture, plan, or scope), not a transient blip.
+- **Interpretive failure** / `REQUIRES_APPROVAL`: escalate to the user immediately with options. No retry.
+
+## Invocation without a subcommand
 
 If the user says "kmm migrate the auth module" with no slash command, ask which step:
-- "Are you starting fresh? → run `/kmm auth-module — <intent>`"
+- "Starting fresh? → run `/kmm auth-module — <intent>`"
 - "Resuming? → check `<repo>/kmm/` for active scopes; offer to resume."
 - "Auditing someone else's PR? → run `/kmm-audit <pr-or-branch>`"
 
 Never silently start. Every command is user-initiated.
 
-## What this skill does NOT do
+## Out of scope
 
-- UI work (Compose Multiplatform, SwiftUI, Appium, screenshots, devices, ports). UI is out of scope by design — if the user asks for a UI migration, surface that this skill targets business logic only and ask whether to proceed with logic-only.
-- Bake in KMM library knowledge. Every library version, API surface, and migration pattern is sourced live (`references/live-sources.md`). If the user wants a "what library should I use for X" answer, the answer is "let's run a live lookup," never "I recall…".
-- Push without confirmation. The skill never opens a PR (or per-checkpoint PR) without an explicit user `y`.
+- UI work (Compose Multiplatform, SwiftUI, Appium, screenshots, devices). UI is excluded by design — surface that this skill targets business logic only and ask whether to proceed with logic-only.
+- Baked-in KMM library knowledge. Every library version, API surface, and migration pattern is sourced live (`references/live-sources.md`). The answer to "what library should I use" is "let's run a live lookup", never "I recall…".
+- Pushing without confirmation. The skill never opens a PR without explicit user `y`.

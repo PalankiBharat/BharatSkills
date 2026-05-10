@@ -1,230 +1,184 @@
 # Phase: specify
 
-Read by the `/kmm` orchestrator when state-detection routes to the **specify** phase. Not a user-invocable command — the user enters at `/kmm <scope> <intent>` and the router reads this file.
+Read by `/kmm` when state-detection routes to specify. Not user-invocable.
 
-Read `skills/kmm-migration-workflow/constitution.md` first.
+Read `constitution.md` first.
 
 ## Inputs
 
-- `<scope-name>` — short slug (e.g., `auth-module`, `payments-data-layer`)
+- `<scope-name>` — short slug (e.g., `auth-module`)
 - Conversation context — the user's stated migration goal
 
-## What you do
-
-User-facing questions follow `references/orchestration-protocol.md` § "User question style": one question per turn, options + recommended + why, biased toward long-term canonical KMM. Do NOT bundle. Do NOT ask questions whose answers can be inferred from invocation context or from the codebase — comfort matters; every avoidable prompt is friction.
+## Steps
 
 ### 1. Parse the invocation for inferable answers (silent)
 
-Before asking anything, extract from the user's `/kmm <scope> <intent>` invocation (and the surrounding conversation):
-
-- **Concrete file paths** — listed in the intent? If yes, they're the in-scope list.
-- **Negative scope hints** — "UI is out of scope", "consumers stay native", etc.
-- **Feature / entry-point name** — anything that lets you trace files from a known entry.
+Extract from `/kmm <scope> <intent>` and surrounding conversation:
+- **Concrete file paths** — listed in the intent? They're the in-scope list.
+- **Negative scope hints** — "UI is out of scope", etc.
+- **Feature / entry-point name** — anything that lets you trace files.
 - **Base branch** — explicitly mentioned? Otherwise auto-detected in step 4.
 
-If the invocation already gives a concrete file list (3+ paths or a clearly-bounded directory), the goal-clarity gate is **satisfied**. Skip step 2.
+If the invocation gives a concrete file list (3+ paths or a clearly-bounded directory), the goal-clarity gate is satisfied. Skip step 2.
 
-### 2. Goal-clarity gate (CONDITIONAL — only if intent is fuzzy)
+### 2. Goal-clarity gate (only if intent is fuzzy)
 
-Fire only if step 1 did not produce a concrete file list. The gate is NOT mandatory; it exists for vague invocations like `/kmm auth-module` with no further detail.
+Fire only if step 1 didn't produce a concrete file list. Ask one question at a time per `references/orchestration-protocol.md` § "User question style" — user-facing feature, then entry point — until you can enumerate files.
 
-If fired, ask one question at a time per the orchestration protocol — first the user-facing feature, then the entry point — until you can enumerate files by grepping from a known starting point.
+### 2.5. AndroidMain dep-direction check (silent — info only)
 
-If fired and the user immediately provides files in their reply, treat the gate as satisfied and proceed.
-
-### 2.5. AndroidMain dep-direction check (silent — surfaced only when relevant)
-
-For each in-scope file (or candidate file when scope is still being narrowed), grep the file's external imports. For every imported FQN that resolves to a project module (`com.<org>.<app>.<...>`), determine which gradle module owns it:
+For each in-scope file, grep external imports. For every FQN that resolves to a project module, find the owning module:
 
 ```
 grep -E "^import com\.<org>\." <in-scope-file>
-# For each matching FQN, find the module:
-grep -rln "^package com\.<org>\.<the-package>$" <repo>/<module>/src/main/java/  <repo>/<module>/src/main/kotlin/
+grep -rln "^package com\.<org>\.<the-package>$" <repo>/<module>/src/main/...
 ```
 
-If any import resolves to a module that **depends on `:shared`** (e.g., `:app` in a typical setup), surface as a non-blocking finding to record in `findings.md § Gotchas`:
+If any import resolves to a module that **depends on `:shared`** (e.g., `:app`), surface as a non-blocking finding for `findings.md § Gotchas`:
 
 > **AndroidMain staging will be infeasible for this migration.**
 >
-> `<file>:<line>` imports `<symbol>` from module `<module>` (which declares `implementation(project(":shared"))`). When the file is moved to `shared/src/androidMain/...` for staging, that import cannot resolve — gradle's module dependency direction is `:<module> → :shared`, not the reverse.
+> `<file>:<line>` imports `<symbol>` from module `<module>` (which declares `implementation(project(":shared"))`). When the file is moved to `androidMain` for staging, that import cannot resolve.
 >
-> Recommendation: route this scope through the **fast-path's atomic-migrate** flow (Constitution §14). T-1, T-LOCK, and M-1 collapse into a single operation that goes directly `app → commonMain` with the swap and refactor applied. The `getIndianCalender`-style helper stays in its current module; the migrated file calls the multiplatform replacement instead.
+> The fast-path's atomic-migrate flow handles this — T-1, T-LOCK, M-1 collapse into a single operation directly app→commonMain.
 
-Record the finding in `findings.md` under "Gotchas" with the file:line reference. Do NOT prompt the user — this is informational; the actual routing decision happens at end of specify-phase via the trivial-heuristic evaluation.
-
-This check exists because the prior incident (sniper-v2-android GreetingUseCase, D-5) discovered this mid-flight after a failing `:shared:compileDebugKotlinAndroid`, costing ~10 minutes of redesign + a deviation-log entry. Catching it at specify-phase makes the redesign disappear.
+Don't prompt. The actual routing happens at end of specify via the trivial-heuristic.
 
 ### 2.6. Consumer-utility sniff (silent — surfaced only when migration may be a no-op)
 
-After the in-scope file list is settled (whether from step 1 or step 2's clarity gate) and before step 3's confirmation, do a fast read of the in-scope files' public outputs and grep their consumers to confirm the migration's behaviour change will actually be observable somewhere.
+After the in-scope file list is settled, do a fast read of public outputs and grep their consumers to confirm the migration's behaviour change will be observable.
 
-**Procedure:**
-
-1. For each in-scope file, list its public API (classes, properties, exposed enum values, public functions).
-2. For each non-trivial public output (e.g., a property derived from runtime input, a function whose return value drives UI/business decisions), grep usage across consumer files — both direct reads and indirect reads via a ViewModel state.
-3. If a public output is **computed but never read** by any consumer, surface as a non-blocking finding:
+1. List public API per file.
+2. For each non-trivial public output, grep usage across consumers (direct reads + indirect reads via ViewModel state).
+3. If a public output is computed but never read, surface as a non-blocking finding:
 
    > **Migration may be functionally invisible.**
    >
-   > `<file>` exposes `<output>` (e.g., a `greetings` property on a ViewModel), but no caller reads it. Searched: `<grep pattern used>` across `<directories>`. The migration's behaviour-fix (e.g., correctly returning the right value for the runtime input) will be invisible at the UI/business layer until a separate fix wires the value through.
+   > `<file>` exposes `<output>`, but no caller reads it. Searched: `<grep pattern>` across `<directories>`. The migration's behaviour-fix will be invisible at the UI/business layer until a separate fix wires the value through.
    >
-   > Continue migrating anyway, fix the wiring first as a separate task, or descope?
+   > Continue migrating, fix wiring first as a separate task, or descope?
 
-4. Present as a single user question (one prompt with three options + recommendation). Recommendation depends on the value of the fix:
-   - If the migration is to commonMain only (cross-platform sharing) and the fix is structural, the recommendation is **continue** — the wiring fix is a separate scope.
-   - If the migration's whole point is to fix the visible behaviour and the fix is invisible without wiring, the recommendation is **fix the wiring first**, then re-run the migration.
+4. One user question with three options + recommendation. Recommend `continue` if migration purpose is structural-only; recommend `fix wiring first` if the migration's whole point is the visible behaviour.
+5. Record choice in `findings.md § Gotchas`.
 
-5. Record the user's choice in `findings.md § Gotchas` for the migration-report's audit trail.
+Skip when the migration's purpose is explicitly structural-only.
 
-This step exists because the GreetingUseCase migration (sniper-v2-android #369) discovered post-migration that `IntroViewModel.greetings` was computed but no caller wired it into the UI — every consumer used the hardcoded `GreetingUseCase.Greetings.GoodMorning.display` default. The migration was constitutionally clean but the user-visible behaviour change was zero. Catching this at specify-phase gives the user the information up front.
+### 3. Confirm in-scope files (only if step 1 inferred them by tracing)
 
-**Skip this step** when the migration's purpose is structural-only (e.g., "move file to commonMain so iOS can consume; UI behaviour is out of scope") and the user has explicitly stated so in the goal. The sniff exists to prevent surprise; it should not block migrations the user intentionally wants to make for non-UI reasons.
+If step 1 produced the file list directly from the invocation, do not re-ask.
 
-### 3. Confirm in-scope files (CONDITIONAL — only if step 1 inferred them)
-
-If step 1 produced the file list directly from the invocation, **do not re-ask**. Trust the user's explicit input. Move on.
-
-If step 1 had to enumerate by tracing (because the user gave only an entry point, not files), present the enumerated list once for confirmation:
+If step 1 enumerated by tracing, present once for confirmation:
 
 > Traced from `<entry-point>` → `<N>` files. Confirm or amend:
 > ```
 > 1. <path>
 > 2. <path>
-> ...
 > ```
 > [ok / amend / discuss]
 
-### 4. Out-of-scope, targets, base branch — autodetect with sensible defaults (silent in the common case)
-
-These three questions go silent unless detection is genuinely ambiguous.
+### 4. Out-of-scope, targets, base branch — autodetect (silent in common case)
 
 **Out-of-scope:**
-- Use any negative hints from the invocation ("UI is out of scope") directly.
-- If the user explicitly listed in-scope files, default explicitly out-of-scope to: consumer apps (only imports may update), UI files in the same package as in-scope files, and same-package files not in the in-scope list. Record this in `spec.md` automatically.
-- Do **not** ask. The user already declared scope by listing files.
+- Use any negative hints from invocation directly.
+- Default explicitly out-of-scope: consumer apps, UI files in same package, same-package files not in in-scope list. Record in `spec.md` automatically. Don't ask.
 
 **Shared targets:**
-- Auto-detect from `shared/build.gradle.kts`. The recommendation is "all detected targets" per Constitution §10.
-- Ask only if the build file is unusual (e.g., declares targets without source sets, or has `expect/actual`-only platforms). Otherwise record the full set silently.
+- Auto-detect from `shared/build.gradle.kts`. Recommendation: all detected targets per Constitution §10.
+- Ask only if build file is unusual.
 
 **Base branch:**
 - If exactly one of `main` / `master` exists on `origin`, use it. Silent.
-- If both exist and HEAD is currently on one of them, use that. Silent.
-- If both exist and HEAD is elsewhere, ask one question with two options.
-- Otherwise (no `main`/`master`) ask with detected candidates.
+- If both and HEAD is on one, use that. Silent.
+- Otherwise ask.
 
-**Gradle task names — live-source the canonical task names (silent unless ambiguous):**
-
-The project's `CLAUDE.md` may declare anchors like `Tests: ./gradlew :app:testDebugUnitTest`. These can be ambiguous in projects with build flavors (e.g., `:app:testDebugUnitTest` matches `testProductionDebugUnitTest`, `testStagingDebugUnitTest`, `testAppiumTestDebugUnitTest`). Discover the canonical names live:
+**Gradle task names — live-source the canonical names:**
 
 ```
 ./gradlew :<consumer>:tasks --all 2>/dev/null | grep -E "^(test|compile|install)[A-Z]" | sort -u
 ./gradlew :shared:tasks --all 2>/dev/null | grep -E "^(test|compile)[A-Z]" | sort -u
 ```
 
-Pick the **production-flavor debug variant** as canonical (it's typically what CI uses):
-- Tests: prefer `testProductionDebugUnitTest` over `testStagingDebugUnitTest` / `testAppiumTestDebugUnitTest`. If only `testDebugUnitTest` exists (no flavors), use it.
-- Production-source compile: `compileProductionDebugKotlin` or `compileDebugKotlin` similarly.
+Pick the production-flavor debug variant as canonical:
+- Tests: `testProductionDebugUnitTest` over alternatives. If only `testDebugUnitTest` (no flavors), use it.
+- Production-source compile: `compileProductionDebugKotlin` or `compileDebugKotlin`.
 - Test-source compile: `compileProductionDebugUnitTestKotlin` or `compileDebugUnitTestKotlin`.
-- Shared per-target compile: `compileDebugKotlinAndroid`, `compileKotlinIosArm64`, `compileKotlinIosSimulatorArm64`, etc. — derived from the declared shared targets.
+- Shared per-target compile: derived from declared shared targets.
 
-If `CLAUDE.md`'s anchored name does NOT exist as a discovered task, surface a warning to the user (one-line, non-blocking):
-> ⚠ `CLAUDE.md` lists `<anchored-name>` as the test command, but it's ambiguous in this project (flavors detected). Using `<canonical-name>` instead. Suggest updating `CLAUDE.md` after this migration.
+If `CLAUDE.md`'s anchored test name doesn't exist as a discovered task, surface a non-blocking warning:
+> ⚠ `CLAUDE.md` lists `<anchored-name>`, but it's ambiguous (flavors detected). Using `<canonical-name>` instead.
 
-Record the resolved task names in `findings.md § Verification command provenance` so plan-phase doesn't re-discover them and `/kmm-verify` runs against the same names.
+Record resolved names in `findings.md § Verification command provenance`.
 
-For each silent autodetection, print a one-line summary so the user can see what was picked: `Targets: commonMain, androidMain, iosArm64, iosX64. Base branch: main. Test command: ./gradlew :app:testProductionDebugUnitTest.`
+Print one-line summary per silent autodetection: `Targets: commonMain, androidMain, iosArm64, iosX64. Base branch: main. Test command: ./gradlew :app:testProductionDebugUnitTest.`
 
 ### 5. Create the worktree
 
 - Path: `<repo>/.worktrees/kmm-<scope-name>/`
-- Branch: `feature/kmm-<scope-name>` from the base branch picked in step 5
-- Run: `git worktree add .worktrees/kmm-<scope-name> <base-branch> -b feature/kmm-<scope-name>`
-- Copy `local.properties` if it exists at repo root.
-- Record the worktree path in `spec.md`.
-- All subsequent commands operate against the worktree, not the main repo working tree.
+- Branch: `feature/kmm-<scope-name>` from base branch
+- `git worktree add .worktrees/kmm-<scope-name> <base-branch> -b feature/kmm-<scope-name>`
+- Copy `local.properties` if present at repo root.
+- Record worktree path in `spec.md`.
+
+All subsequent commands operate against the worktree.
 
 ### 6. Record baseline master SHA
 
-Capture `git rev-parse <base-branch>` — record in `spec.md`. This is the SHA the baseline is anchored to per Constitution §7.
+`git rev-parse <base-branch>` → `spec.md`. The SHA the baseline is anchored to per Constitution §8.
 
-### 7. Master-baseline health sweep (scope-aware)
+### 7. Master-baseline health sweep (compile-only mandatory; runtime opt-in)
 
-Pre-existing master-state breakage outside the scope, if not surfaced now, will surface later at T-LOCK or `/kmm-verify` and force mid-flight policy application — much more disruptive than handling it up front. The sweep's depth is calibrated to the migration's scope per Constitution §14 (Proportionality).
-
-**Sweep matrix:**
-
-| Scope size | Per-target compile | Test source-set compile | Full unit test runtime suite |
+| Component | Always | Trivial scope (≤3 files) | Larger scope |
 |---|---|---|---|
-| ≤3 in-scope files (trivial heuristic candidate) | mandatory | mandatory | **opt-in** (default skipped) |
-| >3 in-scope files OR any HIGH-risk refactor surfaced upstream | mandatory | mandatory | mandatory |
+| Per-target compile | mandatory | mandatory | mandatory |
+| Test source-set compile | mandatory | mandatory | mandatory |
+| Full unit test runtime | opt-in | default skipped | opt-in (recommended for >10 files) |
 
-**Why opt-in for trivial scopes:** `/kmm-verify` runs scope-focused tests via `--tests <fqn>`, never the full suite. Pre-existing runtime failures unrelated to the in-scope file therefore cannot block verify on a trivial migration. The full-suite runtime sweep at specify-phase exists to surface failures that *would* block multi-file migrations whose verify-phase touches a wider blast radius. For a 1-file extract+swap migration the full suite is paid time without proportional value (sniper-v2-android GreetingUseCase, D-2: ~5 min wall-clock killed mid-flight as scope-disproportionate).
+**Why runtime is opt-in:** `/kmm-verify` runs scope-focused tests via `--tests <fqn>`. Pre-existing runtime failures unrelated to in-scope files cannot block verify. Running the full suite at specify-phase is paid time without proportional value for trivial scopes.
 
-**Test-source-set compile is always mandatory.** If `:<consumer>:compileXxxUnitTestKotlin` fails on master, T-LOCK will fail regardless of scope size; the broken-file inventory is needed at specify time.
+**Failure handling:**
+- **Runtime failures** (test compiled, asserted false): `@Ignore` on failing methods; cross-reference deviation.
+- **Compile-only failures**: rename to `<original>.broken` per project convention. Verify the project already uses `*.broken` by grepping before applying.
 
-**Two failure classes need different treatment:**
-
-- **Runtime test failures** (test compiled, executed, asserted false) → `@Ignore` annotation on the failing test methods, with cross-reference to the deviation entry. The test file otherwise stays untouched.
-- **Compile-only failures** (test source set or production source set fails to compile on a target) → `@Ignore` does NOT help (it skips runtime, not compilation). Rename the offending file to `<original>.broken` per the project convention. Files like `*.kt.broken` are excluded from compilation by Kotlin's source-set glob. Verify the project already uses this convention by greppping for `*.broken` in test directories before applying.
-
-**Subsequent test runs** (during `implement-phase` and `/kmm-verify`) use scope-focused commands only — `--tests <fqn>` for the migration's own baseline tests. The full sweep, when run, is a one-shot at `specify-phase` to inventory pre-existing failures; running it on every subsequent step would be expensive and irrelevant.
-
-After the sweep, present the combined patch to the user (one approval covers all):
+Combined approval prompt:
 
 > Master health sweep:
->   Runtime failures (out of scope): `<N>` tests in `<comma-separated files>` — propose `@Ignore`
->   Compile-only failures (out of scope): `<M>` files (`<comma-separated paths>`) — propose `.broken` rename
+>   Runtime failures (out of scope): `<N>` tests in `<files>` — propose `@Ignore`
+>   Compile-only failures (out of scope): `<M>` files (`<paths>`) — propose `.broken` rename
 > Total: `<N+M>` files touched outside scope. All logged as deviation D-1 (RATIFIED, pre-existing).
 >
 > Approve? [y / n / discuss]
 
-Do not show diffs by default — these are mechanical patches following the project's policy. User picks `discuss` if they want per-file review.
-
-- On `y`: apply the combined patch as a **sentinel commit** with the message prefix `chore(kmm-prelock): broken-rename — DO NOT MERGE; auto-reverted at pr-phase`. The sentinel is **not** part of the migration's substance; it exists so T-LOCK's compile gate passes locally. Log a single deviation `D-1` in `migration-report.md` with `Closure: { type: "commit:present", message-fragment: "kmm-prelock-revert" }` (RATIFIED — pre-existing breakage; closure path is "owners of the affected files fix in separate PRs"; the sentinel itself is auto-reverted at pr-phase before the PR opens, so reviewers never see rename noise in the diff). The pr-phase reads this deviation and emits the revert commit + populates the PR body's "Pre-existing master breakage (NOT touched by this PR)" section listing the broken files.
-- On `discuss`: enumerate each item with file path and failure mode, then re-ask with `y / n`.
-- On `n`: abort `specify-phase`. The user must fix master or revise scope before re-running.
+On `y`: apply as a sentinel commit `chore(kmm-prelock): broken-rename — DO NOT MERGE; auto-reverted at pr-phase`. Log `D-1` with `Closure: { type: "commit:present", message-fragment: "kmm-prelock-revert" }`. The pr-phase auto-reverts before opening the PR.
 
 ### 8. Write `spec.md`
 
-- Use `templates/spec.md` as the structure.
-- Fields: scope name, base branch, baseline SHA, worktree path, in-scope file list (exact paths), explicitly out-of-scope file list, declared shared targets, declared consumer targets, the user's stated migration goal **in their words**, the test command used to verify the baseline.
-- The "Goal" field captures the user's actual sentence(s), not a paraphrase. The orchestrator's job at goal-clarity (step 1) was to make the user's own words concrete enough — those words go in.
-- Commit `spec.md` and the directory `<repo>/kmm/<scope-name>/` to the feature branch.
+Use `templates/spec.md`. Fields: scope name, base branch, baseline SHA, worktree path, in-scope file list (exact paths), explicitly out-of-scope, declared shared targets, declared consumer targets, the user's stated goal **in their words**, the test command. Commit `spec.md` and the directory.
 
 ### 9. Constitution check
 
-- List every principle this command touched: §1 (understand before acting — goal-clarity gate, file enumeration from entry point), §2 (no assumptions when stuck — every user question used the options + recommended + why shape), §5 (scope declared, no silent expansion), §7 (baseline SHA recorded).
-- Pass/fail: pass if every checklist item below is `[x]`:
-  - `[ ]` Goal clarified — concrete entry point and feature boundary identified
-  - `[ ]` Scope file list declared and confirmed by user
-  - `[ ]` Out-of-scope list declared
-  - `[ ]` Shared targets declared
-  - `[ ]` Base branch declared
-  - `[ ]` Worktree created
-  - `[ ]` `local.properties` copied (if present)
-  - `[ ]` Baseline master SHA recorded
-  - `[ ]` Existing tests run; failures outside scope addressed (deviation D-1 logged or zero failures)
-  - `[ ]` `spec.md` written and committed
-- On fail: STOP. Do not advance. Report which checks failed.
+Touched: §1, §2, §6, §8.
 
-### 10. Auto-advance to architect phase
+Pass/fail checklist:
+- `[ ]` Goal clarified — concrete entry point and feature boundary
+- `[ ]` Scope file list declared and confirmed
+- `[ ]` Out-of-scope list declared
+- `[ ]` Shared targets declared
+- `[ ]` Base branch declared
+- `[ ]` Worktree created
+- `[ ]` `local.properties` copied (if present)
+- `[ ]` Baseline master SHA recorded
+- `[ ]` Existing tests run; failures outside scope addressed (D-1 logged or zero)
+- `[ ]` `spec.md` written and committed
 
-After the constitution-check passes, the router auto-advances to the **architect** phase (Constitution §1 — architecture before code). Print a one-line transition banner: `── architect ──`.
+On fail: STOP. Report which checks failed.
 
-In `--step` mode, stop here and print: "Spec written and committed. Re-run `/kmm` to advance to the architect phase."
+### 10. Auto-advance
 
-## What you do NOT do
-
-- Do not design the target architecture. That is the architect phase (Constitution §1).
-- Do not draft the migration plan. That is the plan phase.
-- Do not generate tasks. That is the tasks phase.
-- Do not modify any in-scope file. The scope is declared but no file moves yet.
-- Do not write code. This phase writes only `spec.md` and (if approved) the `@Ignore` patch.
+Print `── architect ──` and the router advances to architect-phase. In `--step` mode, stop and print: "Spec written and committed. Re-run `/kmm` to advance."
 
 ## Failure modes
 
-- **Worktree already exists** — read its `spec.md`. If the existing one is for the same scope, ask the user (one question, options): A) resume the existing one / B) restart fresh (deletes the worktree) / C) discuss. If for a different scope, abort with the path conflict and tell the user.
-- **Base branch not found** — surface available branches as options in the step 5 question; do not guess.
-- **User cannot articulate scope at the goal-clarity gate** — keep pushing back per the protocol. Constitution §1 + §5 require a concrete scope; this is not negotiable. Targeted follow-ups, one at a time, until you can produce a list of file paths the user agrees to. Never advance into worktree creation on a fuzzy scope — every downstream command's correctness depends on this list.
-- **The test command is unknown** — ask the user as a single question with options (the most likely candidates, derived from `gradle :tasks --all`), with a `discuss` affordance.
+- **Worktree exists** — read its `spec.md`. Same scope: ask resume / restart / discuss. Different scope: abort with path conflict.
+- **Base branch not found** — surface available branches as options.
+- **User cannot articulate scope** — keep pushing back per Constitution §1, §6. One targeted question at a time. Never advance into worktree creation on a fuzzy scope.
+- **Test command unknown** — ask with options derived from `gradle :tasks --all`.

@@ -1,55 +1,47 @@
 # Live Sources
 
-This protocol implements Constitution §3 (Live sources only) and §4 (Drift detection). Read this before any decision that names a library, version, API surface, or configuration option.
+Implements Constitution §4 (Live sources only) and §5 (Drift detection). Read this before any decision that names a library, version, API surface, or configuration option.
 
-## The ladder
+## Ladder
 
-For every framework / library / API / config decision, walk this ladder. **First match wins.** Stop at the first level that yields a verifiable answer with a citation.
+For every framework / library / API / config decision, walk this ladder. **First match wins.**
 
 ### 1. Context7
 
-Version-pinned library documentation. Preferred when available.
+- Resolve: `mcp__context7__resolve-library-id` with the library name.
+- Query: `mcp__context7__query-docs` with the resolved ID and the question.
+- Citation: `context7://<resolved-id>` with the doc snippet excerpted in `findings.md`.
 
-- Resolve the library: `mcp__context7__resolve-library-id` with the library name.
-- Query: `mcp__context7__query-docs` with the resolved ID and the specific question.
-- Citation format: `context7://<resolved-id>` with the doc snippet excerpted in `findings.md`.
-
-If the library is not on Context7, drop to the next level.
+If the library is not on Context7, drop to level 2.
 
 ### 2. Official vendor docs
 
-For the canonical URL of the library's official documentation, e.g.:
-- `https://kotlinlang.org/docs/...` for Kotlin / KMP fundamentals
-- `https://ktor.io/docs/...` for Ktor
-- `https://insert-koin.io/docs/...` for Koin
-- `https://kotlinlang.org/api/kotlinx-datetime/` for kotlinx-datetime
-- `https://github.com/<org>/<repo>` for the project's README and `CHANGELOG.md` on a tagged release
-- `https://developer.android.com/...` for Android SDK behaviour
+Canonical URLs:
+- `https://kotlinlang.org/docs/...` — Kotlin / KMP
+- `https://ktor.io/docs/...` — Ktor
+- `https://insert-koin.io/docs/...` — Koin
+- `https://kotlinlang.org/api/kotlinx-datetime/` — kotlinx-datetime
+- `https://github.com/<org>/<repo>` — project README and `CHANGELOG.md` on tagged release
+- `https://developer.android.com/...` — Android SDK behaviour
 
-Use `WebFetch` against the canonical URL. The result must be from the live site, not training data summarising it.
-
-Citation: the URL with the retrieval date.
+`WebFetch` against the canonical URL. Citation: URL with retrieval date.
 
 ### 3. Web search
 
-For specific answers not on the official docs (release-note details, working-group resolutions, GitHub issue threads):
+For details not on official docs (release notes, working-group resolutions, GitHub issues):
 
-- Use `WebSearch` to find candidate sources.
-- Use `WebFetch` against the most authoritative result.
-- Prefer: the project's own GitHub issues, JetBrains/Google blog posts, Kotlin/KMP working-group threads on Slack/X archived publicly.
-- Avoid: aggregator sites, Stack Overflow answers older than 12 months, blog posts not from the project's maintainers.
-
-Citation: the URL with the retrieval date.
+- `WebSearch` to find candidate sources.
+- `WebFetch` against the most authoritative result.
+- Prefer: project's own GitHub issues, JetBrains/Google blog posts, KMP working-group threads.
+- Avoid: aggregator sites, Stack Overflow older than 12 months, blog posts not from project maintainers.
 
 ### 4. Training data — last resort
 
-If steps 1–3 yield nothing, the skill has run out of live sources. The default response is to reject the recommendation and ask the user.
-
-If a fallback is unavoidable (e.g., to make a temporary placeholder while the user decides), flag the value inline with `⚠ TRAINING DATA — VERIFY` and record it in `findings.md` under "Live-source audit" as an unresolved item. The migration cannot pass `/kmm-verify` while any unresolved training-data items remain.
+If steps 1–3 yield nothing, reject the recommendation and ask the user. If a placeholder is unavoidable, flag inline as `⚠ TRAINING DATA — VERIFY` and record in `findings.md § Live-source audit`. The migration cannot pass `/kmm-verify` while unresolved training-data items remain.
 
 ## Drift phrases — automatic stop
 
-Per Constitution §4, the following phrases are signals you are about to use training data. **Each one is a hard stop.** When you find yourself reaching for them, drop the sentence and run a live lookup instead.
+Per Constitution §5, these phrases signal training-data substitution. Each is a hard stop:
 
 - "I recall…"
 - "Typically you…"
@@ -60,36 +52,24 @@ Per Constitution §4, the following phrases are signals you are about to use tra
 - "From what I remember…"
 - "Generally…"
 
-These are the most common path to silent breakage. The skill's job is to keep these out of `findings.md`, `plan.md`, and `migration-guide.md`.
+Drop the sentence and run a live lookup.
 
 ## What needs a live source
 
-Every claim about:
-
-- a library version (e.g., "Ktor 3.0.3 supports KMP iOS arm64")
-- an API surface (e.g., "`HttpClient(OkHttp) { ... }` is the right config")
-- KMP support status (e.g., "DataStore now has KMP support as of …")
-- configuration options (e.g., "Koin 4 uses `module {}` not `koinModule {}`")
-- migration patterns (e.g., "Retrofit Call-based methods become suspend functions in Ktor")
-
-If a claim does not cite a live source, the plan-analyzer rejects it as a `BLOCKER`. The orchestrator does not advance past `plan-phase` with un-sourced claims.
+Every claim about: library version, API surface, KMP support status, configuration options, migration patterns. Un-sourced claims are rejected.
 
 ## What does NOT need a live source
 
-The constitution itself does not need a citation — it is the skill's local source of truth.
+- The constitution itself.
+- The project's own codebase (`file:line` is the citation).
+- Generic Kotlin language facts (e.g., `val` is read-only).
 
-The project's own codebase does not need a citation — it is what you are reading. (`file:line` is enough.)
+## findings.md structure
 
-Generic Kotlin language facts (e.g., "`val` is read-only") do not need a citation. The line is between language fundamentals and library / version specifics. When in doubt, lean toward citing.
+`findings.md § Library Versions` has a Source column and Last-verified date per row. The completeness-verifier confirms every library mentioned in `migration-guide.md`'s `Library swaps` field has a row with a source.
 
-## How findings.md is structured around this
+`findings.md § Live-source audit` footer is checked at `/kmm-verify` time. Any `⚠ TRAINING DATA — VERIFY` flag still present → fail.
 
-`findings.md` has a "Library Versions" table where every row has a Source column and a Last-verified date. The completeness-verifier (at `/kmm-verify`) confirms every library mentioned in `migration-guide.md`'s `Library swaps` field has a row. Rows missing a source → fail.
+## When live source contradicts memory
 
-`findings.md` has a "Live-source audit" footer that the plan-analyzer checks at `plan-phase` time and the completeness-verifier re-checks at `/kmm-verify`. Any `⚠ TRAINING DATA — VERIFY` flag still present at `/kmm-verify` → fail.
-
-## When a live source contradicts your memory
-
-The live source wins. Always. Constitution §3 — "Training data as last resort, flagged inline."
-
-If your memory says "Library X supports KMP" and Context7 says "no KMP support yet, see issue #1234", believe Context7. Then surface the discrepancy to the user in the deviation log if a planned swap is no longer viable.
+The live source wins. Surface the discrepancy in the deviation log if a planned swap is no longer viable.
