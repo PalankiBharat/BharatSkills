@@ -13,7 +13,6 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
 | `bug-finder` | 1.0.0 | Evidence-based bug/crash root cause diagnosis — flow mapping, hypothesis formation, log verification, root cause report |
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
-| `kmm-migration-workflow` | 1.0.0 | Speckit-style orchestrator for Android→KMM migrations. Diff-spec driven 1:1 port; opus orchestrates, subagents do labour; live-sourced; auto-retrospective |
 
 ## Installation
 
@@ -32,7 +31,6 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install clean-code@punchhq-skills
 /plugin install bug-finder@punchhq-skills
 /plugin install om-pipeline@punchhq-skills
-/plugin install kmm-migration-workflow@punchhq-skills
 ```
 
 ### 3. Use the skills
@@ -52,9 +50,6 @@ skill feedback
 
 # Om pipeline (full dev pipeline: plan → build → review → test on device)
 /om add dark mode toggle in settings screen
-
-# KMM migration workflow (one entry point — auto-routes through specify→plan→tasks→implement→verify→pr)
-/kmm auth-module — migrate AuthRepository, SessionStore from app/.../auth/. UI out of scope.
 ```
 
 ## For Teams
