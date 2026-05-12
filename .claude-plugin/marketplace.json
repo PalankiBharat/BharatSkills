@@ -117,15 +117,6 @@
       "category": "developer-tools",
       "tags": ["compose", "preview", "android", "emulator", "ui-iteration", "jetpack-compose"],
       "keywords": ["preview", "compose", "render", "show me", "emulator", "on the device"]
-    },
-    {
-      "name": "kmm-migration-workflow",
-      "source": "./plugins/kmm-migration-workflow",
-      "description": "Speckit-style orchestrator for Android → Kotlin Multiplatform migrations. Document-first (spec/plan/migration-guide/tasks/migration-report/findings on disk), baseline-first (exhaustive commonTest before any code moves), 1:1 mechanical port via per-file diff specifications computed at /kmm-plan time. Opus orchestrates only; sonnet/haiku subagents do all labour. Live-source discipline (every library/version/API cited at use time). Auto-generated project-agnostic retrospective at /kmm-pr time.",
-      "version": "1.0.0",
-      "category": "migration",
-      "tags": ["kmm", "kotlin-multiplatform", "migration", "speckit", "tdd", "1:1-port", "diff-specification", "orchestration", "subagents", "live-source"],
-      "keywords": ["kmm", "kotlin-multiplatform", "commonMain", "migrate to KMM", "/kmm", "/kmm-specify", "/kmm-plan", "/kmm-tasks", "/kmm-implement", "/kmm-verify", "/kmm-pr", "/kmm-retro"]
     }
   ]
 }
