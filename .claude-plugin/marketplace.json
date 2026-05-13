@@ -117,6 +117,15 @@
       "category": "developer-tools",
       "tags": ["compose", "preview", "android", "emulator", "ui-iteration", "jetpack-compose"],
       "keywords": ["preview", "compose", "render", "show me", "emulator", "on the device"]
+    },
+    {
+      "name": "kmm-migration-workflow",
+      "source": "./plugins/kmm-migration-workflow",
+      "description": "Orchestrates Android-to-KMM migration with behavioral-equivalence safety. Phased workflow — discovery, diagnostic, baseline tests, freeze, git mv + surgical edits, validation, PR. Live-sourced API knowledge (web + Context7), project conventions in .kmm/project.md, diff-confirm protocol on every .kmm/ write.",
+      "version": "1.0.0",
+      "category": "migration",
+      "tags": ["kmm", "kotlin-multiplatform", "migration", "android", "ios", "shared-module", "commonMain", "expect-actual", "baseline-tests"],
+      "keywords": ["kmm", "kotlin-multiplatform", "commonMain", "migrate to KMM", "shared module", "expect actual", "baseline tests"]
     }
   ]
 }
