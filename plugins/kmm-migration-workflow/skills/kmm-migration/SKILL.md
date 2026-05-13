@@ -168,7 +168,8 @@ Phase-specific gates are listed in each phase's reference file.
         ├── move.md                 # Phase E
         ├── validation.md           # Phase F
         ├── heatmap.md              # Phase F — QA checklist artifact
-        └── pr.md                   # Phase G
+        ├── pr.md                   # Phase G
+        └── retro.md                # Session-end friction signal (see Special actions)
 ```
 
 **project.md scope** — reusable KMM knowledge for this repo: modules + source-set hierarchy, DI framework + coexistence stance, persistence tech + schema locations, networking config (baseUrl, BuildKonfig), UI strategy (native vs CMP timeline), SKIE config, iOS consumption / distribution flow, manual QA workflow, test-infra wiring, conventions, hard-won gotchas. **Excludes:** migration state (lives in session folders), generic KMM how-tos (runtime lookup).
@@ -214,10 +215,16 @@ Read phase references **on demand** — when the workflow enters or resumes a ph
 
 ## Special actions (anytime, user-invoked)
 
-- **Abandon session.** User invokes `abandon session`. Skill asks: revert changes / keep but archive? Confirms. Removes session folder, optionally `git worktree remove`. Branch left for user to handle.
+- **Abandon session.** User invokes `abandon session`. Skill prompts for **session retro first** (see below) — friction signal matters most from abandoned sessions. Then asks: revert changes / keep but archive? Confirms. Removes session folder, optionally `git worktree remove`. Branch left for user to handle.
 - **Update scope.** Post-Phase-0, user wants to add/remove files. Phase 0 re-runs in update-mode: re-walks deps from new files, re-classifies, re-confirms. Affected later-phase files reset (audit/freeze/migration entries removed for newly out-of-scope files; new entries added for newly in-scope).
 - **Update project.md manually.** User invokes; skill shows current contents; user proposes change; diff-confirm; write.
 - **Resume.** Implicit on every invocation in an in-flight session. Self-audit on resume catches drift before continuing.
+- **Session retro.** Fires automatically after Phase G PR opens, or as the first step of `abandon session`. Skill asks the user three short questions and writes responses to `.kmm/migrations/kmm/<feature>-<depth>/retro.md`:
+    1. **What went smoothly?** (workflow steps, automation, decisions that landed cleanly)
+    2. **What got stuck?** (skill or reference fell short, repeated clarifications, gates that didn't fit)
+    3. **What would have helped?** (missing example, tighter rule, new gate, clearer phrasing, new reference section)
+  
+  Bullet points, not essays. Diff-confirm before writing. Purpose is structured friction signal for the next skill iteration — not a postmortem. The user can skip with `skip retro`, but the default is to capture. Across sessions, `retro.md` files accumulate as the maintenance backlog for the skill itself.
 
 ---
 

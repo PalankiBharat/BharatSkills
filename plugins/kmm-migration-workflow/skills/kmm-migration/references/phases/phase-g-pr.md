@@ -45,6 +45,12 @@ Re-read the draft:
 - If user wants skill to drive: `gh pr create --title <X> --body-file .kmm/migrations/<branch>/pr.md`.
 - Else: skill outputs the body to terminal, user opens PR manually.
 
+### G.5 — Session retro
+
+After PR is open (or body output), the skill runs the **Session retro** action (see `SKILL.md` → Special actions). Three short questions, written to `.kmm/migrations/<branch>/retro.md`. Diff-confirmed before write. User can `skip retro` to bypass.
+
+This is the final step of the workflow. The retro.md file is the closing artifact of the session, parallel to pr.md being the closing artifact for the PR.
+
 ---
 
 ## Output: `pr.md`

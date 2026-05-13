@@ -22,7 +22,7 @@ Per plan.md's `expect`/`actual` and DI plans:
 
 ### D.1 — Per-batch migration loop (topological-layer batches from plan.md)
 
-Plan.md's migration ordering naturally groups files by dependency layer (leaves first, then layers up). Files in the same layer don't depend on each other → safe to migrate together. **Build cost dominates**; batching reduces gradle invocations dramatically.
+plan.md's migration ordering naturally groups files by dependency layer (leaves first, then layers up). Files in the same layer don't depend on each other → safe to migrate together. **Build cost dominates**; batching reduces gradle invocations dramatically.
 
 For each layer-batch — files committed individually within the batch:
 
