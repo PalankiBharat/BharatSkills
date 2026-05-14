@@ -4,6 +4,23 @@ Parse the user story / feature spec and surface everything that's unclear, assum
 
 This file is consumed by the team lead (Mode 1) for input prep and by `gap-analyzer` (Wave 2) for delta computation. It is also read directly in Mode 2 Phase 1.
 
+## Detect Figma URLs (mandatory)
+
+Before parsing for clarification, scan the raw story text for Figma URLs. Every match is queued for `design-reviewer` (Wave 1) which will fetch the node, walk the linked frames, capture screenshots, and produce a screen catalog. See `figma-walk.md` for URL patterns, walk protocol, and output schema.
+
+Captured into `session.figma_targets[]`:
+
+```json
+{
+  "figma_targets": [
+    {"raw_url": "...", "kind": "design|proto|file|board|make|slides",
+     "file_key": "...", "node_id": "...", "section_in_story": "..."}
+  ]
+}
+```
+
+If no Figma URLs are present, leave the array empty — `design-reviewer` runs in `figma_unavailable: true` mode and skips the walk, but still emits design questions from text alone.
+
 ## Capture the source story first (mandatory)
 
 Before any parsing, the team lead captures the raw story text exactly as the reviewer submitted it (whitespace, line breaks, markdown, formatting — all preserved). The captured text becomes `session.source_story` and is threaded through to:

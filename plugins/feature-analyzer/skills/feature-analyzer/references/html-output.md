@@ -10,7 +10,7 @@ Slug rule: kebab-case from the feature title (e.g. `Custom Time Frame` → `cust
 
 ## Required components
 
-The HTML doc has nine required components. All must be present even if a section ends up empty (render an empty-state hint instead of dropping the section).
+The HTML doc has ten required components. All must be present even if a section ends up empty (render an empty-state hint instead of dropping the section).
 
 1. **Sidebar nav (sticky, left rail)** — page-section links: Story · Scope · Existing flow · Code requirements · Blockers · Clarifications · Nice-to-have · Assumptions · Copy. One-click jumps; current section highlighted as you scroll.
 2. **Header block** — feature name, one-line intent, date, run mode (Mode 1), session-id (small monospace).
@@ -18,9 +18,10 @@ The HTML doc has nine required components. All must be present even if a section
 4. **Progress bar** — "X / N answered" counter + fill bar. Tracks user interactions with radio groups. Starts at 0 (Recommended options are NOT pre-checked; the reviewer must actively select).
 5. **Scope-report block** — populated by `scope-classifier.md`. Wide left column for Included; stacked right rail for Stripped + Conditional.
 6. **Existing-flow trace** — collapsible panel. Populated by `existing-flow-trace.md`. If skipped (greenfield), render a 1-line "Flow trace skipped — story self-declares greenfield" note.
-7. **Code requirements (diff block)** — collapsible panel. For every `delta` produced by `gap-analyzer`, render a unified diff with a per-block header showing the relative file path.
-8. **Priority buckets** — collapsible panel per bucket: 🔴 Blockers · 🟡 Clarifications · 🟢 Nice-to-have. Each panel contains a question-card grid.
-9. **Copy controls** — sticky toolbar with: select-all / select-none / blockers-only, **selective copy modal**.
+7. **Screen Catalog (Figma walk)** — collapsible panel. Populated by `design-reviewer`'s output per `figma-walk.md`. Renders thumbnails for each visited frame in a horizontal step strip, with per-frame name, annotations, linked Code Connect components, and a flow-graph showing prototype edges. If `figma_unavailable: true`, render a 1-line "No Figma URLs found in story — design questions are text-only" note. If Figma MCP failed, render a Pre-flight callout instead.
+8. **Code requirements (diff block)** — collapsible panel. For every `delta` produced by `gap-analyzer`, render a unified diff with a per-block header showing the relative file path.
+9. **Priority buckets** — collapsible panel per bucket: 🔴 Blockers · 🟡 Clarifications · 🟢 Nice-to-have. Each panel contains a question-card grid.
+10. **Copy controls** — sticky toolbar with: select-all / select-none / blockers-only, **selective copy modal**.
 
 ## Design system — dark mode by default
 
@@ -76,6 +77,7 @@ Role filter chips in the sidebar use colour-coded pill style with `active` state
   <ul>
     <li><a href="#scope"><span class="nav-icon">◫</span> Scope filter</a></li>
     <li><a href="#flow"><span class="nav-icon">⇢</span> Existing flow</a></li>
+    <li><a href="#screens"><span class="nav-icon">▣</span> Screen catalog</a></li>
     <li><a href="#diff"><span class="nav-icon">±</span> Code requirements</a></li>
     <li><a href="#blockers"><span class="nav-icon">●</span> Blockers <span class="badge red">{{n_blockers}}</span></a></li>
     <li><a href="#clarifications"><span class="nav-icon">●</span> Clarifications <span class="badge amber">{{n_clarify}}</span></a></li>
@@ -379,6 +381,101 @@ If the story is greenfield (no existing flow to trace), render a single callout:
   <div>Flow trace skipped — story self-declares greenfield. No existing component chain to audit.</div>
 </div>
 ```
+
+## Screen Catalog (Figma walk)
+
+Renders the screens `design-reviewer` captured. For each Figma target, the panel contains a step strip (linear sequence of thumbnails representing the prototype flow), a flow-graph subhead if branches exist, and per-screen annotations.
+
+```html
+<details class="panel" id="screens" open>
+  <summary>
+    Screen catalog
+    <span class="summary-label">{{n_screens}} screens · {{n_flows}} flow{{n_flows>1?'s':''}}</span>
+    <span class="summary-chevron">›</span>
+  </summary>
+  <div class="panel-body">
+
+    <!-- Figma unavailable -->
+    <div class="partial-callout">
+      <span class="icon">ℹ</span>
+      <div>No Figma URLs found in story. Design questions are text-only.</div>
+    </div>
+
+    <!-- Or: Figma MCP failure -->
+    <div class="partial-callout warn">
+      <span class="icon">⚠</span>
+      <div>Figma MCP unreachable. <code>{{failure_reason}}</code></div>
+    </div>
+
+    <!-- Per flow-graph: horizontal step strip -->
+    <div class="screen-strip">
+      <div class="screen-tile" data-node-id="42:198">
+        <img src="{{screenshot_path}}" alt="{{screen_name}}" loading="lazy">
+        <div class="screen-meta">
+          <div class="screen-name">Duration sheet — current state</div>
+          <div class="screen-anno">{{designer_annotation_or_blank}}</div>
+        </div>
+      </div>
+      <div class="screen-arrow" aria-hidden="true">→</div>
+      <div class="screen-tile" data-node-id="42:215">
+        <img src="{{screenshot_path}}" alt="Add custom configurator">
+        <div class="screen-meta">
+          <div class="screen-name">Add custom configurator</div>
+          <div class="screen-anno">"Validate range 1s–24h"</div>
+        </div>
+      </div>
+      <!-- repeat with arrows between -->
+    </div>
+
+    <!-- Design tokens referenced -->
+    <div class="tokens-section">
+      <h4>Design tokens referenced</h4>
+      <table class="tokens-table">
+        <thead><tr><th>Figma token</th><th>Value</th><th>Suggested app token</th></tr></thead>
+        <tbody>
+          <tr><td><code>color/surface/elevated</code></td><td>#1E293B</td><td>Surface.Elevated</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Code Connect cross-reference -->
+    <div class="cc-section">
+      <h4>Linked Code Connect components</h4>
+      <ul>
+        <li><code>ChipRow</code> (from Figma) → <code>app/.../ChipRow.kt</code></li>
+      </ul>
+    </div>
+
+  </div>
+</details>
+```
+
+```css
+.screen-strip { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch;
+                padding: 12px 0; overflow-x: auto; }
+.screen-tile { background: var(--surface); border: 1px solid var(--border);
+               border-radius: var(--radius-md); overflow: hidden; flex: 0 0 240px;
+               display: flex; flex-direction: column;
+               transition: transform 150ms ease, border-color 150ms ease; }
+.screen-tile:hover { transform: translateY(-2px); border-color: var(--hover); cursor: pointer; }
+.screen-tile img { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; background: var(--elevated); }
+.screen-meta { padding: 10px 12px; }
+.screen-name { font: 500 13px/1.3 var(--sans); color: var(--text); }
+.screen-anno { font: 400 12px/1.4 var(--sans); color: var(--text-muted); margin-top: 4px;
+               font-style: italic; }
+.screen-arrow { align-self: center; color: var(--text-dim); font-size: 18px; }
+
+.tokens-section, .cc-section { margin-top: 18px; }
+.tokens-section h4, .cc-section h4 { font: 500 13px/1.3 var(--sans); color: var(--text-muted);
+                                     margin: 12px 0 6px; }
+.tokens-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tokens-table th, .tokens-table td { padding: 6px 8px; text-align: left;
+                                     border-bottom: 1px solid var(--border-sub); }
+.tokens-table th { color: var(--text-muted); font-weight: 500; }
+.tokens-table code { font: 12px/1 var(--mono); }
+```
+
+Clicking a `.screen-tile` opens the screenshot in a lightbox modal at full resolution (lightbox markup + JS minimal; reuses the copy-modal pattern with `display: flex` overlay). Right-click → "Open original" goes to the Figma URL in a new tab if `data-figma-url` is set on the tile.
 
 ## Code requirements — diff block
 

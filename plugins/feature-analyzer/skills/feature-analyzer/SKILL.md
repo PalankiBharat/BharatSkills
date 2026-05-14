@@ -42,7 +42,7 @@ For the full FSM, gates, retries, and budget rules read `references/team-lead-pr
 2. **Scope filter** — classify each story section as `android | ios | web | desktop | backend | shared`. Strip out-of-platform; keep `backend` only when the kept sections imply a new server-side ask. Rules in `references/scope-classifier.md`.
 3. **Wave 1 — discovery** (parallel):
    - `flow-tracer` (if extension story) walks UI → ViewModel → Repo → SDK boundary, with `file:line` cites and confidence on every fact. Reads sibling-SDK *source*, never JARs or examples. Full rules in `references/existing-flow-trace.md`.
-   - `design-reviewer` (if Figma URLs present) fetches screens and produces design questions with option pills.
+   - `design-reviewer` (always spawned; runs in degraded mode if no Figma URLs) fetches every Figma URL captured by story-clarifier, walks the prototype graph or section neighbours (depth ≤8), captures screenshots at `scale: 2`, extracts design tokens + Code Connect mappings, and produces a screen catalog + flow graph + design questions with option pills. Full rules in `references/figma-walk.md`.
 4. **Critic — Wave 1** — validates schemas and `file:line` evidence. Failed claims are dropped.
 5. **Gate A (default ON)** — show flow doc + screen catalog to the developer. Misreads get corrected here, before Wave 2 spends compute on them.
 6. **Wave 2 — gap analysis** — `gap-analyzer` diffs the story against the flow trace and produces the delta list + open assumptions.
@@ -147,6 +147,7 @@ Read `references/notion-output.md`. Auto-create the Notion page using the struct
 
 Mode 1 (team-lead):
 - `references/team-lead-protocol.md` — FSM, waves, gates, retries, budget
+- `references/figma-walk.md` — Figma URL detection, frame traversal, screen catalog, design-token extraction
 - `references/specialist-roster.md` — every specialist's contract + question schema
 - `references/cross-agent-broker.md` — `needs_from` schema, cycle detection
 - `references/critic-rubric.md` — independent audit checks

@@ -49,18 +49,34 @@ Schema-fail → lead retries with the validation error appended (≤2 retries pe
 
 ### `design-reviewer`
 
-**Owns**: Figma fetch, screen catalog, design questions.
-**Inputs**: Figma URLs + gap delta (from gap-analyzer in wave 2, if running iteratively).
-**Output**:
+**Owns**: Figma fetch + walk, screen catalog, flow graph, design tokens, design questions.
+**Inputs**: `session.figma_targets[]` (from story-clarifier), gap delta (Wave 2 iterative).
+**Protocol**: full walk rules in `figma-walk.md` — URL pattern detection, prototype/section traversal (depth ≤8), screenshot capture at `scale: 2`, design-token extraction, Code Connect cross-reference, sensitive-content stripping.
+**Output**: extends the common envelope with:
 ```json
 {
-  "screens": [{"node_id": "...", "name": "...", "fileKey": "..."}],
+  "figma_unavailable": false,
+  "screens": [
+    {"node_id": "...", "file_key": "...", "name": "...",
+     "screenshot_path": "...", "annotations": [...],
+     "linked_components": [...], "confidence": "high"}
+  ],
+  "flow_graphs": [
+    {"start_node": "...", "edges": [{"from": "...", "to": "...", "trigger": "ON_TAP", "label": "..."}],
+     "node_index": {"...": {"name": "...", "screenshot": "..."}}}
+  ],
+  "design_tokens_referenced": [
+    {"figma_token": "...", "value": "...", "suggested_app_token": "..."}
+  ],
   "questions": [<Question>...]
 }
 ```
 **Self-check**:
-- [ ] Every screen has a Figma `node_id` that resolves.
+- [ ] Every screen has a Figma `node_id` that resolves via `mcp__figma__get_design_context`.
+- [ ] Every visited frame has a screenshot path on disk (or `downscaled: true`).
 - [ ] Every design question has 3-4 options + 1 Recommended.
+- [ ] Auto-answer candidates are flagged for the lead's merge step.
+- [ ] No sensitive frames embedded inline (placeholder + scope-report note instead).
 
 ### `gap-analyzer`
 
