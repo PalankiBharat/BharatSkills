@@ -1,8 +1,8 @@
 # Phase C — Freeze
 
-**Purpose.** Lock baseline tests as the immutable equivalence contract. From this point, baselines can only be edited via the migration-exception process. First Phase C in a repo bootstraps enforcement (CODEOWNERS, detekt, optional pre-commit hook); subsequent runs reuse it.
+**Purpose.** Lock baseline tests as the immutable equivalence contract. From this point, baselines can only be edited via the migration-exception process. First Phase C in a repo bootstraps detekt enforcement; subsequent runs reuse it.
 
-After the first-time enforcement bootstrap, subsequent Phase C runs are short — verify, freeze commit, update coverage, smoke test, write transcript.
+After the first-time detekt bootstrap, subsequent Phase C runs are short — verify, freeze commit, update coverage, smoke test, write transcript.
 
 **Inputs:** `scope.md`, `plan.md`, `audit.md` (all complete), `project.md`, `coverage.md`.
 
@@ -12,29 +12,34 @@ After the first-time enforcement bootstrap, subsequent Phase C runs are short �
 
 ### C.1 — Verify Phase B is complete
 
-**Haiku** reads `audit.md` status; checks all B-tasks done; verifies baseline suite is green per B.5 recorded output.
+**Haiku** reads `audit.md` status; checks all B-tasks done; verifies baseline suite is green per B.7 recorded output.
 
-Refuses to proceed on any gap: incomplete audit, missing red-on-breakage proof, baseline failure, feature-surface baseline absent without opt-out rationale.
+Refuses to proceed on any gap:
+- Relocation incomplete — any in-scope file still in `:app/src/main/`.
+- Broken-test quarantine incomplete — any pre-existing broken test from Phase 0's list not `@Ignore`'d.
+- Incomplete audit — any in-scope file without a verdict.
+- Missing red-on-breakage proof — any new or rewritten test without recorded mutation + revert.
+- Baseline failure — `<dest>/androidUnitTest` not green.
+- Feature-surface baseline absent without opt-out rationale.
 
 ### C.2 — Enforcement bootstrap (first-time per repo only)
 
 Triggered if `project.md` indicates enforcement isn't set up. Otherwise skipped entirely.
 
-- **Haiku** scans the repo for existing `CODEOWNERS`, detekt config.
-- **Sonnet** drafts additions:
-  - **CODEOWNERS:** `app/src/baselineTest/ @<migration-tech-lead>` — user supplies the handle.
-  - **Detekt rule extension** per `test-discipline §12` denylist:
-    - Fail on imports: `org.mockito.*`, `com.google.common.truth.*`, `org.junit.runner.*`, `org.junit.Rule`, `org.junit.Before`, `org.junit.After`, `androidx.test.*`, `androidx.compose.ui.test.*`, `org.robolectric.*`, `java.time.*`, `java.util.Date`.
-    - Fail on usage: `@get:Rule`, `@Rule`, `System.currentTimeMillis()`, `System.nanoTime()`, `Thread.sleep(`, `MainCoroutineRule`.
-    - Warn on `verify(` and `mockk(...)` without `relaxed = false`.
-  - **Optional pre-commit hook** for baseline edits without `[migration-exception <id>]` in commit message. User opts in; not mandatory.
-- **Opus** reviews the drafts — project-wide and durable. Mistakes here corrupt every future migration.
-- User confirms each draft.
-- On acceptance: `project.md` updated with `enforcement_setup: true` + paths to the relevant config files.
+The only mechanical enforcement is a detekt rule that catches stack-drift in `<dest>/androidUnitTest` (and later `<dest>/commonTest`). The skill's own refusal to edit frozen baselines without a migration-exception file (SKILL.md cross-cutting) is the behavioral enforcement layer; reviewer attention on PR diffs is the human layer. No CODEOWNERS dependency; no pre-commit / commit-msg hook.
+
+- **Haiku** scans the repo for existing detekt config.
+- **Sonnet** drafts the **detekt rule extension** per `test-discipline §12` denylist:
+  - Fail on imports: `org.mockito.*`, `com.google.common.truth.*`, `org.junit.runner.*`, `org.junit.Rule`, `org.junit.Before`, `org.junit.After`, `androidx.test.*`, `androidx.compose.ui.test.*`, `org.robolectric.*`, `java.time.*`, `java.util.Date`.
+  - Fail on usage: `@get:Rule`, `@Rule`, `System.currentTimeMillis()`, `System.nanoTime()`, `Thread.sleep(`, `MainCoroutineRule`.
+  - Warn on `verify(` and `mockk(...)` without `relaxed = false`.
+- **Opus** reviews the draft — project-wide and durable. Mistakes here corrupt every future migration.
+- User confirms.
+- On acceptance: `project.md` updated with `enforcement_setup: true` + path to the detekt config file.
 
 ### C.3 — Freeze this session's baselines
 
-- All baseline test files for in-scope files committed atomically.
+- All baseline test files for in-scope files (in `<dest>/src/androidUnitTest/`) committed atomically.
 - **Sonnet** composes the commit message — references the session, lists files frozen, aggregates trust scores from audit.md.
 - User runs `git commit` (skill proposes the exact command + confirms before running).
 - Resulting commit SHA = **frozen-at marker** for this session.
@@ -47,18 +52,20 @@ Triggered if `project.md` indicates enforcement isn't set up. Otherwise skipped 
 - **Haiku** applies after confirmation.
 - This update is committed alongside C.3 (or as an immediate follow-up commit; both belong to the freeze).
 
-### C.5 — Enforcement smoke test
+### C.5 — Detekt smoke test
 
-**Non-negotiable.** Verifies the freeze actually bites:
+**Non-negotiable.** Verifies the detekt rule actually bites:
 
-- **Sonnet** makes a trivial deliberate edit to a frozen baseline test (whitespace change, test method rename).
-- Runs CODEOWNERS check + detekt locally + the pre-commit hook if installed.
-- Expected: failure with migration-exception-required message.
+- **Sonnet** adds a forbidden import to a frozen baseline test — e.g., `import org.mockito.kotlin.whenever`.
+- Runs `./gradlew :<dest>:detekt` (or project-specific task per `project.md`).
+- Expected: detekt failure citing the denylist rule for that import.
 - **Haiku** parses output, confirms the failure type matches.
-- **Sonnet** reverts the deliberate edit.
-- Records proof in `freeze.md`.
+- **Sonnet** reverts via `git restore`. Verifies clean state.
+- Records proof in `freeze.md` (forbidden import added, detekt output, revert, clean).
 
-If the smoke test passes when it should have failed → enforcement is broken. Phase C halts; user notified.
+If the smoke test passes when it should have failed → detekt enforcement is broken. Phase C halts; user notified.
+
+The skill's behavioral refusal to edit frozen baselines is not smoke-testable mechanically — it's a gate the skill follows at every write (see SKILL.md cross-cutting Migration-exception process).
 
 ### C.6 — Write freeze.md
 
@@ -73,8 +80,8 @@ If the smoke test passes when it should have failed → enforcement is broken. P
 - Header (status, tasks)
 - Frozen-at commit SHA + optional tag
 - Files frozen (path, type, baseline path, trust score, SHA)
-- Enforcement bootstrap status (skipped if pre-existing; logged if first-time set up)
-- Smoke test results (deliberate edit attempt + caught + reverted)
+- Detekt enforcement bootstrap status (skipped if pre-existing; logged if first-time set up)
+- Detekt smoke test results (forbidden import added + caught + reverted)
 - Decisions log
 
 ---
@@ -83,8 +90,8 @@ If the smoke test passes when it should have failed → enforcement is broken. P
 
 Beyond universals:
 
-- Phase B complete (`audit.md` status = complete; baselines green).
-- Enforcement mechanisms verified working via smoke test — **no exceptions**.
+- Phase B complete (`audit.md` status = complete; baselines green per B.7).
+- **Detekt enforcement** verified working via smoke test — **no exceptions**.
 - `coverage.md` update diff-confirmed before write.
 - Frozen-at SHA recorded in both `freeze.md` and `coverage.md` before Phase D can start.
 - User confirmation on the atomic freeze commit.

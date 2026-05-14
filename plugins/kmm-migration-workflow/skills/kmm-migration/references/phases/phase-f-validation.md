@@ -11,8 +11,8 @@
 ### F.1 — Goal + doc consistency
 
 - **Haiku** runs `git diff main..HEAD --stat`, parses changed files.
-- **Sonnet** cross-checks vs `scope.md`:
-  - Every in-scope file appears in the diff.
+- **Sonnet** cross-checks vs `scope.md` + `plan.md` Phase D plan:
+  - Every in-scope file appears in the diff (relocated to `<dest>/androidMain` at minimum; `migrate`-plan files also moved to `commonMain`).
   - No out-of-scope file appears in the diff (scope creep check).
   - API signatures unchanged (sig diff against pre-migration).
 - **Haiku** scans all session docs for stale references (e.g., `audit.md` says X is `Augment` but `coverage.md` shows `frozen` without the Augment work recorded).
@@ -23,17 +23,19 @@
 
 ### F.2 — Code quality + iOS surface (parallel Sonnet per file)
 
-Per migrated file:
+Per in-scope file (migrated and held):
 - Clean code adherence — no `*Holder` / `*Manager` cruft.
 - DRY / KISS check.
 - Idiomatic KMM — cross-check live-search patterns from `plan.md` and project.md conventions.
-- Comment / KDoc accuracy post-migration.
+- Comment / KDoc accuracy post-migration (per Tooling discipline: one-liner WHY comments only; no WHAT comments).
 
-Dedicated subagent: **SKIE-generated Swift surface review** for the migrated public API:
+For `migrated`-status files (now in `commonMain`), additional dedicated subagent: **SKIE-generated Swift surface review** for the migrated public API:
 - Nullability translates cleanly to Swift optionals.
 - No verbose generic gymnastics.
 - Names read naturally from Swift.
 - Convenience overloads present for Kotlin default-arg methods.
+
+Held files (`androidMain`) skip the SKIE surface review — they're not exposed to iOS this session.
 
 **Opus** for cross-file synthesis review (shared interfaces, DI module).
 
@@ -43,8 +45,11 @@ Dedicated subagent: **SKIE-generated Swift surface review** for the migrated pub
 - All variants compile (Android debug/release; iOS targets per project setup).
 - **No new warnings** vs pre-migration baseline (compare warning count).
 - **App size delta** reported (KMM concern — shared module adds bytes).
-- Full baseline suite in commonTest + iosTest if host supports.
-- Full `app/` unit test suite (regression check — pre-existing tests untouched).
+- Baseline suites green:
+  - `<dest>/androidUnitTest` — baselines for held files + any feature-surface baselines that stayed.
+  - `<dest>/commonTest` (if Phase E ran) — baselines for promoted files.
+  - `<dest>/iosSimulatorArm64Test` (or equivalent, if host supports) — same commonTest baselines on iOS runtime.
+- Full `:app/src/test/` unit test suite (regression check — pre-existing tests untouched apart from Phase B import updates).
 - **Visual regression** (Paparazzi/Roborazzi) against pre-migration goldens if UI was indirectly touched.
 - **Telemetry parity scan** — analytics events preserved through migrated code paths (Sonnet scans for analytics-relevant changes).
 - **Crash-reporting hookup verified** for migrated namespaces (Crashlytics/Sentry still receives from new package paths).
@@ -68,21 +73,33 @@ If conflicts surface: user resolves; skill assists with diff-confirm.
 - Verify: no crashes, no obvious behavior changes vs pre-migration.
 - Output: screenshots / logs for user verification.
 
-**Heatmap generation (Opus, in parallel):**
-- Generate structured QA checklist based on:
-  - Phase 0 navigation flow
-  - plan.md risk register
-  - Per-file behavior surfaces
-- For each user-facing flow to verify: steps to reproduce, expected behavior, risk areas to focus on.
-- Format: tickable markdown saved as `heatmap.md` (separate file so PR can link it independently of `validation.md`).
+**Heatmap generation (Opus, in parallel with smoke test):**
+
+Drafted as a **pre-QA checklist**, not a post-QA summary. Result column starts empty; user fills it during F.6.
+
+Sources:
+- Phase 0 navigation flow
+- plan.md risk register
+- Per-file behavior surfaces (focus on `migrate`-plan files; held files unchanged at observable level since their code didn't move from `androidMain`)
+
+Format (tickable markdown saved as `heatmap.md`):
+
+| Surface | Observable | Result |
+|---|---|---|
+| <user-facing flow> | <expected behavior, risk area to watch> | TBD |
+| ... | ... | TBD |
+
+Skill **presents `heatmap.md` to the user before F.6 starts** and never pre-fills the Result column. Post-hoc summaries of QA outcomes belong in `validation.md`, not `heatmap.md`.
 
 ### F.6 — Manual QA gate (user-driven)
 
+**Precondition:** `heatmap.md` (from F.5) is open and presented to the user with `TBD` Result cells. F.6 cannot start until this is true.
+
 User exercises the heatmap on a real device or emulator:
-- Ticks boxes as flows are verified.
+- **Fills in each Result cell** (pass / fail / anomaly note) as flows are verified.
 - Records any anomalies found.
 
-**Phase F blocks** until heatmap is fully checked OR all anomalies are resolved.
+**Phase F blocks** until every Result cell has a value AND all anomalies are resolved (or filed as follow-ups with user sign-off).
 
 This is real human time — typically 30+ minutes on a non-trivial migration. The skill waits.
 
@@ -97,7 +114,7 @@ Any failure in F.1–F.6 → **Opus** categorizes:
 | API drift | Phase D fix |
 | Quality issue | Phase D code edit |
 | Build / test failure | Investigate, Phase D fix |
-| Smoke failure | Phase D fix or hold-back |
+| Smoke failure | Phase D fix, or Phase D plan flip to `hold` via D.3 |
 | QA-found behavior anomaly | Investigate, Phase D fix or migration-exception (if intentional) |
 
 After fix → **return to F.1, re-validate fully**. No partial re-validation.
@@ -118,5 +135,6 @@ When all F passes → user explicit "migration complete" confirmation → `valid
 Beyond universals:
 
 - Every F sub-phase passes (or has documented exception).
-- Manual QA heatmap fully checked off by user.
+- `heatmap.md` presented to user with `TBD` Result cells **before** F.6 starts; skill never pre-fills Result column.
+- Manual QA heatmap fully filled in by user (every Result cell has a value).
 - User **explicit "migration complete" confirmation** before Phase G.
