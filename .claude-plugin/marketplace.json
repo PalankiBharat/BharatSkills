@@ -13,11 +13,11 @@
     {
       "name": "feature-analyzer",
       "source": "./plugins/feature-analyzer",
-      "description": "Hardened team-lead orchestrator for pre-dev story interrogation. Walks existing code + Figma flows, strips out-of-platform sections, and emits a shareable dark-mode HTML doc with the original story pinned alongside option-pill questions.",
-      "version": "2.1.0",
+      "description": "Pre-dev story interrogation. Team-lead orchestrator walks code + Figma flows, honours project memory, strips out-of-platform sections, and emits a centred dark-mode HTML doc (Linear-style, WCAG AA, violet accent) with the original story pinned alongside option-pill questions across PM / Backend / Android / Design / QA / Compliance / DevOps roles.",
+      "version": "2.2.0",
       "category": "analysis",
-      "tags": ["android", "feature-analysis", "user-stories", "pre-dev", "qa", "figma", "team-lead"],
-      "keywords": ["analyze", "feature", "story", "impact", "pre-dev", "interrogate", "figma", "kill-switch"]
+      "tags": ["android", "feature-analysis", "user-stories", "pre-dev", "qa", "figma", "team-lead", "wcag", "dark-mode"],
+      "keywords": ["analyze", "feature", "story", "impact", "pre-dev", "interrogate", "figma", "kill-switch", "project-memory", "strikethrough"]
     },
     {
       "name": "qa-autopilot",
