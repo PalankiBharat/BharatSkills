@@ -4,6 +4,42 @@ Parse the user story / feature spec and surface everything that's unclear, assum
 
 This file is consumed by the team lead (Mode 1) for input prep and by `gap-analyzer` (Wave 2) for delta computation. It is also read directly in Mode 2 Phase 1.
 
+## Detect strikethrough decisions (mandatory — F2 from #173)
+
+Specs commonly use `~~strikethrough~~` inside decision tables and edge-case lists to mark a **rejected alternative** the author considered and then crossed out. The non-strikethrough branch next to it is the settled decision.
+
+The clarifier scans the source story for `~~...~~` patterns and emits `session.strikethrough_branches[]`:
+
+```json
+{
+  "strikethrough_branches": [
+    {
+      "topic_slug": "activation-outside-market-hours",
+      "rejected_branch_text": "Locks trading for the next X hours regardless of when the kill switch was activated.",
+      "settled_branch_text": "Do not allow until next trading session opens.",
+      "evidence_section": "Edge Cases & Policy Decisions",
+      "decision": "rejected"
+    }
+  ]
+}
+```
+
+Downstream consumers MUST treat these as settled decisions:
+
+- `flow-tracer` does not emit a delta for the rejected branch.
+- `questioner` does not generate a question whose options revive the rejected branch — even if the rejected branch is otherwise a reasonable design alternative. The settled branch is the answer.
+- `critic` flags `strikethrough_revival` for any question that lists the rejected branch as an option (see `critic-rubric.md`).
+- Auto-answered topics are surfaced in the scope report under "Auto-answered by spec strikethrough" so the developer sees the skill respected the decision.
+
+Detection rules:
+
+- Whole-line strikethrough → entire line is the rejected branch.
+- Inline strikethrough inside a table cell → that cell's content is the rejected branch; the un-struck cell content in the same row is the settled branch.
+- Strikethrough spanning multiple lines (rare) → treat each line as a separate rejected branch.
+- Strikethrough inside code blocks → ignore (literal text, not a decision).
+
+If the source story is truncated or the strikethrough has no obvious settled-branch counterpart, record `decision: "rejected"` with `settled_branch_text: null` and let the questioner skip — never auto-answer with `null`.
+
 ## Detect Figma URLs (mandatory)
 
 Before parsing for clarification, scan the raw story text for Figma URLs. Every match is queued for `design-reviewer` (Wave 1) which will fetch the node, walk the linked frames, capture screenshots, and produce a screen catalog. See `figma-walk.md` for URL patterns, walk protocol, and output schema.

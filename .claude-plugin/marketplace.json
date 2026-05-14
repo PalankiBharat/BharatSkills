@@ -14,10 +14,10 @@
       "name": "feature-analyzer",
       "source": "./plugins/feature-analyzer",
       "description": "Hardened team-lead orchestrator for pre-dev story interrogation. Walks existing code + Figma flows, strips out-of-platform sections, and emits a shareable dark-mode HTML doc with the original story pinned alongside option-pill questions.",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "category": "analysis",
       "tags": ["android", "feature-analysis", "user-stories", "pre-dev", "qa", "figma", "team-lead"],
-      "keywords": ["analyze", "feature", "story", "impact", "pre-dev", "interrogate", "figma", "kill-switch"]
+      "keywords": ["analyze", "feature", "story", "impact", "pre-dev", "interrogate", "figma", "kill-switch", "android-questioner"]
     },
     {
       "name": "qa-autopilot",

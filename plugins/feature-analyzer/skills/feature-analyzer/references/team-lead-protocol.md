@@ -58,17 +58,18 @@ DONE           → emit HTML doc + replay log + token report
 
 Every transition is logged to the replay log (see `replay-log-format.md`). Aborts return a structured error — never a silent failure.
 
-## Wave plan
+## Wave plan (v2.1 — consolidated)
 
 | Wave | Specialists | Inputs | Outputs feed |
 |---|---|---|---|
-| 1 (parallel) | `flow-tracer`, `design-reviewer` | story + scope-filtered sections; Figma URLs | gap-analyzer, all questioners |
-| 2 (sequential) | `gap-analyzer` | flow-tracer output + story | all questioners |
-| 3 (parallel) | `domain-questioner`, `tech-questioner`, `qa-questioner` | gap delta + scope-filter report | merge |
+| 1 (parallel) | `flow-tracer` (now emits delta inline), `design-reviewer` | story + scope-filtered sections + `project_memory`; Figma URLs | questioner |
+| 2 | `questioner` (one specialist; replaces 3 pillar questioners) | flow-tracer facts + delta + scope-report + `project_memory` | merge |
 | Merge | lead | all wave outputs | critic |
 | Critic | `critic` (always), `red-team` (opt-in) | merged output | final HTML |
 
-`design-reviewer` only runs if Figma URLs are present in the story.
+`design-reviewer` runs in degraded mode (text-only questions, no walk) if no Figma URLs are present; it does not gate the rest of the team.
+
+Why the wave count dropped from 4 → 3 (#173): `gap-analyzer` was a thin rephrasing of what `flow-tracer` already discovered, and three pillar questioners produced semantically duplicate questions that critic had to merge afterward. The merged shape removes that round-trip while keeping per-pillar count budgets.
 
 ## Pre-flight checklist (G5)
 
@@ -78,8 +79,19 @@ Run before any specialist spawns. Abort with a single message if any item fails 
 - [ ] Figma URLs (if any in story) parse to valid file keys.
 - [ ] Repo is a git working tree; current branch identified.
 - [ ] Story has at least: title, user-facing intent, 1+ acceptance criterion.
+- [ ] **Project memory loaded.** Read `~/.claude/projects/<project-slug>/memory/MEMORY.md` and every file it indexes. Inject contents as `session.project_memory[]` for every downstream specialist. If the file is missing, the run continues but the lead notes `project_memory: empty` in the scope report so the developer knows.
 
 Failure → `Pre-flight failed: <reasons>. Fix and re-run.`
+
+### Project-memory contract (F1 from #173)
+
+`session.project_memory[]` is a list of `{name, type, body}` entries where `type` is one of `user | feedback | project | reference` (matching the auto-memory taxonomy). Specialists treat it as a hard source of truth:
+
+- A memory marked "Punch does not support AMO" → no fact, no delta, no question may assume AMO exists. If the spec references AMO, surface a clarification at the **scope-report** level ("Spec mentions AMO but project memory says AMO is unsupported on this app — confirm"), NOT as a code-design question.
+- A memory marked "Backend owns square-off orchestration" → questioner suppresses Android-side questions about square-off internals (per `backend-internals` filter in `scope-classifier.md` + `critic-rubric.md`).
+- A memory marked "feedback: strikethrough means rejected" → story-clarifier strikethrough-parser activates (see `story-clarifier.md`).
+
+The critic enforces these as `evidence_against_memory` findings — any output that contradicts project memory is rejected before merge.
 
 ## Cost ceiling + dry-run (G13)
 
