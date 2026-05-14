@@ -13,11 +13,12 @@
 **Structure:**
 - **What changed** — the feature/module migrated, in reviewer-facing terms. Not "we ran Phase D" — "migrated funds business logic to the shared module."
 - **User-visible impact** — ideally *"none — behavioral + API equivalence preserved."* Be explicit about this.
-- **Files changed** — high-level summary by category (e.g., "6 files moved to `:shared/funds/`, 12 consumer imports updated in `app/`").
+- **Files changed** — high-level summary by category. E.g., "8 files relocated to `:shared/funds/` (`androidMain`); 6 promoted to `commonMain`; 2 held in `androidMain` for a future session — see plan.md."
 - **Risk areas** — from `plan.md` risk register. What should the reviewer focus on?
-- **QA heatmap** — link to or embed `heatmap.md` from F.5.
+- **QA heatmap** — link to or embed `heatmap.md` from F.5 (with Result cells filled in by user during F.6).
 - **Migration exceptions (if any)** — listed with links to `.kmm/exceptions/` files + brief rationale.
-- **Tests** — baseline count moved to commonTest, all green confirmation, iOS verification status (or host-limitation note).
+- **Tests** — baseline counts per source set: how many in `<dest>/androidUnitTest` (held files), how many promoted to `<dest>/commonTest` (migrated files), all green confirmation, iOS verification status (or host-limitation note).
+- **Out-of-scope follow-ups** — pre-existing broken tests quarantined via `@Ignore` (from Phase B.2 and Phase E.0); files flipped `migrate` → `hold` during Phase D (from D.3) with one-line context. Reviewer-facing list, not a backlog dump.
 - **Footer (single line):** `Full migration context: .kmm/migrations/<branch>/` — single line, lets curious reviewers navigate without bloating the body.
 
 **Excluded** (do not appear in PR body):
@@ -47,7 +48,7 @@ Re-read the draft:
 
 ### G.5 — Session retro
 
-After PR is open (or body output), the skill runs the **Session retro** action (see `SKILL.md` → Special actions). Three short questions, written to `.kmm/migrations/<branch>/retro.md`. Diff-confirmed before write. User can `skip retro` to bypass.
+After PR is open (or body output), the skill runs the **Session retro** action (see `SKILL.md` → Special actions). Four short questions, written to `.kmm/migrations/<branch>/retro.md` — including the workflow-rules-to-promote review that routes general workflow improvements back into the skill itself. Diff-confirmed before write. User can `skip retro` to bypass.
 
 This is the final step of the workflow. The retro.md file is the closing artifact of the session, parallel to pr.md being the closing artifact for the PR.
 

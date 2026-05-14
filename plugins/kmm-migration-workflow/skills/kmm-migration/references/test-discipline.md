@@ -66,7 +66,7 @@ abstractly.
 | Who can edit the test after writing? | Anyone, any time | **Frozen** — no edits without a migration-exception |
 | Allowed to use Mockito? | Yes (if SUT stays in `app/`) | **No** — Mockito doesn't run in `commonTest` |
 | Allowed to assert on `verify(mock).method(...)`? | Yes, sparingly | **No** — only observable outputs |
-| Lives where? | `app/src/test/...` mirroring main | `app/src/baselineTest/...` (separate source set) |
+| Lives where? | `app/src/test/...` mirroring main | `<dest>/src/androidUnitTest/...` (promoted to `<dest>/src/commonTest/...` in Phase E when code reaches `commonMain`) |
 
 **If the SUT is anywhere in the migration's blast radius, default to
 baseline-test rules.** When in doubt, ask the user which one this is.
@@ -1568,7 +1568,7 @@ freeze. Use a snapshot:
 1. Serialize the output to canonical JSON via `kotlinx.serialization`
    (sorted keys, fixed formatting).
 2. Commit the JSON next to the test:
-   `app/src/baselineTest/.../snapshots/order_payload__nifty_2_lot.json`
+   `<dest>/src/androidUnitTest/.../snapshots/order_payload__nifty_2_lot.json`
 3. Test: serialize the output and `assertEquals` against the file
    contents.
 4. **Updating the snapshot post-freeze requires a migration
@@ -1591,31 +1591,52 @@ trade-off is right.
 
 ### Where frozen tests live
 
-Recommended source set: **`app/src/baselineTest/`** as its own
-gradle source set, *not* a folder inside `app/src/test/`. Reasons:
+Recommended source set: **`<dest>/src/androidUnitTest/`** — the destination module's Android unit-test source set. Baselines start here in Phase B (uniform routing — every in-scope file is relocated to `<dest>/androidMain` first), then promote to **`<dest>/src/commonTest/`** in Phase E for files whose production code reached `commonMain`.
 
-- A separate source set lets gradle / CI run baselines independently
-  (`./gradlew :app:baselineTestDebug` — fast, isolated).
-- The folder boundary makes the "no edits without exception" rule
-  enforceable by CODEOWNERS / CI.
-- It signals to a reader: "this is a different kind of test; the
-  rules are stricter."
+Why `androidUnitTest` as the initial destination:
 
-If a separate source set isn't an option, fall back to
-`app/src/test/baseline/` and enforce by path glob in CI.
+- It's a superset source set — sees both `commonMain` and `androidMain` code, so it can host baselines for files in either source set.
+- The KMM-portable test stack works there fine (it's all JVM).
+- When a file's production code promotes to `commonMain` (Phase D), its baseline can be `git mv`'d to `commonTest` mechanically (Phase E) — no rewrite, since the stack was already KMM-portable.
 
-### Freeze enforcement (mechanical, not honor-system)
+Why not `app/src/baselineTest/` as a separate source set: AGP + KGP interactions make custom Android test source sets painful (AGP rejects custom names; KGP's `setSource` overrides; worktree-aware setup is fiddly). The destination module's existing `androidUnitTest` is already configured — use it.
 
-Baseline tests are immutable from the moment migration starts. Three
-concrete locks (do all three):
+### Quarantine of unrelated broken tests
 
-1. **CODEOWNERS**: `app/src/baselineTest/ @<migration-tech-lead>` —
-   any edit needs explicit approval.
-2. **CI guard**: a job that diffs the baseline source set against the
-   migration-start commit; fails the build if a file changed without
-   a corresponding `migration-exception/<id>.md` on the same PR.
-3. **Detekt rule** (custom — extend `customRules/` if it exists, or
-   add it):
+Target test source sets often contain pre-existing broken tests unrelated to the current migration — flaky, abandoned, infra-rot. Three bad responses:
+
+- **Fix them.** Out of scope. Dilutes the PR, breaks one-thing-at-a-time discipline.
+- **Exclude them individually.** Whack-a-mole.
+- **Isolate via a separate test module.** Over-engineering.
+
+**Default response: `@Ignore` quarantine.** Each pre-existing broken test gets `@Ignore` with a one-line reason and a follow-up pointer:
+
+```kotlin
+@Test
+@Ignore("Times out under emulator; see PR #378 out-of-scope follow-ups")
+fun `pre-existing flaky test`() { ... }
+```
+
+The PR description includes an **"Out-of-scope follow-ups"** section listing these tests for someone else to pick up.
+
+The quarantine is **non-judgmental** — it does not assert the test is bad, only that fixing it is not this migration's job.
+
+**Flow:** Phase 0 step 8 surfaces broken pre-existing tests in `<dest>/androidUnitTest`. Phase B.2 applies `@Ignore` as its first sub-step, before any baseline is written. Phase E.0 does the same check on `<dest>/commonTest` before baseline promotion. The migration's own new tests are never `@Ignore`'d — only pre-existing unrelated broken ones.
+
+### Freeze enforcement (mechanical + behavioral)
+
+Baseline tests are immutable from the moment migration starts. Three layers of enforcement:
+
+1. **Skill-behavioral (primary).** The kmm-migration skill itself refuses to edit frozen baselines without a corresponding `.kmm/exceptions/<id>.md` file present. This is enforced by the skill's cross-cutting Migration-exception process — see SKILL.md. Since all baseline edits should flow through the skill in practice, this is the main enforcement layer.
+
+2. **Detekt rule (mechanical).** A custom detekt rule that fails on baseline tests importing JVM-stack libraries (Mockito, Truth, Robolectric, etc.) — catches stack-drift even if the rest of the test body looks innocuous. Bootstrapped first-time per repo via Phase C.2.
+
+3. **Reviewer attention (human).** PR review compares the baseline file diff against the frozen-at SHA recorded in `coverage.md`. Any edit without a `[migration-exception <id>]` tag in the commit message + matching exception file is flagged.
+
+No CODEOWNERS dependency. No pre-commit / commit-msg hook (these were dropped — hook setup is fiddly in worktrees, and the skill-behavioral + detekt + reviewer layers cover the same ground).
+
+**Detekt rule** (custom — extend `customRules/` if it exists, or
+add it):
 
 **Fail on import of:**
 - `org.mockito.*` (Mockito is JVM-only)
@@ -1653,8 +1674,7 @@ For each behavior change requiring a baseline edit:
    - **Sign-off**: tech lead approval (file mention or link).
 2. The baseline edit references the exception file in its commit
    message: `[migration-exception 2026-05-12-tz-dst]`.
-3. CI reads the commit message; without the reference, baseline edits
-   fail.
+3. The skill itself refuses to edit frozen baselines without the exception file present — that's the primary mechanical check. PR reviewer verifies the exception file exists and the commit message tag matches before approving.
 
 ### Pre / during / post checklist
 
@@ -1663,17 +1683,18 @@ Before starting migration:
 - [ ] Each baseline test is verified to go red on a deliberate breakage of the production code (proves the test isn't tautologically green).
 - [ ] No baseline test imports Mockito, Truth, Robolectric, `org.junit.runner`, or `androidx.test`.
 - [ ] No baseline test contains `verify(`, `@get:Rule`, or `System.currentTimeMillis()`.
-- [ ] CODEOWNERS, CI guard, and detekt rules are live.
-- [ ] `./gradlew :app:baselineTestDebug` is green.
+- [ ] Detekt rule live (bootstrapped first-time per repo via Phase C.2).
+- [ ] Pre-existing broken tests in target source sets quarantined via `@Ignore` with follow-up pointer (per "Quarantine of unrelated broken tests" above).
+- [ ] `./gradlew :<dest>:testDebugUnitTest` is green.
 
 During migration:
-- [ ] Every PR runs `:app:baselineTestDebug`. A red baseline blocks the PR by default.
+- [ ] Every PR runs `:<dest>:testDebugUnitTest` (and `:<dest>:commonTest` / `:<dest>:iosSimulatorArm64Test` once any baselines have promoted via Phase E). A red baseline blocks the PR by default.
 - [ ] Baseline edits only via the exception process.
 
-Post-migration (per surface, as it lands in `shared/`):
+Post-migration (per surface, as it lands in `<dest>/commonMain` via Phase D):
 - [ ] Frozen baseline tests run against the migrated code unchanged.
 - [ ] If any test goes red, decide: is this a real regression (fix the migration) or a sanctioned change (open exception)? Default is real regression.
-- [ ] Once a surface is fully migrated and baselines are green, the baseline tests are *moved* (not rewritten) into `shared/commonTest`. Because they only used KMM-portable APIs, the move is mechanical (`git mv` + adjust package).
+- [ ] Once a surface is fully migrated and baselines are green, the baseline tests are *moved* (not rewritten) into `<dest>/src/commonTest/` via Phase E. Because they only used KMM-portable APIs, the move is mechanical (`git mv` + adjust package).
 
 ---
 
@@ -1743,7 +1764,7 @@ or `NumberFormat.format`, force `Locale.US`:
 ### Test fixtures
 
 Put shared fixtures in `app/src/test/.../fixtures/` (or
-`app/src/baselineTest/.../fixtures/` for baselines) as factory
+`<dest>/src/androidUnitTest/.../fixtures/` for baselines) as factory
 functions:
 
 ```kotlin
@@ -1765,7 +1786,7 @@ Pays back the moment a constructor signature changes.
 ```bash
 ./gradlew ktlintCheck detekt
 ./gradlew :app:testDebugUnitTest          # unit tests
-./gradlew :app:baselineTestDebug          # baseline tests (if migration-relevant)
+./gradlew :<dest>:testDebugUnitTest        # baseline tests (if migration-relevant)
 ```
 
 Paste output into the reply. Don't claim "tests pass" without

@@ -52,6 +52,9 @@ Per file:
 - Mirrored test file exists (y/n) — by `test-discipline` package-mirror convention.
 - Already frozen elsewhere — scan sibling `.kmm/migrations/*/coverage.md` for matches. If found → flag *"already frozen by `<other-session>`; reuse the baseline rather than re-writing."*
 
+**Target test source-set health check** (one-time, per session):
+- **Test-compile state of `<dest>/androidUnitTest`.** All baselines land here in Phase B (uniform routing). Quick compile check; report clean / N broken (file list). Broken pre-existing tests are **quarantined via `@Ignore` in Phase B** (per `test-discipline §12 — Quarantine`), not fixed as part of this migration. `<dest>/commonTest` is not checked at Phase 0 — Phase E does its own pre-promotion check if any baseline migrates there.
+
 ### 9. Cross-feature ripple detection
 For each in-scope file, count back-references from out-of-scope project files. Shared models / utilities used widely → flag prominently.
 
@@ -60,7 +63,8 @@ Each shared dep gets a **per-occurrence decision** (include in this session / ho
 ### 10. Destination module discovery
 - If profile has destination set → use it, confirm.
 - Else: scan `settings.gradle*` for KMM-enabled modules (`kotlin("multiplatform")` plugin, conventional names like `:shared`, `:*-shared`, `:sniper`).
-- Present found modules to user with brief descriptions; user picks.
+- Present found modules to user with brief descriptions; user picks. No hardcoded defaults — user always confirms.
+- **Sanity-check chosen module's source sets.** Must have at minimum: `commonMain`, `commonTest`, `androidMain`, `androidUnitTest`. Phase B targets `androidMain` + `androidUnitTest` uniformly; Phase D / E target `commonMain` + `commonTest` for files migrating this session (per Phase A's plan). If any of the four is missing, flag as out-of-skill setup and ask user to configure the module first before this session continues.
 - *"Create new"* → flagged as out-of-skill setup task; skill stops and points user at it.
 - Record choice in scope.md and (if first time) in project.md.
 
@@ -94,6 +98,7 @@ Living document, written progressively. Contains:
 - Per-ripple decisions (include / hold back, with reasoning)
 - Per-file deselections made during manifest review
 - Platform deps encountered
+- **Pre-existing test-compile state in `<dest>/androidUnitTest`** (clean / N broken; action: @Ignore in Phase B per `test-discipline §12 — Quarantine`)
 - Tasks (checklist)
 - Decisions log (chronological)
 - Status
@@ -102,6 +107,6 @@ Living document, written progressively. Contains:
 
 ## Phase-specific gates
 
-Beyond the universal gates (predecessor complete, diff-confirm, no silent updates, user confirmation):
+Beyond universals:
 
-- **Scope is locked once user confirms.** Adding a file later isn't a Phase 0 reopen — it's either a new session or an explicit `update scope` action that re-walks deps from the new file. Prevents silent scope drift.
+- **Scope is locked once user confirms.** Adding a file later isn't a Phase 0 reopen — it's either a new session or an explicit `update scope` action that re-walks deps from the new file. Prevents silent scope drift. The scope-creep traceability gate (SKILL.md cross-cutting rules) enforces this at every action in later phases.
