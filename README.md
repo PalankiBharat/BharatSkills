@@ -6,7 +6,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 
 | Plugin | Version | Description |
 |---|---|---|
-| `feature-analyzer` | 1.0.0 | Two-phase user story and feature analysis for Android development |
+| `feature-analyzer` | 2.2.0 | Pre-dev story interrogation — team-lead orchestrator walks code + Figma flows, honours project memory, strips out-of-platform sections, emits a centred dark-mode HTML doc with the original story pinned alongside option-pill questions across PM / Backend / Android / Design / QA / Compliance / DevOps roles |
 | `qa-autopilot` | 1.0.0 | Automated QA — analyzes git changes, generates test cases, executes on Android devices |
 | `skill-feedback` | 1.0.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
 | `clean-code` | 1.2.7 | Clean Code principles (Uncle Bob) with auto-loading prehook — naming, functions, classes, error handling, testing |
