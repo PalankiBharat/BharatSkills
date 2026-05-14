@@ -10,204 +10,568 @@ Slug rule: kebab-case from the feature title (e.g. `Custom Time Frame` → `cust
 
 ## Required components
 
-The HTML doc has eight required components. All must be present even if a section ends up empty (render an empty-state hint instead of dropping the section).
+The HTML doc has nine required components. All must be present even if a section ends up empty (render an empty-state hint instead of dropping the section).
 
-1. **Sidebar nav (sticky, left rail)** — page-section links: Scope · Existing flow · Code requirements · Blockers · Clarifications · Nice-to-have · Assumptions · Copy. One-click jumps; current section highlighted as you scroll.
-2. **Header block** — feature name, one-line intent, date, run mode (Mode 1), session-id (small grey).
-3. **Scope-report block** — populated by `scope-classifier.md`. Renders included / stripped / conditional sections as a 3-column callout.
-4. **Existing-flow trace** — collapsible. Populated by `existing-flow-trace.md`. If skipped (greenfield), render a 1-line "Flow trace skipped — story self-declares greenfield" note.
-5. **Code requirements (diff block)** — collapsible. For every `delta` produced by `gap-analyzer` that maps to a concrete code touch-point, render a unified diff snippet showing current-state → target-state. See "Diff block" below.
-6. **Priority buckets** — `<details>` per bucket: 🔴 Blockers · 🟡 Clarifications · 🟢 Nice-to-have. Each bucket lists its question cards.
-7. **Per-question card** — see "Question card" below.
-8. **Copy controls** — top-right toolbar with: filter chips (priority + role), select-all-in-bucket, **selective copy modal**, copy-all-selected button.
+1. **Sidebar nav (sticky, left rail)** — page-section links: Story · Scope · Existing flow · Code requirements · Blockers · Clarifications · Nice-to-have · Assumptions · Copy. One-click jumps; current section highlighted as you scroll.
+2. **Header block** — feature name, one-line intent, date, run mode (Mode 1), session-id (small monospace).
+3. **Tab strip + Original Story panel (MANDATORY, always visible)** — A two-tab strip sits at the top of `<main>` directly under the header: `Analysis` (default) and `Original Story`. The `Original Story` tab renders the raw story text the reviewer submitted, completely unmodified (no rewriting, no summarising, no question generation). Markdown is rendered with a minimal renderer; headings, lists, code, links preserved. The panel is required on every Mode 1 run, including greenfield and degraded-mode runs. See "Original Story panel" below.
+4. **Progress bar** — "X / N answered" counter + fill bar. Tracks user interactions with radio groups. Starts at 0 (Recommended options are NOT pre-checked; the reviewer must actively select).
+5. **Scope-report block** — populated by `scope-classifier.md`. Wide left column for Included; stacked right rail for Stripped + Conditional.
+6. **Existing-flow trace** — collapsible panel. Populated by `existing-flow-trace.md`. If skipped (greenfield), render a 1-line "Flow trace skipped — story self-declares greenfield" note.
+7. **Code requirements (diff block)** — collapsible panel. For every `delta` produced by `gap-analyzer`, render a unified diff with a per-block header showing the relative file path.
+8. **Priority buckets** — collapsible panel per bucket: 🔴 Blockers · 🟡 Clarifications · 🟢 Nice-to-have. Each panel contains a question-card grid.
+9. **Copy controls** — sticky toolbar with: select-all / select-none / blockers-only, **selective copy modal**.
+
+## Design system — dark mode by default
+
+The template uses a layered dark surface palette inspired by GitHub dark, Linear, and Vercel:
+
+```css
+:root {
+  --base:       #0d1117;   /* page background */
+  --surface:    #161b22;   /* sidebar, panels */
+  --elevated:   #21262d;   /* cards, inputs, hover backgrounds */
+  --hover:      #30363d;   /* hover state */
+  --border:     #30363d;
+  --border-sub: #21262d;
+  --text:       #e6edf3;
+  --text-muted: #8b949e;
+  --text-dim:   #6e7681;
+
+  --green:      #3fb950;   /* success / nice-to-have */
+  --green-bg:   #0f2a1a;
+  --green-dim:  #1a4a2a;
+  --amber:      #d29922;   /* warning / clarification */
+  --amber-bg:   #2a1f00;
+  --amber-dim:  #3d2e00;
+  --red:        #f85149;   /* danger / blocker */
+  --red-bg:     #2a0f0f;
+  --red-dim:    #4a1a1a;
+  --blue:       #58a6ff;   /* links, file paths, badges */
+  --blue-bg:    #0f1f3a;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+
+  --sidebar-w: 260px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+}
+```
 
 ## Sidebar nav
 
-The sidebar is the navigation backbone. Stakeholders skim a 30-question doc faster when section jumps are one click away.
+The sidebar is the navigation backbone. 260px fixed width; `position: sticky; top: 0; height: 100vh` so it stays visible while main scrolls. Scroll-spy updates the active link.
+
+Role filter chips in the sidebar use colour-coded pill style with `active` state. Priority and pillar filter groups are stacked below role. Combined filters use AND logic. Filter state persists in `localStorage`.
 
 ```html
 <nav class="sidebar">
-  <h2>{{feature_name}}</h2>
+  <div class="sidebar-logo">
+    <div class="label">Feature Analysis · Mode 1</div>
+    <h2>{{feature_name}}</h2>
+  </div>
+
   <ul>
-    <li><a href="#scope">Scope filter</a></li>
-    <li><a href="#flow">Existing flow</a></li>
-    <li><a href="#diff">Code requirements</a></li>
-    <li><a href="#blockers">🔴 Blockers (<span class="badge">{{n_blockers}}</span>)</a></li>
-    <li><a href="#clarifications">🟡 Clarifications (<span class="badge">{{n_clarify}}</span>)</a></li>
-    <li><a href="#nice">🟢 Nice-to-have (<span class="badge">{{n_nice}}</span>)</a></li>
-    <li><a href="#assumptions">📌 Assumptions</a></li>
-    <li><a href="#copy">📋 Copy answers</a></li>
+    <li><a href="#scope"><span class="nav-icon">◫</span> Scope filter</a></li>
+    <li><a href="#flow"><span class="nav-icon">⇢</span> Existing flow</a></li>
+    <li><a href="#diff"><span class="nav-icon">±</span> Code requirements</a></li>
+    <li><a href="#blockers"><span class="nav-icon">●</span> Blockers <span class="badge red">{{n_blockers}}</span></a></li>
+    <li><a href="#clarifications"><span class="nav-icon">●</span> Clarifications <span class="badge amber">{{n_clarify}}</span></a></li>
+    <li><a href="#nice"><span class="nav-icon">●</span> Nice-to-have <span class="badge green">{{n_nice}}</span></a></li>
+    <li><a href="#assumptions"><span class="nav-icon">📌</span> Assumptions</a></li>
+    <li><a href="#copy-toolbar"><span class="nav-icon">⧉</span> Copy answers</a></li>
   </ul>
-  <hr>
-  <h3>Filter</h3>
-  <div class="filter-chips">
-    <button data-filter-role="all" class="chip active">All roles</button>
-    <button data-filter-role="PM">PM</button>
-    <button data-filter-role="Backend">Backend</button>
-    <button data-filter-role="Design">Design</button>
-    <button data-filter-role="QA">QA</button>
-    <button data-filter-role="Compliance">Compliance</button>
-    <button data-filter-role="DevOps">DevOps</button>
+
+  <hr class="sidebar-divider">
+  <div class="sidebar-section-label">Filters</div>
+
+  <div class="sidebar-filters">
+    <div class="filter-group">
+      <div class="filter-group-label">Role</div>
+      <div class="chip-row" data-filter-group="role">
+        <button class="chip active" data-filter-role="all">All</button>
+        <button class="chip" data-filter-role="PM">PM</button>
+        <button class="chip" data-filter-role="Backend">Backend</button>
+        <button class="chip" data-filter-role="Design">Design</button>
+        <button class="chip" data-filter-role="QA">QA</button>
+        <button class="chip" data-filter-role="Compliance">Compliance</button>
+        <button class="chip" data-filter-role="DevOps">DevOps</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <div class="filter-group-label">Priority</div>
+      <div class="chip-row" data-filter-group="priority">
+        <button class="chip active" data-filter-priority="all">All</button>
+        <button class="chip red" data-filter-priority="red">Blockers</button>
+        <button class="chip amber" data-filter-priority="yellow">Clarify</button>
+        <button class="chip green" data-filter-priority="green">Nice</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <div class="filter-group-label">Pillar</div>
+      <div class="chip-row" data-filter-group="pillar">
+        <button class="chip active" data-filter-pillar="all">All</button>
+        <button class="chip" data-filter-pillar="design">design</button>
+        <button class="chip" data-filter-pillar="tech">tech</button>
+        <button class="chip" data-filter-pillar="qa">qa</button>
+        <button class="chip" data-filter-pillar="domain">domain</button>
+      </div>
+    </div>
   </div>
 </nav>
 ```
 
-The sidebar uses `position: sticky; top: 0; height: 100vh;` so it stays visible while the main column scrolls. Scroll-spy updates which link is active.
+## Page header + progress bar
+
+```html
+<div class="page-header">
+  <div class="run-badge">{{session_id}} &nbsp;·&nbsp; {{date}}</div>
+  <h1>{{feature_name}}</h1>
+  <div class="intent">{{intent}}</div>
+  <div class="page-meta">
+    <span>Mode 1</span>
+    <span>·</span>
+    <span>{{n_total}} questions</span>
+    <span>·</span>
+    <span>{{n_diff_blocks}} diff blocks</span>
+    <span>·</span>
+    <span>{{scope_summary}}</span>
+  </div>
+  <div class="progress-bar-wrap">
+    <div class="progress-label">
+      <span>Progress</span>
+      <strong><span id="answered-count">0</span> / {{n_total}} answered</strong>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+</div>
+```
+
+**Progress bar semantics:** "answered" means the reviewer has fired a `change` event on any radio in the card — i.e. they made an active choice. The Recommended option is NOT pre-checked; `input[type=radio]` elements carry no `checked` attribute in the HTML. The JS tracks answered qids in a `Set` keyed by `data-qid` and fires on every `change`. This avoids the bug where a pre-selected Recommended makes the bar start at 100%. The counter uses `aria-live="polite"` so screen readers announce progress changes.
+
+## Tab strip + Original Story panel
+
+The very first interactive element in `<main>` (under the header, above the progress bar) is a two-tab strip. The reviewer should ALWAYS be one click away from the source story — without it, every question card is unverifiable.
+
+### Why this is mandatory
+
+- Reviewers need to cross-check questions against the story that produced them. Without the story inline, they alt-tab to a Slack / Jira / Linear / Notion tab and break flow.
+- Skill regression review needs the story to be embedded in the artifact — a `.feature-analyzer/<slug>/<session>/00-preflight.json` file is the source of truth, but the rendered HTML must be self-contained for sharing.
+- Greenfield runs especially benefit — when there's no flow trace and no diff, the story IS the only context for the questions.
+
+### Behaviour
+
+- **Tabs**: `Analysis` (default, selected) and `Original Story`.
+- **Persistence**: active tab persisted in `localStorage` key `fa-active-tab`. A returning reviewer lands on whichever tab they last viewed.
+- **Keyboard**: arrow-left/right cycles tabs when the strip has focus; numeric `1` jumps to Analysis, `2` to Story (with `aria-keyshortcuts`).
+- **Visibility**: switching tabs swaps `display: block` ↔ `display: none` on the two `<section>` panels. Both panels stay in the DOM so anchor links from the sidebar still work (the click handler activates the Analysis tab before scrolling).
+- **No transformation**: the Story panel renders the raw text the reviewer submitted. No summarising, no re-styling, no inserting links to questions. The minimal markdown renderer handles headings, lists, code fences, blockquotes, inline code, and bold/italic. Anything more exotic falls back to a `<pre>` block so the text is never lost.
+- **Diff against story**: each question card carries a "View source" affordance that opens the Story tab and scrolls to the first matching keyword (using `mark.js`-style highlighting). Out of scope for v1; tracked as iter-4 in the iteration plan.
+
+### HTML pattern
+
+```html
+<div class="tab-strip" role="tablist" aria-label="View">
+  <button class="tab active" role="tab" aria-selected="true"
+          aria-controls="tab-analysis" id="tab-btn-analysis"
+          data-tab="analysis" aria-keyshortcuts="1">
+    Analysis
+  </button>
+  <button class="tab" role="tab" aria-selected="false"
+          aria-controls="tab-story" id="tab-btn-story"
+          data-tab="story" aria-keyshortcuts="2">
+    Original Story
+    <span class="tab-hint">⌥2</span>
+  </button>
+</div>
+
+<section id="tab-analysis" role="tabpanel"
+         aria-labelledby="tab-btn-analysis" class="tab-panel active">
+  <!-- progress bar, copy toolbar, scope, flow, diff, priority buckets, assumptions -->
+</section>
+
+<section id="tab-story" role="tabpanel"
+         aria-labelledby="tab-btn-story" class="tab-panel" hidden>
+  <div class="story-meta">
+    <span>Source story · submitted at run start · not modified</span>
+    <button class="toolbar-btn" id="copy-story">Copy story</button>
+  </div>
+  <article class="story-body">
+    {{rendered_story_markdown}}
+  </article>
+</section>
+```
+
+### CSS pattern
+
+```css
+.tab-strip {
+  display: flex; gap: 4px; padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky; top: 0; z-index: 30;
+}
+.tab {
+  appearance: none; background: transparent; color: var(--text-muted);
+  border: 0; border-bottom: 2px solid transparent;
+  padding: 14px 18px; font: 500 13px/1 var(--sans);
+  cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-color: var(--blue); }
+.tab:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+.tab-hint { font: 400 11px/1 var(--mono); color: var(--text-dim);
+            padding: 2px 6px; background: var(--elevated); border-radius: 4px; }
+.tab-panel[hidden] { display: none; }
+.story-meta { display: flex; justify-content: space-between; align-items: center;
+              padding: 16px 24px; color: var(--text-muted); font-size: 13px; }
+.story-body { padding: 8px 24px 48px; max-width: 80ch; font: 15px/1.7 var(--sans); }
+.story-body h1, .story-body h2, .story-body h3 { color: var(--text); margin: 28px 0 8px; }
+.story-body h1 { font-size: 22px; } .story-body h2 { font-size: 18px; }
+.story-body h3 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.story-body p, .story-body li { color: var(--text); }
+.story-body code { font: 13px/1 var(--mono); background: var(--elevated); padding: 2px 6px;
+                   border-radius: 4px; color: var(--blue); }
+.story-body pre { background: var(--surface); padding: 14px 16px; border-radius: 6px;
+                  overflow: auto; border: 1px solid var(--border); }
+.story-body blockquote { border-left: 3px solid var(--border); padding: 4px 14px;
+                         color: var(--text-muted); margin: 12px 0; }
+```
+
+### JS pattern
+
+```js
+const TAB_KEY = 'fa-active-tab';
+function activateTab(name) {
+  document.querySelectorAll('.tab').forEach(btn => {
+    const isActive = btn.dataset.tab === name;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive);
+  });
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    const isActive = panel.id === `tab-${name}`;
+    panel.classList.toggle('active', isActive);
+    panel.hidden = !isActive;
+  });
+  localStorage.setItem(TAB_KEY, name);
+}
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+});
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === '1') activateTab('analysis');
+  if (e.key === '2') activateTab('story');
+});
+// Sidebar anchor links: activate Analysis tab first, then scroll
+document.querySelectorAll('nav.sidebar a[href^="#"]').forEach(a => {
+  a.addEventListener('click', () => {
+    if (a.getAttribute('href') !== '#tab-story') activateTab('analysis');
+  });
+});
+// Hydrate
+activateTab(localStorage.getItem(TAB_KEY) || 'analysis');
+```
+
+### Minimal markdown renderer
+
+For the story panel only, a small markdown-to-HTML helper runs at render time (in the skill, not in the browser — the skill emits already-rendered HTML inside `<article class="story-body">`). The renderer covers:
+
+| Source | Output |
+|---|---|
+| `# Heading` | `<h1>` |
+| `## Heading` | `<h2>` |
+| `### Heading` | `<h3>` |
+| `- bullet` / `* bullet` | `<ul><li>` |
+| `1. ordered` | `<ol><li>` |
+| ` ```code``` ` (triple-backtick fenced) | `<pre><code>` |
+| `` `inline` `` | `<code>` |
+| `**bold**` | `<strong>` |
+| `*italic*` / `_italic_` | `<em>` |
+| `> quote` | `<blockquote>` |
+| `[text](url)` | `<a href>` with `rel="noopener"` |
+| blank-line-separated paragraph | `<p>` |
+| anything else | passed through inside its block |
+
+If the renderer encounters a construct it doesn't recognise (e.g. tables, footnotes, custom shortcodes), it wraps the entire offending block in a `<pre class="raw-block">` rather than silently dropping content. This guarantees the reviewer never loses information.
+
+## Copy toolbar
+
+Sticky below the header; stays visible as the user scrolls questions.
+
+```html
+<div class="copy-toolbar" id="copy-toolbar">
+  <button class="toolbar-btn" id="select-all">Select all</button>
+  <button class="toolbar-btn" id="select-none">Select none</button>
+  <button class="toolbar-btn" id="select-blockers">Blockers only</button>
+  <span class="toolbar-spacer"></span>
+  <button class="toolbar-btn primary" id="open-copy-modal">⧉ Copy selected…</button>
+</div>
+```
 
 ## Scope-report block
 
-Three-column callout: Included (green) · Stripped (grey, struck-through) · Conditional (amber). Easier to scan than the original bulleted list.
+Wide left column for Included (spans 2 rows); right rail stacks Stripped above Conditional. This avoids the equal-thirds layout that wastes space when Conditional has only 1 item.
 
 ```html
-<div class="scope-report" id="scope">
-  <div class="col included">
-    <h4>✓ Included</h4>
-    <ul>{{included_items}}</ul>
+<div class="scope-grid" id="scope">
+  <div class="scope-col included">
+    <h4>Included</h4>
+    <ul>{{included_items}}</ul>   <!-- each <li><span>…</span></li> -->
   </div>
-  <div class="col stripped">
-    <h4>✗ Stripped</h4>
+  <div class="scope-col stripped">
+    <h4>Stripped</h4>
     <ul>{{stripped_items}}</ul>
   </div>
-  <div class="col conditional">
-    <h4>⚠ Conditional</h4>
+  <div class="scope-col conditional">
+    <h4>Conditional</h4>
     <ul>{{conditional_items}}</ul>
   </div>
 </div>
 ```
 
+Grid rule: `grid-template-columns: 1fr 280px; grid-template-rows: auto auto;` with `.included { grid-row: 1 / 3; }`.
+
 ## Existing-flow trace
 
-If flow-tracer ran successfully, render the chain as a vertical breadcrumb with `file:line` cites:
+Collapsible `<details class="panel">`. Summary line shows avg confidence. If `partial: true`, open with a prominent amber callout explaining degraded mode.
 
 ```html
-<details id="flow" open>
-  <summary>Existing flow audit (confidence: {{avg_confidence}})</summary>
-  <ol class="flow-chain">
-    <li><b>UI</b> — DurationSelectionBottomSheet
-        <code>app/.../DurationSelectionBottomSheet.kt:24</code></li>
-    <li><b>ViewModel</b> — ChartViewModel
-        <code>app/.../ChartViewModel.kt:88</code></li>
-    <li><b>SDK</b> — HistoryRemoteStore
-        <code>marketpulse-android-sdk/.../HistoryRemoteStore.kt:45</code></li>
-  </ol>
-  <h4>Facts</h4>
-  <ul class="facts">
-    <li><span class="confidence high">high</span> Duration sent as query param `duration=<type>` (string)
-        <code>marketpulse-android-sdk/.../HistoryRemoteStore.kt:45</code></li>
-  </ul>
+<details class="panel" id="flow" open>
+  <summary>
+    Flow audit
+    <span class="summary-label">avg confidence: {{avg_confidence}}</span>
+    <span class="summary-chevron">›</span>
+  </summary>
+  <div class="panel-body">
+    <!-- If partial: true -->
+    <div class="partial-callout">
+      <span class="icon">⚠</span>
+      <div>Flow trace ran in <strong>degraded mode</strong> (<code>partial: true</code>).
+      No <code>file:line</code> cites claimed. All auto-answer candidates surfaced.</div>
+    </div>
+
+    <!-- SDKs probed list -->
+    <ul class="facts-list">
+      <li><span class="conf-chip low">not_located</span> &nbsp;<code>{{sdk_name}}</code> — {{status_note}}</li>
+    </ul>
+
+    <!-- Inferred chain -->
+    <ol class="flow-chain">
+      <li><b>UI</b> — {{ui_component}} <span class="conf-chip {{confidence}}">{{confidence}}</span></li>
+      <li><b>ViewModel</b> — {{viewmodel}} <span class="conf-chip {{confidence}}">{{confidence}}</span></li>
+      <!-- … -->
+    </ol>
+  </div>
 </details>
 ```
 
-If `partial: true` or skipped, render a single callout line stating the reason. Never fabricate a chain.
+If the story is greenfield (no existing flow to trace), render a single callout:
+
+```html
+<div class="partial-callout">
+  <span class="icon">ℹ</span>
+  <div>Flow trace skipped — story self-declares greenfield. No existing component chain to audit.</div>
+</div>
+```
 
 ## Code requirements — diff block
 
-When `gap-analyzer` identifies a delta that the developer will need to implement, render it as a unified diff inside a `<pre class="codediff">`. Diffs come from the gap-analyzer output's `delta[].current_state` and `delta[].target_state` fields.
+Each delta gets its own bordered card with a header showing the file path. The diff body uses a dark terminal look (`background: #010409`). Lines are `<span>` elements with class `diff-line add|del|meta|hunk`.
 
 ```html
-<details id="diff" open>
-  <summary>Code requirements (delta from existing flow)</summary>
+<details class="panel" id="diff" open>
+  <summary>
+    Delta from existing flow
+    <span class="summary-chevron">›</span>
+  </summary>
+  <div class="panel-body">
+    <!-- Placeholder callout if no repo access -->
+    <div class="partial-callout">…</div>
 
-  <div class="delta">
-    <h4>Δ1 — Persist user-defined durations</h4>
-    <p>Today: <code>ChartDurationModel</code> is a fixed enum.
-       Target: extend the model with a user-defined list backed by Room.</p>
-    <pre class="codediff"><code>--- a/marketpulse-android-sdk/.../ChartDurationModel.kt
-+++ b/marketpulse-android-sdk/.../ChartDurationModel.kt
-@@ -10,3 +10,8 @@
- enum class ChartDuration(val seconds: Int) {
-   ONE_MIN(60), FIVE_MIN(300), ...
- }
-+
-+data class CustomDuration(
-+  val id: String,
-+  val seconds: Int,
-+) : ChartDurationSpec</code></pre>
-    <p class="evidence">Evidence: <code>ChartDurationModel.kt:12</code></p>
+    <div class="delta">
+      <div class="delta-header">
+        <span class="delta-index">Δ1</span>
+        <span class="delta-title">{{delta_title}}</span>
+        <span class="delta-filepath">{{relative_file_path}}</span>
+      </div>
+      <div class="delta-desc"><p>{{current_state}} → {{target_state}}</p></div>
+      <pre class="codediff"><code>
+<span class="diff-line meta">--- a/{{file_path}}</span>
+<span class="diff-line meta">+++ b/{{file_path}}</span>
+<span class="diff-line hunk">@@ {{hunk_header}} @@</span>
+<span class="diff-line"> {{context_line}}</span>
+<span class="diff-line del">-{{removed_line}}</span>
+<span class="diff-line add">+{{added_line}}</span>
+      </code></pre>
+      <div class="delta-evidence">Evidence: {{evidence_cite}}</div>
+    </div>
+    <!-- repeat .delta up to 5 times -->
   </div>
 </details>
 ```
 
 Rules:
 - Only include diffs grounded in a `gap-analyzer.delta[]` entry whose evidence has `file:line` cites. No fabricated diffs.
-- If gap-analyzer ran in degraded mode (no repo access), render a placeholder diff with the comment `// TODO: target shape — repo not accessible at trace time` rather than inventing content.
-- Maximum 5 diff blocks per doc. Overflow → bucket the rest under "Further deltas (links)" with a one-line description each.
+- If gap-analyzer ran in degraded mode, render placeholder diffs with `// TODO: target shape — repo not accessible at trace time`.
+- Maximum 5 diff blocks per doc. Overflow → bucket the rest under "Further deltas" with a one-line description each.
+
+## Priority buckets
+
+Each bucket is a `<details class="panel bucket-{color}">`. The left border color (3px) signals priority at a glance without needing to read the heading.
+
+```html
+<details class="panel bucket-red" id="blockers" open>
+  <summary>
+    <span class="summary-icon">🔴</span> Must answer before implementation starts
+    <span class="summary-chevron">›</span>
+  </summary>
+  <div class="panel-body">
+    <div class="question-grid">
+      {{blocker_cards}}
+    </div>
+  </div>
+</details>
+
+<details class="panel bucket-yellow" id="clarifications" open>
+  <summary>
+    <span class="summary-icon">🟡</span> Should clarify before sprint ends
+    <span class="summary-chevron">›</span>
+  </summary>
+  <div class="panel-body">
+    <div class="question-grid">
+      {{clarify_cards}}
+    </div>
+  </div>
+</details>
+
+<details class="panel bucket-green" id="nice">
+  <summary>
+    <span class="summary-icon">🟢</span> Address when bandwidth allows
+    <span class="summary-chevron">›</span>
+  </summary>
+  <div class="panel-body">
+    <div class="question-grid">
+      {{nice_cards}}
+    </div>
+  </div>
+</details>
+```
+
+The question grid is single-column by default; switches to 2-column above 1440px viewport (where each card has ≥560px — comfortable for radio-pill content). The breakpoint is set at 1440px viewport rather than 1100px because the 260px sidebar leaves only ~840px of main at 1100px, which is too narrow for two pill-option cards.
 
 ## Question card
 
+Card layout clusters: meta-row (checkbox + role + pillar + confidence + per-card copy) at top; question + impact + reason-not-derivable in the body; radio pills below; card footer = override input + stable qid.
+
+Radio pills are NOT pre-checked. The Recommended option is visually distinguished by a `★ Rec` badge inside the label, not by `checked`. The reviewer must click to register an answer.
+
 ```html
-<section class="question-card priority-{{priority}}" data-qid="{{qid}}"
-         data-role="{{role}}" data-pillar="{{pillar}}">
-  <header>
-    <input type="checkbox" class="select-q" title="Include in copy-all"
-           checked>
-    <span class="role-tag">{{role}}</span>
+<section class="question-card priority-{{priority}}"
+         data-qid="{{qid}}"
+         data-role="{{role}}"
+         data-pillar="{{pillar}}"
+         data-priority="{{priority}}">
+
+  <div class="card-meta-row">
+    <input type="checkbox" class="card-select select-q" title="Include in copy">
+    <span class="role-tag {{role}}">{{role}}</span>
     <span class="pillar-tag">{{pillar}}</span>
-    <span class="confidence {{confidence}}">{{confidence}}</span>
-    <button class="copy-btn">Copy this</button>
-  </header>
-  <h4>{{question}}</h4>
-  <p class="why"><b>Decision affected:</b> {{impact}}</p>
-  <p class="reason-not-derivable">
-    <b>Not derivable from code/Figma because:</b> {{reason_not_derivable}}
-  </p>
-  <label class="pill recommended">
-    <input type="radio" name="{{qid}}" value="{{rec_label}}" checked>
-    {{rec_label}} — {{rec_reason}}
-  </label>
-  <label class="pill"><input type="radio" name="{{qid}}" value="{{opt_b}}">{{opt_b}}</label>
-  <label class="pill"><input type="radio" name="{{qid}}" value="{{opt_c}}">{{opt_c}}</label>
-  <input class="override" placeholder="Other / override…">
-  <small class="qid">{{qid}}</small>
+    <span class="conf-chip {{confidence}}">{{confidence}}</span>
+    <button class="card-copy-btn copy-btn">Copy</button>
+  </div>
+
+  <div class="card-body">
+    <h4>{{question}}</h4>
+    <p class="card-impact"><strong>Decision affected:</strong> {{impact}}</p>
+    <p class="card-reason">
+      <strong>Not derivable because:</strong> {{reason_not_derivable}}
+    </p>
+
+    <div class="card-options">
+      <!-- Recommended option — note: NO checked attribute -->
+      <label class="pill recommended">
+        <input type="radio" name="{{qid}}" value="{{rec_label}}">
+        <span class="pill-rec-badge">★ Rec</span>
+        <span class="pill-text">
+          {{rec_label}}
+          <span class="pill-reason">{{rec_reason}}</span>
+        </span>
+      </label>
+
+      <!-- Other options -->
+      <label class="pill">
+        <input type="radio" name="{{qid}}" value="{{opt_b}}">
+        <span class="pill-text">{{opt_b}}</span>
+      </label>
+      <label class="pill">
+        <input type="radio" name="{{qid}}" value="{{opt_c}}">
+        <span class="pill-text">{{opt_c}}</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="card-footer">
+    <input class="override-input override" placeholder="Other / override…">
+    <span class="qid">{{qid}}</span>
+  </div>
 </section>
 ```
 
 Per-card fields:
 
-- **Header checkbox (`.select-q`)** — defaults checked. Drives selective copy.
-- **Role tag** — what stakeholders see (PM, Backend, Design, Compliance, QA, DevOps).
-- **Pillar tag** — small grey (`design|tech|qa|domain`). Distinct from role; see specialist-roster.md "Role → pillar map".
-- **Confidence chip** — `high` (green), `medium` (amber), `low` (grey).
-- **Per-card copy** — copies that one Q+A.
-- **Reason-not-derivable** — mandatory; rendered as a small line so reviewer sees *why* this couldn't be answered from code.
-- **Override input** — supplements the radio options.
-- **Stable qid** — grey monospace at the bottom.
+- **Header checkbox (`.select-q`)** — defaults checked (set by JS init). Drives selective copy.
+- **Role tag** — colour-coded by role: PM (blue), Backend (purple), Design (orange), QA (green), Compliance (amber), DevOps (grey).
+- **Pillar tag** — monospace badge (`design|tech|qa|domain`). Distinct from role.
+- **Confidence chip** — `high` (green), `medium` (amber), `low` (grey). 10px monospace uppercase.
+- **Per-card copy** — copies that Q+A as plain text.
+- **Reason-not-derivable** — mandatory italic block. Reviewer sees *why* this couldn't be answered from code.
+- **Override input** — supplements the radio options; dark input field.
+- **Stable qid** — dim monospace at bottom-right.
 
 ## Copy controls (toolbar + selective copy modal)
 
-Top-right toolbar:
-
 ```html
-<div class="copy-toolbar">
-  <button id="select-all">Select all</button>
-  <button id="select-none">Select none</button>
-  <button id="select-blockers">Blockers only</button>
-  <button id="open-copy-modal" class="primary">📋 Copy selected…</button>
+<div class="modal-backdrop" id="copy-modal">
+  <div class="modal">
+    <h3>Copy selected answers</h3>
+    <p class="modal-sub">
+      <span id="modal-count">0</span> of <span id="modal-total">{{n_total}}</span>
+      questions selected. Review below, then click Copy.
+    </p>
+    <pre id="copy-preview">(no questions selected)</pre>
+    <div class="modal-actions">
+      <button class="toolbar-btn primary" id="copy-final">Copy to clipboard</button>
+      <button class="toolbar-btn" id="modal-close">Close</button>
+    </div>
+  </div>
 </div>
 ```
 
-Clicking "Copy selected…" opens a modal listing every selected question with a preview of the answer; the developer un-checks any they don't want before the final copy. Once confirmed:
+Output format (plain text, one block per question):
 
-```text
-Q1 (Backend / blocker): How should the /history endpoint accept custom durations?
-  → A: New `customSeconds` query param (recommended).
+```
+Q (Backend / blocker): Does the /history endpoint accept arbitrary duration values?
+  → A: Accept arbitrary integer seconds via existing duration param
 
-Q2 (Design / clarification): How should custom-duration chips be ordered?
-  → A: Ascending by seconds (recommended).
-...
+Q (Design / clarification): How should custom-duration chips be ordered?
+  → A: Ascending by seconds, interleaved with built-ins
 ```
 
-Selective copy reduces "I just need the blockers" → "I just need backend questions" → "give me the full set" friction down to one click.
+## Filter chips
 
-## Filter chips (top + sidebar)
+Three filter groups in the sidebar: Role · Priority · Pillar. Each group has an "All" chip and per-value chips. Combined filters use AND logic. State persists in `localStorage`.
 
-Filter chips show/hide question cards in real time. State persists in `localStorage` so a stakeholder returning to the page sees the same view.
-
-- Priority chips: `🔴 Blockers` / `🟡 Clarifications` / `🟢 Nice` / `All`
-- Role chips: `PM / Backend / Design / QA / Compliance / DevOps / All`
-- Pillar chips (advanced): `design / tech / qa / domain`
-
-Combined filters use AND logic.
+Chip visual states:
+- Default: `border: 1px solid var(--border); color: var(--text-muted)`
+- Hover: `background: var(--elevated); color: var(--text)`
+- Active: `background: var(--elevated); border-color: var(--text-dim); color: var(--text)`
+- Active + Priority: colour-tinted (red/amber/green bg + border-color match)
 
 ## Template skeleton
 
@@ -216,151 +580,102 @@ Combined filters use AND logic.
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Feature Analysis — {{feature_name}}</title>
   <style>
-    :root { --bg:#fafafa; --card:#fff; --text:#1a1a1a; --muted:#666;
-            --blocker:#dc2626; --clarify:#f59e0b; --nice:#16a34a;
-            --diff-add:#dcfce7; --diff-del:#fee2e2; --diff-meta:#eef; }
-    * { box-sizing: border-box; }
-    body { font: 15px/1.5 -apple-system, system-ui, sans-serif; color:var(--text);
-           background:var(--bg); margin:0; display:grid;
-           grid-template-columns: 240px 1fr; min-height:100vh; }
-    nav.sidebar { position:sticky; top:0; height:100vh; padding:20px; overflow:auto;
-                  border-right:1px solid #e5e5e5; background:#fff; }
-    nav.sidebar h2 { margin:0 0 12px; font-size:16px; }
-    nav.sidebar ul { list-style:none; padding:0; margin:0 0 16px; }
-    nav.sidebar li a { display:block; padding:6px 8px; border-radius:4px; color:inherit;
-                       text-decoration:none; font-size:13px; }
-    nav.sidebar li a:hover, nav.sidebar li a.active { background:#f0f0f0; font-weight:600; }
-    .badge { color:var(--muted); font-size:11px; margin-left:4px; }
-    .filter-chips { display:flex; flex-wrap:wrap; gap:4px; }
-    .filter-chips button { font-size:12px; padding:3px 8px; border:1px solid #ddd;
-                           background:#fff; border-radius:999px; cursor:pointer; }
-    .filter-chips button.active { background:#1a1a1a; color:#fff; border-color:#1a1a1a; }
-    main { padding:24px 36px; max-width:920px; }
-    h1 { margin:0 0 4px; }
-    .meta { color:var(--muted); font-size:13px; margin-bottom:16px; }
-    .copy-toolbar { position:sticky; top:0; z-index:10; background:var(--bg);
-                    padding:10px 0; border-bottom:1px solid #e5e5e5; margin-bottom:16px;
-                    display:flex; gap:8px; flex-wrap:wrap; }
-    .copy-toolbar button { padding:6px 12px; border:1px solid #ddd; background:#fff;
-                           border-radius:6px; cursor:pointer; font:inherit; }
-    .copy-toolbar button.primary { background:#1a1a1a; color:#fff; border-color:#1a1a1a; }
-    .scope-report { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;
-                    margin:12px 0 20px; }
-    .scope-report .col { padding:12px 14px; border-radius:6px; }
-    .scope-report .included { background:#f0fdf4; border-left:4px solid #16a34a; }
-    .scope-report .stripped { background:#f5f5f5; border-left:4px solid #9ca3af; }
-    .scope-report .stripped li { text-decoration: line-through; opacity:0.7; }
-    .scope-report .conditional { background:#fffbea; border-left:4px solid var(--clarify); }
-    .scope-report h4 { margin:0 0 6px; font-size:13px; }
-    .scope-report ul { margin:0; padding-left:18px; font-size:13px; }
-    details { background:var(--card); border:1px solid #e5e5e5; border-radius:8px;
-              margin:12px 0; padding:12px 16px; }
-    details summary { font-weight:600; cursor:pointer; }
-    .flow-chain { padding-left:22px; }
-    .flow-chain li { margin:4px 0; }
-    .flow-chain code, .facts code { background:#f1f5f9; padding:1px 6px; border-radius:3px;
-                                    font-size:12px; }
-    .codediff { background:#0d1117; color:#c9d1d9; padding:12px 16px; border-radius:6px;
-                font: 12px/1.5 ui-monospace, SFMono-Regular, monospace;
-                overflow:auto; }
-    .codediff code { display:block; white-space:pre; }
-    .codediff code, .codediff .add { color:#7ee787; }
-    .codediff .del { color:#ff7b72; }
-    .delta { padding:8px 0; border-bottom:1px solid #eee; }
-    .delta:last-child { border-bottom:0; }
-    .delta h4 { margin:8px 0 4px; }
-    .question-card { padding:16px; border:1px solid #ececec; border-radius:6px;
-                     margin:12px 0; background:#fff; transition: opacity 120ms; }
-    .question-card.hidden { display:none; }
-    .question-card header { display:flex; align-items:center; gap:8px; margin-bottom:8px;
-                            flex-wrap:wrap; }
-    .question-card.priority-red { border-left:4px solid var(--blocker); }
-    .question-card.priority-yellow { border-left:4px solid var(--clarify); }
-    .question-card.priority-green { border-left:4px solid var(--nice); }
-    .select-q { width:18px; height:18px; cursor:pointer; }
-    .role-tag, .pillar-tag, .confidence { display:inline-block; padding:2px 8px;
-                                          border-radius:4px; font-size:12px; }
-    .role-tag { background:#eef; color:#225; }
-    .pillar-tag { background:#f5f5f5; color:var(--muted); font-family: ui-monospace,
-                  monospace; font-size:11px; }
-    .confidence { font-size:11px; }
-    .confidence.high { background:#dcfce7; color:#166534; }
-    .confidence.medium { background:#fef3c7; color:#92400e; }
-    .confidence.low { background:#f1f5f9; color:#475569; }
-    .why { color:var(--muted); font-size:13px; margin:4px 0 4px; }
-    .reason-not-derivable { color:#475569; font-size:12px; font-style:italic;
-                            margin:0 0 10px; }
-    .pill { display:inline-block; padding:6px 12px; border:1px solid #ddd; border-radius:999px;
-            cursor:pointer; margin:4px 6px 4px 0; font-size:13px; }
-    .pill input { margin-right:6px; }
-    .recommended { border-color:#16a34a; background:#f0fdf4; }
-    .recommended::before { content:"★ Recommended — "; color:#16a34a; font-weight:600; }
-    .override { display:block; margin-top:8px; width:100%; padding:6px 8px;
-                border:1px solid #ddd; border-radius:4px; font:inherit; }
-    .copy-btn { padding:4px 10px; font-size:12px; cursor:pointer;
-                background:#f5f5f5; border:1px solid #ddd; border-radius:4px;
-                margin-left:auto; }
-    .qid { color:#bbb; font-family: ui-monospace, monospace; font-size:11px; display:block;
-           margin-top:8px; }
-    /* modal */
-    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.4);
-                      display:none; align-items:center; justify-content:center; z-index:50; }
-    .modal-backdrop.open { display:flex; }
-    .modal { background:#fff; border-radius:8px; padding:24px; max-width:720px;
-             max-height:80vh; overflow:auto; width:90%; }
-    .modal h3 { margin-top:0; }
-    .modal pre { background:#f8f8f8; padding:12px 14px; border-radius:6px; overflow:auto;
-                 font-size:12px; }
-    .modal-actions { display:flex; gap:8px; margin-top:12px; }
+    :root {
+      --base:#0d1117; --surface:#161b22; --elevated:#21262d; --hover:#30363d;
+      --border:#30363d; --border-sub:#21262d;
+      --text:#e6edf3; --text-muted:#8b949e; --text-dim:#6e7681;
+      --green:#3fb950; --green-bg:#0f2a1a; --green-dim:#1a4a2a;
+      --amber:#d29922; --amber-bg:#2a1f00; --amber-dim:#3d2e00;
+      --red:#f85149; --red-bg:#2a0f0f; --red-dim:#4a1a1a;
+      --blue:#58a6ff; --blue-bg:#0f1f3a;
+      --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+      --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+      --sidebar-w:260px; --radius-sm:4px; --radius-md:6px; --radius-lg:10px;
+    }
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    html { scroll-behavior:smooth; }
+    body {
+      font:14px/1.6 var(--sans); color:var(--text); background:var(--base);
+      display:grid; grid-template-columns:var(--sidebar-w) 1fr; min-height:100vh;
+    }
+    /* … full CSS as in the preview file … */
   </style>
 </head>
 <body>
   <nav class="sidebar"> <!-- as above --> </nav>
-  <main>
-    <h1>{{feature_name}}</h1>
-    <div class="meta">{{intent}} · {{date}} · Mode 1 · <small>{{session_id}}</small></div>
 
-    <div class="copy-toolbar">
-      <button id="select-all">Select all</button>
-      <button id="select-none">Select none</button>
-      <button id="select-blockers">Blockers only</button>
-      <button id="open-copy-modal" class="primary">📋 Copy selected…</button>
+  <main>
+    <div class="page-header">
+      <div class="run-badge">{{session_id}} · {{date}}</div>
+      <h1>{{feature_name}}</h1>
+      <div class="intent">{{intent}}</div>
+      <div class="page-meta">…</div>
+      <div class="progress-bar-wrap">…</div>
     </div>
 
-    <div class="scope-report" id="scope">…</div>
+    <div class="copy-toolbar" id="copy-toolbar">…</div>
 
-    <details id="flow" open><summary>Existing flow audit</summary>…</details>
-    <details id="diff" open><summary>Code requirements (delta from existing flow)</summary>…</details>
+    <div id="scope">
+      <div class="section-header"><h2>Scope filter</h2></div>
+      <hr class="section-divider">
+      <div class="scope-grid">…</div>
+    </div>
 
-    <details id="blockers" open><summary>🔴 Blockers ({{n_blockers}})</summary>{{blocker_cards}}</details>
-    <details id="clarifications" open><summary>🟡 Clarifications ({{n_clarify}})</summary>{{clarify_cards}}</details>
-    <details id="nice"><summary>🟢 Nice-to-have ({{n_nice}})</summary>{{nice_cards}}</details>
+    <div class="section-header"><h2>Existing flow</h2></div>
+    <hr class="section-divider">
+    <details class="panel" id="flow" open>…</details>
 
-    <details id="assumptions"><summary>📌 Assumptions</summary>{{assumptions_list}}</details>
+    <div class="section-header"><h2>Code requirements</h2></div>
+    <hr class="section-divider">
+    <details class="panel" id="diff" open>…</details>
+
+    <div class="section-header" id="blockers"><h2>🔴 Blockers</h2></div>
+    <hr class="section-divider">
+    <details class="panel bucket-red" open>
+      <div class="panel-body"><div class="question-grid">{{blocker_cards}}</div></div>
+    </details>
+
+    <div class="section-header" id="clarifications"><h2>🟡 Clarifications</h2></div>
+    <hr class="section-divider">
+    <details class="panel bucket-yellow" open>
+      <div class="panel-body"><div class="question-grid">{{clarify_cards}}</div></div>
+    </details>
+
+    <div class="section-header" id="nice"><h2>🟢 Nice-to-have</h2></div>
+    <hr class="section-divider">
+    <details class="panel bucket-green">
+      <div class="panel-body"><div class="question-grid">{{nice_cards}}</div></div>
+    </details>
+
+    <div class="section-header" id="assumptions"><h2>Assumptions</h2></div>
+    <hr class="section-divider">
+    <details class="panel" open>
+      <summary>📌 {{n_assumptions}} assumptions <span class="summary-chevron">›</span></summary>
+      <div class="panel-body">
+        <ul class="assumptions-list">{{assumptions_items}}</ul>
+      </div>
+    </details>
   </main>
 
-  <div class="modal-backdrop" id="copy-modal">
-    <div class="modal">
-      <h3>Copy selected answers</h3>
-      <p class="meta">{{n_selected}} of {{n_total}} questions selected. Edit selection below, then click Copy.</p>
-      <pre id="copy-preview">{{preview_text}}</pre>
-      <div class="modal-actions">
-        <button id="copy-final" class="primary">Copy to clipboard</button>
-        <button id="modal-close">Close</button>
-      </div>
-    </div>
-  </div>
+  <div class="modal-backdrop" id="copy-modal">…</div>
 
   <script>
-    // Per-card copy
-    document.querySelectorAll('.copy-btn').forEach(b => b.onclick = () => {
-      const card = b.closest('.question-card');
-      const q = card.querySelector('h4').innerText;
-      const sel = card.querySelector('input[type=radio]:checked');
-      const txt = card.querySelector('.override').value;
-      navigator.clipboard.writeText(`Q: ${q}\nA: ${(sel?.value || '—')}${txt ? ` (override: ${txt})` : ''}`);
+    // Progress tracking — change events only, no pre-checked state
+    const answeredQids = new Set();
+    const totalQ = {{n_total}};
+    function updateProgress() {
+      const count = answeredQids.size;
+      document.getElementById('answered-count').textContent = count;
+      document.getElementById('progress-fill').style.width = `${(count / totalQ) * 100}%`;
+    }
+    document.querySelectorAll('.question-card input[type=radio]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        answeredQids.add(radio.closest('.question-card').dataset.qid);
+        updateProgress();
+      });
     });
 
     // Bulk select
@@ -368,52 +683,96 @@ Combined filters use AND logic.
       document.querySelectorAll('.select-q').forEach(c => c.checked = true);
     document.getElementById('select-none').onclick = () =>
       document.querySelectorAll('.select-q').forEach(c => c.checked = false);
-    document.getElementById('select-blockers').onclick = () => {
+    document.getElementById('select-blockers').onclick = () =>
       document.querySelectorAll('.question-card').forEach(c => {
         c.querySelector('.select-q').checked = c.classList.contains('priority-red');
       });
-    };
 
-    // Filter chips
-    let activeRole = 'all';
-    document.querySelectorAll('[data-filter-role]').forEach(b => {
-      b.onclick = () => {
-        activeRole = b.dataset.filterRole;
-        document.querySelectorAll('[data-filter-role]').forEach(x =>
-          x.classList.toggle('active', x === b));
-        document.querySelectorAll('.question-card').forEach(c => {
-          const match = activeRole === 'all' || c.dataset.role === activeRole;
-          c.classList.toggle('hidden', !match);
-        });
-      };
+    // Per-card copy
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const card = btn.closest('.question-card');
+        const sel = card.querySelector('input[type=radio]:checked');
+        const override = card.querySelector('.override').value.trim();
+        navigator.clipboard.writeText(
+          `Q: ${card.querySelector('h4').innerText}\nA: ${sel ? sel.value : '(no selection)'}${override ? `\nOverride: ${override}` : ''}`
+        ).catch(() => {});
+      });
     });
 
+    // Filter chips (AND logic)
+    const filterState = { role:'all', priority:'all', pillar:'all' };
+    function applyFilters() {
+      document.querySelectorAll('.question-card').forEach(c => {
+        const ok = (filterState.role === 'all' || c.dataset.role === filterState.role) &&
+                   (filterState.priority === 'all' || c.dataset.priority === filterState.priority) &&
+                   (filterState.pillar === 'all' || c.dataset.pillar === filterState.pillar);
+        c.classList.toggle('hidden', !ok);
+      });
+    }
+    function wireFilterGroup(groupName, stateKey, dataAttr) {
+      const g = document.querySelector(`[data-filter-group="${groupName}"]`);
+      if (!g) return;
+      g.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          filterState[stateKey] = btn.dataset[dataAttr];
+          g.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+          applyFilters();
+        });
+      });
+    }
+    wireFilterGroup('role', 'role', 'filterRole');
+    wireFilterGroup('priority', 'priority', 'filterPriority');
+    wireFilterGroup('pillar', 'pillar', 'filterPillar');
+
     // Selective copy modal
-    function buildPreview() {
-      const cards = [...document.querySelectorAll('.question-card')].filter(
-        c => c.querySelector('.select-q').checked && !c.classList.contains('hidden')
+    function buildCopyPreview() {
+      const cards = [...document.querySelectorAll('.question-card')].filter(c =>
+        c.querySelector('.select-q').checked && !c.classList.contains('hidden')
       );
+      if (!cards.length) return '(no questions selected)';
       return cards.map(c => {
-        const role = c.dataset.role;
         const bucket = c.classList.contains('priority-red') ? 'blocker'
-                     : c.classList.contains('priority-yellow') ? 'clarification'
-                     : 'nice';
-        const q = c.querySelector('h4').innerText;
+                     : c.classList.contains('priority-yellow') ? 'clarification' : 'nice';
         const sel = c.querySelector('input[type=radio]:checked');
-        const txt = c.querySelector('.override').value;
-        return `Q (${role} / ${bucket}): ${q}\n  → A: ${(sel?.value || '—')}${txt ? ` (override: ${txt})` : ''}`;
+        const override = c.querySelector('.override').value.trim();
+        return `Q (${c.dataset.role} / ${bucket}): ${c.querySelector('h4').innerText}\n` +
+               `  → A: ${sel ? sel.value : '(no selection)'}${override ? `\n  Override: ${override}` : ''}`;
       }).join('\n\n');
     }
-    document.getElementById('open-copy-modal').onclick = () => {
-      document.getElementById('copy-preview').innerText = buildPreview() || '(no questions selected)';
+    document.getElementById('open-copy-modal').addEventListener('click', () => {
+      const selected = [...document.querySelectorAll('.select-q')].filter(c => c.checked).length;
+      document.getElementById('modal-count').textContent = selected;
+      document.getElementById('modal-total').textContent = totalQ;
+      document.getElementById('copy-preview').textContent = buildCopyPreview();
       document.getElementById('copy-modal').classList.add('open');
-    };
-    document.getElementById('modal-close').onclick = () =>
+    });
+    document.getElementById('modal-close').addEventListener('click', () =>
+      document.getElementById('copy-modal').classList.remove('open'));
+    document.getElementById('copy-modal').addEventListener('click', e => {
+      if (e.target === e.currentTarget) document.getElementById('copy-modal').classList.remove('open');
+    });
+    document.getElementById('copy-final').addEventListener('click', () => {
+      navigator.clipboard.writeText(buildCopyPreview()).catch(() => {});
       document.getElementById('copy-modal').classList.remove('open');
-    document.getElementById('copy-final').onclick = () => {
-      navigator.clipboard.writeText(buildPreview());
-      document.getElementById('modal-close').click();
-    };
+    });
+
+    // Scroll-spy
+    const navLinks = [...document.querySelectorAll('nav.sidebar a[href^="#"]')];
+    const anchorEls = navLinks.map(a => document.getElementById(a.getAttribute('href').slice(1))).filter(Boolean);
+    function updateScrollSpy() {
+      const y = window.scrollY + 100;
+      let current = anchorEls[0];
+      for (const el of anchorEls) { if (el.offsetTop <= y) current = el; }
+      navLinks.forEach(a =>
+        a.classList.toggle('active', a.getAttribute('href') === '#' + (current?.id ?? '')));
+    }
+    document.addEventListener('scroll', updateScrollSpy, { passive: true });
+    updateScrollSpy();
+
+    // Init: default checkboxes on
+    document.querySelectorAll('.select-q').forEach(c => { c.checked = true; });
+    updateProgress();
   </script>
 </body>
 </html>
@@ -428,8 +787,10 @@ Caller flag `--format md` falls back to the markdown layout in `SKILL.md` Mode 1
 | Component | Reason |
 |---|---|
 | Sidebar | Doc can be 30+ questions; without nav, stakeholders scroll-lose. |
-| Diff block | Engineers don't want to read prose deltas. A real unified diff is the fastest way to convey "what changes in code". |
-| Filter chips | A Backend engineer doesn't want to see 20 design questions. One click filters. |
+| Progress bar | Makes "0 of 14 answered" visible — accountability at a glance. Starts at 0 because Recommended is not pre-checked; reviewer must actively decide. |
+| Diff block | Engineers don't want prose deltas. A real unified diff is the fastest way to convey "what changes in code". Per-block file-path header makes jumping to the right file instant. |
+| Filter chips | A Backend engineer doesn't want to see 20 Design questions. One click filters. |
 | Selective copy | Stakeholders rarely need the whole set. Per-question checkboxes + bucket presets = 1-click "blockers only". |
 | Confidence chip | Reviewer sees at a glance which questions rest on `flow-tracer` cites vs UX heuristic vs speculation. |
-| Reason-not-derivable line | Surfaces *why* the code couldn't answer this. Pushes back against questions that are just lazily generated. |
+| Reason-not-derivable line | Surfaces *why* the code couldn't answer this. Pushes back against questions that are lazily generated. |
+| Dark surface palette | Consistent with developer tooling aesthetics (GitHub, Linear, Vercel). Reduces eye strain in low-light review sessions. High-contrast semantic colours (green/amber/red) communicate priority without colour-only dependency. |

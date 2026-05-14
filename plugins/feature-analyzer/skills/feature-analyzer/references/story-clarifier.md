@@ -4,6 +4,16 @@ Parse the user story / feature spec and surface everything that's unclear, assum
 
 This file is consumed by the team lead (Mode 1) for input prep and by `gap-analyzer` (Wave 2) for delta computation. It is also read directly in Mode 2 Phase 1.
 
+## Capture the source story first (mandatory)
+
+Before any parsing, the team lead captures the raw story text exactly as the reviewer submitted it (whitespace, line breaks, markdown, formatting — all preserved). The captured text becomes `session.source_story` and is threaded through to:
+
+- The HTML doc's Original Story tab (renders verbatim — see `html-output.md` § "Tab strip + Original Story panel").
+- The replay log at `00-source-story.md`.
+- The `--format md` fallback (prepended under a `## Original story` heading).
+
+The lead is forbidden from rewriting, summarising, or truncating the source story. The clarifier output below extracts structured fields, but those fields ADD to the source — they NEVER REPLACE it. If the source story is enormous (>20k chars), the lead truncates only the tail with an explicit `[…story truncated by lead at N chars; full text in replay log]` marker; the prefix is always preserved unmodified.
+
 ## What to extract from the input
 
 Regardless of input format (free text, ticket, structured AC), extract:

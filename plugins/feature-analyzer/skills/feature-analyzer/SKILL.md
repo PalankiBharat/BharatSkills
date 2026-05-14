@@ -37,6 +37,7 @@ For the full FSM, gates, retries, and budget rules read `references/team-lead-pr
 
 ### What happens, in order
 
+0. **Capture source story (verbatim)** — the very first action in Mode 1 is to persist the raw story text exactly as the reviewer submitted it. It is stored on `lead.session.source_story` and threaded through to the renderer (rendered in the Original Story tab) and to the replay log (`00-source-story.md`). The lead is forbidden from rewriting, summarising, or truncating the source story anywhere downstream — every downstream consumer either uses the captured text or references its session key.
 1. **Pre-flight** — locate sibling SDK checkouts, validate Figma URLs, confirm story has minimum content. Fail closed if any check breaks. Rules in `references/team-lead-protocol.md` (G5).
 2. **Scope filter** — classify each story section as `android | ios | web | desktop | backend | shared`. Strip out-of-platform; keep `backend` only when the kept sections imply a new server-side ask. Rules in `references/scope-classifier.md`.
 3. **Wave 1 — discovery** (parallel):
@@ -56,9 +57,9 @@ Bypass gates with `--no-gates` for autonomous runs. Budget cap (default 300k tok
 
 ### Output
 
-- **Primary**: HTML file at `docs/feature-analysis/<feature-slug>-analysis.html`. Structure and styling in `references/html-output.md`.
-- **Secondary**: Replay log at `.feature-analyzer/<feature-slug>/<session-id>/`. Layout in `references/replay-log-format.md`.
-- **Fallback (`--format md`)**: markdown output for terminal-only sessions. Same priority buckets, same option-pill format, no styling.
+- **Primary**: HTML file at `docs/feature-analysis/<feature-slug>-analysis.html`. Structure and styling in `references/html-output.md`. The HTML **always** carries the raw original story in a pinned tab next to the analysis — captured first thing in Pre-flight, never modified, never summarised. See `references/html-output.md` § "Tab strip + Original Story panel".
+- **Secondary**: Replay log at `.feature-analyzer/<feature-slug>/<session-id>/`. Layout in `references/replay-log-format.md`. The raw story is persisted as `00-source-story.md` alongside the preflight log.
+- **Fallback (`--format md`)**: markdown output for terminal-only sessions. Same priority buckets, same option-pill format, no styling. The raw story is prepended verbatim under a `## Original story` heading.
 
 ### Question card requirements
 
