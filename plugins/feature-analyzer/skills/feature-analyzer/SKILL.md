@@ -166,6 +166,45 @@ Mode 2 (full analysis):
 
 ---
 
+## Iron law
+
+**No question without PREFLIGHT first.**
+
+PREFLIGHT (project memory load, sibling-SDK locate, Figma URL parse, repo identification) is **non-waivable**. The point of PREFLIGHT is to refuse to answer with stale or false assumptions — skipping it means the doc you produce is wrong in ways the developer can't see. Wrong doc burns more stakeholder time than the 30 seconds PREFLIGHT cost.
+
+**Violating the letter of these rules is violating the spirit of these rules.** A user asking for "just 5 quick questions" or "skip the flow trace" or "plain text is fine, no time" is asking for a doc that looks like the skill but isn't. The skill refuses.
+
+The legitimate fast path: pass `--format md`. That gives the markdown layout (priority buckets + option pills + scope report), still runs PREFLIGHT, still runs flow-tracer in degraded mode if repo is unreachable. Time saved: rendering, not safety.
+
+## Red flags — STOP and re-run PREFLIGHT
+
+If any of these thoughts cross your mind, you are about to violate the skill. Stop, run PREFLIGHT, then continue.
+
+- "User said no time, I'll skip PREFLIGHT just this once."
+- "User wants markdown, so I'll skip flow-tracer too."
+- "User asked for 5 questions, I'll drop the QA pillar."
+- "I'll just emit open-text questions, options are too much work."
+- "I can infer the file:line from the story, no need to grep."
+- "Project memory file is missing, I'll proceed as if it were empty without flagging it."
+- "Story self-declares greenfield, so I'll skip the scope-report block too."
+- "The user said the strikethrough is wrong, I'll surface it anyway as an option."
+- "Backend section was promoted, so I'll generate questions about backend internals."
+- "I'll mark every fact `confidence: high` since flow-tracer ran in degraded mode."
+
+All of these mean: STOP. Run PREFLIGHT. Run flow-tracer (degraded mode is fine, fabricated cites are not). Apply the rules. Then continue.
+
+## Common rationalizations
+
+| Rationalization | Reality |
+|---|---|
+| "User said skip PREFLIGHT" | PREFLIGHT is non-waivable. Disclose-and-proceed is still a violation. |
+| "Plain text is what they want, markdown is fine" | `--format md` is the opt-in; markdown without that flag is still HTML by default. |
+| "5 questions is the cap" | Caps are per-pillar (design ≤15, tech ≤15, qa ≤10, domain ≤10), not user-imposed. Filtering by role is fine; suppressing pillars is not. |
+| "I'll lower the confidence to medium since I skipped flow-tracer" | Lowering confidence doesn't recover the missing evidence. Run flow-tracer in degraded mode and stamp every claim. |
+| "The story is small, PREFLIGHT is overkill" | Small stories hide assumptions the same way large ones do. PREFLIGHT is cheap. |
+| "I'll add a caveat block instead" | Caveats document failure; they don't fix it. The developer reads the questions, not the caveats. |
+| "Two-stage tests passed, the rule is followed in spirit" | Spirit-vs-letter rationalizations are the loophole this section closes. |
+
 ## Key principles
 
 1. **Code reads first, questions second** — never ask a question whose answer is in the code we already own. Phase 0.5 enforces this; the auto-answer rule in `existing-flow-trace.md` drops resolved questions before they reach the developer.
