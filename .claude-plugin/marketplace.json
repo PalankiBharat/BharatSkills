@@ -17,7 +17,7 @@
       "version": "2.1.0",
       "category": "analysis",
       "tags": ["android", "feature-analysis", "user-stories", "pre-dev", "qa", "figma", "team-lead"],
-      "keywords": ["analyze", "feature", "story", "impact", "pre-dev", "interrogate", "figma", "kill-switch", "android-questioner"]
+      "keywords": ["analyze", "feature", "story", "impact", "pre-dev", "interrogate", "figma", "kill-switch"]
     },
     {
       "name": "qa-autopilot",
