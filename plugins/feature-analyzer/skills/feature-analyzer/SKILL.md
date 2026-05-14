@@ -41,17 +41,16 @@ For the full FSM, gates, retries, and budget rules read `references/team-lead-pr
 1. **Pre-flight** — locate sibling SDK checkouts, validate Figma URLs, confirm story has minimum content. Fail closed if any check breaks. Rules in `references/team-lead-protocol.md` (G5).
 2. **Scope filter** — classify each story section as `android | ios | web | desktop | backend | shared`. Strip out-of-platform; keep `backend` only when the kept sections imply a new server-side ask. Rules in `references/scope-classifier.md`.
 3. **Wave 1 — discovery** (parallel):
-   - `flow-tracer` (if extension story) walks UI → ViewModel → Repo → SDK boundary, with `file:line` cites and confidence on every fact. Reads sibling-SDK *source*, never JARs or examples. Full rules in `references/existing-flow-trace.md`.
+   - `flow-tracer` walks UI → ViewModel → Repo → SDK boundary with `file:line` cites and confidence, AND emits the story-vs-code delta inline (the old `gap-analyzer` is folded in). Reads sibling-SDK *source*, never JARs or examples. Respects `project_memory` (e.g. "Punch does not support AMO" → no AMO facts). Full rules in `references/existing-flow-trace.md`.
    - `design-reviewer` (always spawned; runs in degraded mode if no Figma URLs) fetches every Figma URL captured by story-clarifier, walks the prototype graph or section neighbours (depth ≤8), captures screenshots at `scale: 2`, extracts design tokens + Code Connect mappings, and produces a screen catalog + flow graph + design questions with option pills. Full rules in `references/figma-walk.md`.
-4. **Critic — Wave 1** — validates schemas and `file:line` evidence. Failed claims are dropped.
-5. **Gate A (default ON)** — show flow doc + screen catalog to the developer. Misreads get corrected here, before Wave 2 spends compute on them.
-6. **Wave 2 — gap analysis** — `gap-analyzer` diffs the story against the flow trace and produces the delta list + open assumptions.
-7. **Wave 3 — questions** (parallel): `domain-questioner`, `tech-questioner`, `qa-questioner` each emit pillar-scoped questions using the delta + flow facts. Every question follows the option-pill schema in `references/specialist-roster.md`.
-8. **Merge** — lead drops any question auto-answered by `flow-tracer` (high-confidence facts), de-dups via the critic, applies the priority ordering.
-9. **Critic — final** — schema + evidence + duplicate + conflict + count + scope-leak checks. Rules in `references/critic-rubric.md`.
-10. **Conflict resolve** (only if critic surfaced contradictions) — tie-break prompts to the conflicting specialists; survivors must cite. Unresolved conflicts go to the user verbatim.
-11. **Gate B (default ON)** — present pre-final HTML. Developer can drop / merge / re-prompt.
-12. **Done** — emit HTML doc, replay log, token report.
+4. **Critic — Wave 1** — validates schemas + `file:line` evidence + project-memory contradiction. Failed claims dropped.
+5. **Gate A (default ON)** — show flow doc + delta + screen catalog. Misreads corrected here, before Wave 2 spends compute on them.
+6. **Wave 2 — questions** — one `questioner` specialist emits all non-design pillar questions (domain / tech / qa) in a single pass using flow-tracer facts + delta + scope-report + `project_memory`. For Android-scoped projects, the questioner emits Android-role questions across the Android-implementation slots in `determinism-rules.md`. The previous three-questioner fan-out was merged after #173 because it produced duplicate questions critic had to merge afterward — one specialist with a unified catalog avoids that round-trip.
+7. **Merge** — lead drops any question auto-answered by `flow-tracer` (high-confidence facts) or by `story-clarifier.strikethrough_branches[]` (settled decisions), de-dups via the critic, applies the priority ordering.
+8. **Critic — final** — schema + evidence + duplicate + conflict + count + scope-leak + backend-internals-leak + strikethrough-revival + missing-Android-coverage + evidence-against-memory checks. Rules in `references/critic-rubric.md`.
+9. **Conflict resolve** (only if critic surfaced contradictions) — tie-break prompts to the conflicting specialists; survivors must cite. Unresolved conflicts go to the user verbatim.
+10. **Gate B (default ON)** — present pre-final HTML. Developer can drop / merge / re-prompt.
+11. **Done** — emit HTML doc, replay log, token report.
 
 Bypass gates with `--no-gates` for autonomous runs. Budget cap (default 300k tokens) applies; at 80% the lead stops spawning and finalises with `partial: true`.
 
@@ -166,6 +165,45 @@ Mode 2 (full analysis):
 - `references/domain/`, `references/tech/`, `references/qa/` — micro-skill orchestrators
 
 ---
+
+## Iron law
+
+**No question without PREFLIGHT first.**
+
+PREFLIGHT (project memory load, sibling-SDK locate, Figma URL parse, repo identification) is **non-waivable**. The point of PREFLIGHT is to refuse to answer with stale or false assumptions — skipping it means the doc you produce is wrong in ways the developer can't see. Wrong doc burns more stakeholder time than the 30 seconds PREFLIGHT cost.
+
+**Violating the letter of these rules is violating the spirit of these rules.** A user asking for "just 5 quick questions" or "skip the flow trace" or "plain text is fine, no time" is asking for a doc that looks like the skill but isn't. The skill refuses.
+
+The legitimate fast path: pass `--format md`. That gives the markdown layout (priority buckets + option pills + scope report), still runs PREFLIGHT, still runs flow-tracer in degraded mode if repo is unreachable. Time saved: rendering, not safety.
+
+## Red flags — STOP and re-run PREFLIGHT
+
+If any of these thoughts cross your mind, you are about to violate the skill. Stop, run PREFLIGHT, then continue.
+
+- "User said no time, I'll skip PREFLIGHT just this once."
+- "User wants markdown, so I'll skip flow-tracer too."
+- "User asked for 5 questions, I'll drop the QA pillar."
+- "I'll just emit open-text questions, options are too much work."
+- "I can infer the file:line from the story, no need to grep."
+- "Project memory file is missing, I'll proceed as if it were empty without flagging it."
+- "Story self-declares greenfield, so I'll skip the scope-report block too."
+- "The user said the strikethrough is wrong, I'll surface it anyway as an option."
+- "Backend section was promoted, so I'll generate questions about backend internals."
+- "I'll mark every fact `confidence: high` since flow-tracer ran in degraded mode."
+
+All of these mean: STOP. Run PREFLIGHT. Run flow-tracer (degraded mode is fine, fabricated cites are not). Apply the rules. Then continue.
+
+## Common rationalizations
+
+| Rationalization | Reality |
+|---|---|
+| "User said skip PREFLIGHT" | PREFLIGHT is non-waivable. Disclose-and-proceed is still a violation. |
+| "Plain text is what they want, markdown is fine" | `--format md` is the opt-in; markdown without that flag is still HTML by default. |
+| "5 questions is the cap" | Caps are per-pillar (design ≤15, tech ≤15, qa ≤10, domain ≤10), not user-imposed. Filtering by role is fine; suppressing pillars is not. |
+| "I'll lower the confidence to medium since I skipped flow-tracer" | Lowering confidence doesn't recover the missing evidence. Run flow-tracer in degraded mode and stamp every claim. |
+| "The story is small, PREFLIGHT is overkill" | Small stories hide assumptions the same way large ones do. PREFLIGHT is cheap. |
+| "I'll add a caveat block instead" | Caveats document failure; they don't fix it. The developer reads the questions, not the caveats. |
+| "Two-stage tests passed, the rule is followed in spirit" | Spirit-vs-letter rationalizations are the loophole this section closes. |
 
 ## Key principles
 

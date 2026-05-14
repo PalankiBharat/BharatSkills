@@ -37,12 +37,68 @@ Specialists must NOT impose their own order — the lead reorders before emittin
 
 ### R3 — Templated, not freestyle
 
-Specialists select from / fill templated question slots rather than freestyle generation. Each pillar has a question template catalog (lives in the questioner specialist prompt). The catalog covers:
-
-- Pillar's standard concerns (e.g. tech: wire format, persistence, retries, concurrency, performance).
-- Story-conditional slots that activate when story keywords match.
+Specialists select from / fill templated question slots rather than freestyle generation. The `questioner` specialist owns one consolidated catalog organised by pillar + role.
 
 Freestyle questions outside the catalog → require a `freestyle: true` flag + an `evidence` array showing why the catalog didn't cover it. Critic audits these more strictly.
+
+#### Template catalog (v2.1)
+
+**Domain (PM / Compliance / business rules):**
+- `regulatory-applicability` — which regulators / exchange rules apply
+- `market-hours-rule` — pre-market / market / post-market behaviour
+- `segment-applicability` — equity / F&O / commodity / currency
+- `entitlement-gate` — KYC / margin / segment activation needed
+- `rollout-strategy` — feature flag / cohort / percentage
+- `business-rule-edge` — story-conditional, e.g. "what happens if X but not Y"
+- `analytics-events` — which events fire, what properties
+
+**Tech / Backend (when Android is consumer, not backend itself):**
+- `api-contract` — **composite slot** (F3 from #173): endpoints + HTTP methods + request payload + response payload + error code map. ONE question, not three.
+- `error-code-mapping` — Android-observable codes → user copy
+- `polling-cadence` — Android-side polling interval + cancellation
+- `ws-event-schema` — Android-observable event types + payloads
+- `idempotency-rule` — Android-side retry guard
+- `auth-shape` — header / token format
+
+**Tech / Android (Android-implementation, F5 from #173):**
+- `module-placement` — where does new code live: shared lib / sniper-library / app module
+- `compose-state-hoisting` — StateFlow observed in composable, hoisted in ViewModel, or static refresh-only
+- `hilt-provider-placement` — which Hilt module + scope (Singleton / ViewModel-scoped / fragment-scoped)
+- `navigation-route` — back-stack pop vs persisted Route vs new destination
+- `toast-error-mapper` — extend existing ToastFactory vs introduce new factory
+- `viewmodel-usecase-wiring` — where the orchestration lives
+- `compose-preview-plan` — `@Preview` factory shape + parameter source
+- `mapper-location` — enum/value mapper lives in shared / library / app
+- `error-bs-source` — error bottom-sheet copy source (server payload vs local-cache reconciliation)
+
+The questioner MUST cover at least one Android slot per touch-point in `flow-tracer.delta[]` whose target_state touches UI / ViewModel / Hilt. Critic flags `missing_android_coverage` for empty slots.
+
+**QA:**
+- `user-test-cases` — happy path + permission denied + empty state + timeout
+- `automation-feasibility` — Espresso / Compose-test reachable
+- `accessibility-audit` — TalkBack labels, focus order, dynamic font
+- `regression-target` — what existing flows might break
+
+**Design (handled by design-reviewer, listed here for completeness):**
+- `screen-state-matrix` — every state per screen (default / loading / empty / error / partial)
+- `interaction-pattern` — bottom-sheet vs modal vs full-screen
+- `chip-ordering` / `list-ordering`
+- `empty-state-copy`
+- `dynamic-font-handling`
+
+#### Composite slot guidance — `api-contract`
+
+When the spec defines API-shaped fields (request body, response fields, error codes) but no URLs or HTTP methods, the questioner emits ONE composite question:
+
+> "What is the [feature] backend API contract — endpoints, HTTP methods, request/response payloads, and error-code map?"
+
+Options must cover realistic backend shapes:
+- REST (separate endpoints per action)
+- Single endpoint + action verb in payload
+- WebSocket-only (push-driven)
+- GraphQL mutation + subscription
+
+Letting the backend team answer this once cuts 3-4 split questions down to 1 and prevents them from being asked in inconsistent forms across the doc.
 
 ### R4 — Session-id seeding
 

@@ -65,6 +65,41 @@ For every recommended option:
 
 Cross-check kept sections (per `scope-classifier.md`) against generated questions. Any question that maps back to a stripped section → `finding: out_of_scope_leak`. Suggested action: drop.
 
+### Backend-internals leak (F4 from #173)
+
+When the scope-classifier returned `backend-android-driven` AND the project is Android-scoped, every question must be answerable in a way that changes Android code. Critic rejects questions whose Recommended option resolves to "the backend implementation decides X" with no Android-observable consequence.
+
+Examples of leaks the critic must flag as `backend_internals_leak`:
+
+| Question pattern | Why it leaks |
+|---|---|
+| "Should square-off use bulk vs fan-out internally?" | Bulk vs fan-out is a backend transactional choice; Android only sees pass/fail. |
+| "What's the trigger-order race window?" | Transaction isolation is backend; Android only sees `KILL_SWITCH_ACTIVE` rejection. |
+| "Is iceberg slice cancelation transactional?" | Same — backend orchestration choice. |
+| "What's the cross-device propagation transport (WS push vs poll)?" | Android picks ONE side of this (it polls or it doesn't); ask the Android side, not the backend side. |
+
+Acceptable Android-observable backend questions (NOT flagged):
+
+| Question pattern | Why it's fine |
+|---|---|
+| "What error codes does the kill-switch endpoint return, and how should Android map them to user-facing copy?" | Android renders the copy. |
+| "What's the response payload shape Android renders?" | Android parses + renders. |
+| "What's the polling cadence Android implements while the flag is active?" | Android schedules + cancels. |
+
+Suggested action: `drop` (with the question logged in scope-report under "Auto-suppressed — backend-internals leak").
+
+### Strikethrough revival (F2 from #173)
+
+For every entry in `session.strikethrough_branches[]`, scan generated questions for options that match the `rejected_branch_text`. If found → `finding: strikethrough_revival` with the qid and the offending option. Suggested action: `drop` the question and add the settled branch to the auto-answered list.
+
+### Missing Android coverage (F5 from #173)
+
+When the scope filter retained any `android` section, the questioner MUST produce at least one Android-role question across each Android-implementation slot in `determinism-rules.md` (compose state hoisting, module placement, Hilt providers, navigation, toast/error mapper, preview plan, ViewModel ↔ UseCase wiring). Slots not covered → `finding: missing_android_coverage` listing the missing slots. Suggested action: `reprompt` the questioner with the missing slots highlighted.
+
+### Evidence against memory (F1 from #173)
+
+Cross-check every fact in `flow-tracer.facts[]` and every question's options against `session.project_memory[]`. Any claim that contradicts a memory entry → `finding: evidence_against_memory` with the offending claim and the memory entry. Suggested action: `drop`. If the spec itself appears to require the contradicted feature, surface a scope-report note ("Spec references AMO but project memory says AMO is unsupported — confirm") instead of generating a code question.
+
 ## Output schema
 
 ```json
@@ -97,6 +132,10 @@ Cross-check kept sections (per `scope-classifier.md`) against generated question
 | `conflict` | Enter `CONFLICT-RESOLVE` state (G12) |
 | `count_overflow` | Ask the pillar to rebalance: drop lowest-priority items first |
 | `out_of_scope_leak` | Drop silently; log in scope report |
+| `backend_internals_leak` | Drop; log in scope-report under "Auto-suppressed — backend-internals" |
+| `strikethrough_revival` | Drop the question; promote the settled branch to "Auto-answered by spec strikethrough" |
+| `missing_android_coverage` | Reprompt the questioner with the missing slots highlighted (≤1 retry) |
+| `evidence_against_memory` | Drop the claim/question; surface a scope-report note if the spec demands it |
 
 ## Conflict resolution protocol (G12)
 

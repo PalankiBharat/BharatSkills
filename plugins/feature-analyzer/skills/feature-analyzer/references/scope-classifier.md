@@ -82,6 +82,32 @@ The filtered story (Android + shared + optional backend) is the only input the q
 | Section spans multiple platforms in one sentence | Detected by keyword cluster | Re-split section by sentence; reclassify per sentence |
 | Backend trigger keyword in a stripped section | Keyword check on every section | Promote backend to included; log promotion reason |
 
+## Backend-internals filter (F4 from #173)
+
+When a story is Android-scoped and the scope-classifier promotes a backend section to `backend-android-driven`, that label means "Android needs new server-side support" — NOT "ask any backend question you can think of". The filter passes only Android-observable backend concerns to the questioner. Everything else stays out.
+
+Allowed backend slots (Android-observable):
+
+- **Error code mapping** — what codes does the server return and how does Android render each?
+- **Response payload shape** — what fields does Android parse + display?
+- **Polling cadence** — what interval does Android poll on (if polling is the chosen transport)?
+- **WebSocket event schema** — what events does Android subscribe to + how does it react?
+- **Idempotency / retry rules** — what Android-side guard does the contract require?
+- **Auth + session shape** — what header / token does Android send?
+
+Suppressed backend slots (backend-internals only):
+
+- Transactional choice (bulk vs fan-out, single transaction vs saga).
+- Storage layer (Postgres vs Redis flag).
+- Internal queue / broker choice.
+- Race-window / isolation-level questions.
+- Cron job scheduling internals.
+- Microservice boundary choices.
+
+The classifier emits `session.scope_report.backend_internals_filter: "android"` so the questioner knows which slot list to use. The critic enforces the filter at audit time (`backend_internals_leak` finding — see `critic-rubric.md`).
+
+If the project is Backend-scoped (not Android), the filter is OFF and the questioner generates full backend-internals questions.
+
 ## Why this matters
 
 - Cuts question count by ~30% on multi-platform stories.
