@@ -240,7 +240,10 @@ The migration runs through 8 phases. **Load the relevant phase reference file wh
 
 Read phase references **on demand** — when the workflow enters or resumes a phase, before executing its sub-phases. This keeps context focused on the current work.
 
-**Cross-phase reference:** `references/test-discipline.md` — authoritative testing rules (per-file-type checklists, denylist, MockK templates, kotlin.test patterns, broken-test quarantine). Loaded by Phase B (mandatory) and consulted by any phase that touches test code (D foundation, E commonTest promotion, F regression checks).
+**Cross-phase references:**
+
+- `references/test-discipline.md` — authoritative testing rules (per-file-type checklists, denylist, MockK templates, kotlin.test patterns, broken-test quarantine). Loaded by Phase B (mandatory) and consulted by any phase that touches test code (D foundation, E commonTest promotion, F regression checks).
+- `references/expect-actual-boundaries.md` — design-vocabulary for choosing the right common/platform seam (`expect`/`actual` vs interface, semantic common APIs, thin actuals, Compose interop guidance, red flags). Loaded by Phase A (per-file seam strategy) and Phase D (D.0 foundation setup).
 
 **Phase E is conditional.** If no in-scope file reached `commonMain` by end of Phase D (intentional `androidMain` landings throughout), Phase E is skipped — baselines stay in `androidUnitTest` as their final destination this session. A future session can promote when code ripens.
 

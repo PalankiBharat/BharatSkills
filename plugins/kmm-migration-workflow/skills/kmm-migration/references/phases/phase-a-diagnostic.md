@@ -4,7 +4,7 @@
 
 **No code written, no tests written.** Just the design that makes Phase B and D mechanical.
 
-**Inputs:** `scope.md`, `plan.md` (if resuming), `project.md`, `coverage.md`, cached searches in `.kmm/searches/`.
+**Inputs:** `scope.md`, `plan.md` (if resuming), `project.md`, `coverage.md`, cached searches in `.kmm/searches/`, `references/expect-actual-boundaries.md` (seam-strategy rubric).
 
 ---
 
@@ -34,7 +34,7 @@ Per in-scope file:
   - **Interface-and-adapter** — extract interface to commonMain, keep Android impl behind it in androidMain.
   - **Forces hold** — no clean KMM seam this session (e.g., Android-only SDK with no abstraction worth building yet).
   
-  Pattern lookups inform each — Context7 for API specifics, web search for patterns (per SKILL.md Tooling discipline). No training-data guesses.
+  **Consult `references/expect-actual-boundaries.md`** for the decision rubric between `expect`/`actual` vs interface-and-adapter (rule of thumb: interface when tests / DI / lifecycle / runtime selection matter; `expect`/`actual` for simple compile-time platform specialization). Pattern lookups inform each — Context7 for API specifics, web search for patterns (per SKILL.md Tooling discipline). No training-data guesses.
 - **Phase D plan** for the file:
   - **`migrate`** — every dep has a non-`Forces hold` seam strategy. File will be relocated `androidMain` → `commonMain` in Phase D this session.
   - **`hold`** — at least one dep forces hold. File stays in `androidMain` after Phase B (post-relocation). Promotion deferred to a future session.

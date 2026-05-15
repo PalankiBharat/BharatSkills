@@ -4,7 +4,7 @@
 
 Files with `Phase D plan: hold` are not touched in Phase D — they stay in `<dest>/androidMain` with frozen baselines in `<dest>/androidUnitTest`. Their promotion to `commonMain` is deferred to a future session.
 
-**Inputs:** all prior session files (`scope.md`, `plan.md`, `audit.md`, `freeze.md` complete), `project.md`, `coverage.md`, `references/test-discipline.md` (for any new tests written during foundation work).
+**Inputs:** all prior session files (`scope.md`, `plan.md`, `audit.md`, `freeze.md` complete), `project.md`, `coverage.md`, `references/test-discipline.md` (for any new tests written during foundation work), `references/expect-actual-boundaries.md` (foundation seam patterns + Compose interop guidance for D.0).
 
 ---
 
@@ -12,7 +12,7 @@ Files with `Phase D plan: hold` are not touched in Phase D — they stay in `<de
 
 ### D.0 — Foundation setup (one-time per session)
 
-Per plan.md's `expect`/`actual` and DI plans:
+Per plan.md's `expect`/`actual` and DI plans. Consult `references/expect-actual-boundaries.md` for the seam-pattern rubric (semantic common APIs, thin actuals, interface-over-`expect class` when tests/DI/lifecycle matter, Compose leaf rule).
 
 - **Opus** finalizes consolidated `expect`/`actual` interfaces in destination `commonMain`. ≥2-consumer check enforced.
 - **Sonnet** writes interface declarations + **working `actual` impls** in `androidMain` AND `iosMain` — no `NotImplementedError` stubs. Done-means-done applies to foundation too.
