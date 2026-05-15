@@ -13,7 +13,8 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
 | `bug-finder` | 1.0.0 | Evidence-based bug/crash root cause diagnosis — flow mapping, hypothesis formation, log verification, root cause report |
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
-| `kmm-migration-workflow` | 1.1.0 | Android→KMM migration orchestrator — phased workflow with baseline tests, surgical git mv, validation, and PR. Behavioral-equivalence safety |
+| `kmm-plugin` | 6.6.0 | Battle-tested KMM migration orchestrator — 5-phase workflow (Plan → Scaffold → Migrate → Wire Android → Wire iOS), per-file TDD, 3-layer verification, parallel agent teams, static parity analysis, verify-first Appium, observe/discuss retrospective |
+| `review-pr` | 1.0.0 | Multi-agent PR review — 25 focused agents in parallel per file type, inline GitHub comments, calibration (human-in-loop) and autopilot (`--auto`) modes |
 
 ## Installation
 
@@ -32,7 +33,8 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install clean-code@punchhq-skills
 /plugin install bug-finder@punchhq-skills
 /plugin install om-pipeline@punchhq-skills
-/plugin install kmm-migration-workflow@punchhq-skills
+/plugin install kmm-plugin@punchhq-skills
+/plugin install review-pr@punchhq-skills
 ```
 
 ### 3. Use the skills
@@ -53,8 +55,14 @@ skill feedback
 # Om pipeline (full dev pipeline: plan → build → review → test on device)
 /om add dark mode toggle in settings screen
 
-# KMM migration workflow (phased Android → KMM migration with baseline tests)
-migrate the funds screen to KMM
+# KMM migration (create, continue, or verify)
+/kmm-plugin:kmm-workflow create my-feature-module
+/kmm-plugin:kmm-workflow continue
+/kmm-plugin:kmm-workflow verify
+
+# PR review (calibration = human-in-loop, --auto = fully autonomous)
+/review-pr:review-pr 123
+/review-pr:review-pr 123 --auto
 ```
 
 ## For Teams
