@@ -15,6 +15,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
 | `kmm-plugin` | 6.6.0 | Battle-tested KMM migration orchestrator — 5-phase workflow (Plan → Scaffold → Migrate → Wire Android → Wire iOS), per-file TDD, 3-layer verification, parallel agent teams, static parity analysis, verify-first Appium, observe/discuss retrospective |
 | `review-pr` | 1.0.0 | Multi-agent PR review — 25 focused agents in parallel per file type, inline GitHub comments, calibration (human-in-loop) and autopilot (`--auto`) modes |
+| `kmm-pr-review` | 1.0.0 | Citation-required PR review for Kotlin Multiplatform — tiered specialist swarm (correctness, idiom, master-grounded), conditional rule loading, persistent plan, attribution-aware P0–P3 prioritization, aggressive iOS-readiness on migration PRs |
 
 ## Installation
 
@@ -35,6 +36,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install om-pipeline@punchhq-skills
 /plugin install kmm-plugin@punchhq-skills
 /plugin install review-pr@punchhq-skills
+/plugin install kmm-pr-review@punchhq-skills
 ```
 
 ### 3. Use the skills
@@ -63,6 +65,9 @@ skill feedback
 # PR review (calibration = human-in-loop, --auto = fully autonomous)
 /review-pr:review-pr 123
 /review-pr:review-pr 123 --auto
+
+# KMM PR review (auto-fires on KMP repos; or invoke explicitly)
+review this KMP PR: https://github.com/<org>/<repo>/pull/123
 ```
 
 ## For Teams
@@ -169,6 +174,16 @@ claude-code-skills/
 │   │           └── references/
 │   │               ├── test-discipline.md
 │   │               └── phases/        # phase-0-discovery through phase-g-pr
+│   ├── kmm-pr-review/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── skills/
+│   │       └── kmm-pr-review/
+│   │           ├── SKILL.md
+│   │           ├── prompts/           # specialist + aggregator prompts
+│   │           ├── references/        # rules/, canonical-sources, derivative-map
+│   │           ├── schemas/           # finding + plan JSON schemas
+│   │           └── scripts/           # ingest, classify, dedupe, verify
 └── README.md
 ```
 

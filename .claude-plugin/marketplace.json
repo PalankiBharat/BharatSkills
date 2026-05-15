@@ -131,10 +131,19 @@
       "name": "kmm-migration-workflow",
       "source": "./plugins/kmm-migration-workflow",
       "description": "Orchestrates Android-to-KMM migration with behavioral-equivalence safety. Phased workflow — discovery, diagnostic, baseline tests, freeze, git mv + surgical edits, validation, PR. Live-sourced API knowledge (web + Context7), project conventions in .kmm/project.md, diff-confirm protocol on every .kmm/ write.",
-      "version": "1.0.0",
+      "version": "1.3.0",
       "category": "migration",
       "tags": ["kmm", "kotlin-multiplatform", "migration", "android", "ios", "shared-module", "commonMain", "expect-actual", "baseline-tests"],
       "keywords": ["kmm", "kotlin-multiplatform", "commonMain", "migrate to KMM", "shared module", "expect actual", "baseline tests"]
+    },
+    {
+      "name": "kmm-pr-review",
+      "source": "./plugins/kmm-pr-review",
+      "description": "Rigorous, citation-required PR review for Kotlin Multiplatform repos. Tiered specialist subagent swarm (correctness, idiom, master-grounded) reviews each file with conditional rule loading. Persistent plan and findings on disk guarantee coverage; cite-or-drop enforcement; attribution-aware P0–P3 prioritization; iOS readiness checked aggressively on migration PRs.",
+      "version": "1.0.0",
+      "category": "developer-tools",
+      "tags": ["kmm", "kotlin-multiplatform", "code-review", "pull-request", "android", "ios", "skie", "compose", "swiftui", "expect-actual"],
+      "keywords": ["kmm", "kmp", "pr review", "kotlin-multiplatform", "commonMain", "iosMain", "expect actual", "skie", "migration drift", "review pr"]
     }
   ]
 }

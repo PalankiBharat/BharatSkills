@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kmm-pr-review/plan",
+  "title": "KMM PR Review Plan",
+  "description": "Master plan persisted to ~/.kmm-pr-review/<repo-hash>/<branch>/plan.json. Each file gets one entry. Phase 5 fails loudly if any entry has status != 'done' or 'cache-hit'.",
+  "type": "object",
+  "required": ["repo_hash", "branch", "base_ref", "head_sha", "created_at", "migration_detected", "files"],
+  "properties": {
+    "repo_hash": {
+      "type": "string",
+      "description": "Hash of the repo's origin URL + root path, used to key state directory."
+    },
+    "branch": {
+      "type": "string"
+    },
+    "base_ref": {
+      "type": "string",
+      "description": "Base ref the diff is computed against (e.g. 'origin/master')."
+    },
+    "head_sha": {
+      "type": "string",
+      "description": "Current HEAD SHA. Used for cache invalidation on rebuild."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "migration_detected": {
+      "type": "boolean"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/file_entry"
+      }
+    }
+  },
+  "$defs": {
+    "file_entry": {
+      "type": "object",
+      "required": ["file", "change_type", "surface", "role", "swarm_tier", "rules_to_load", "content_hash", "rules_hash", "status"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Repo-relative path. For renames, the new path."
+        },
+        "old_file": {
+          "type": "string",
+          "description": "For renames/migrations: the master-side path. Used to load the master baseline for attribution."
+        },
+        "change_type": {
+          "type": "string",
+          "enum": ["NEW", "MODIFIED", "RELOCATION", "RENAMED_MODIFIED", "DELETED"]
+        },
+        "surface": {
+          "type": "string",
+          "enum": ["SHARED_COMMON", "SHARED_PLATFORM", "ANDROID_CONSUMER", "IOS_CONSUMER", "BUILD", "TESTS"]
+        },
+        "role": {
+          "type": "string",
+          "enum": ["usecase", "viewmodel", "repository", "model", "di-module", "compose-screen", "swiftui-view", "test", "build", "unknown"]
+        },
+        "swarm_tier": {
+          "type": "string",
+          "enum": ["haiku-1", "sonnet-1", "sonnet-2", "sonnet-3-new", "sonnet-3-migration"]
+        },
+        "rules_to_load": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "List of references/rules/<name>.md files to load for specialists reviewing this file."
+        },
+        "content_hash": {
+          "type": "string",
+          "description": "SHA-256 of the file's content as it appears in the PR. Used with rules_hash to key the cache."
+        },
+        "rules_hash": {
+          "type": "string",
+          "description": "SHA-256 of the concatenated content of rules_to_load. Cache hit requires content_hash AND rules_hash to match."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in-progress", "done", "cache-hit", "failed"]
+        },
+        "findings_file": {
+          "type": "string",
+          "description": "Path to findings/<file-hash>.json once done."
+        },
+        "is_migration_file": {
+          "type": "boolean",
+          "description": "True if this file is part of the detected migration."
+        }
+      }
+    }
+  }
+}
