@@ -4,7 +4,7 @@
 
 Files with `Phase D plan: hold` are not touched in Phase D — they stay in `<dest>/androidMain` with frozen baselines in `<dest>/androidUnitTest`. Their promotion to `commonMain` is deferred to a future session.
 
-**Inputs:** all prior session files (`scope.md`, `plan.md`, `audit.md`, `freeze.md` complete), `project.md`, `coverage.md`, `references/test-discipline.md` (for any new tests written during foundation work), `references/expect-actual-boundaries.md` (foundation seam patterns + Compose interop guidance for D.0).
+**Inputs:** all prior session files (`scope.md`, `plan.md`, `audit.md`, `freeze.md` complete), `project.md`, `coverage.md`, `references/test-discipline/index.md` + relevant per-type files (for any new tests written during foundation work), `references/expect-actual-boundaries.md` (foundation seam patterns + Compose interop guidance for D.0).
 
 ---
 

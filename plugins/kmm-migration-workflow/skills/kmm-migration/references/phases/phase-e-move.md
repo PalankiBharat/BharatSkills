@@ -13,7 +13,7 @@
 ### E.0 — Skip check + pre-promotion commonTest health (Haiku)
 
 - **Skip check.** Read `coverage.md`: if no row has status `migrated`, Phase E is skipped. Skill records "Phase E skipped — no files reached commonMain this session" in `move.md` and proceeds to Phase F.
-- **Pre-promotion commonTest health check** (if Phase E proceeds). Quick compile check on `<dest>/commonTest`. Report: clean / N broken (file list). Broken pre-existing tests are **quarantined via `@Ignore`** (same pattern as Phase B step B.2; per `test-discipline §12 — Quarantine of unrelated broken tests`), not fixed here. If quarantine applied, commit separately before E.1.
+- **Pre-promotion commonTest health check** (if Phase E proceeds). Quick compile check on `<dest>/commonTest`. Report: clean / N broken (file list). Broken pre-existing tests are **quarantined via `@Ignore`** (same pattern as Phase B step B.2; per `test-discipline/migration-baselines.md` (Quarantine section)), not fixed here. If quarantine applied, commit separately before E.1.
 
 ### E.1 — Move via `git mv` (Haiku, parallel)
 

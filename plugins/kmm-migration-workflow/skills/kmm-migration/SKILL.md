@@ -7,7 +7,7 @@ description: Orchestrates structured Android-to-KMM migration with strict behavi
 
 A workflow for migrating Android code to Kotlin Multiplatform without behavior surprises. The skill never re-derives KMM knowledge from training — patterns come from live web search, APIs come from Context7, project conventions live in `.kmm/project.md`. The skill's job is the **workflow**.
 
-Testing rules for the whole workflow live in `references/test-discipline.md` (loaded by Phase B; consulted by other phases when test code is touched).
+Testing rules for the whole workflow live in `references/test-discipline/` (split into `index.md` + per-file-type files, loaded on demand by Phase B and consulted by other phases when test code is touched — never loaded in bulk).
 
 ---
 
@@ -64,11 +64,31 @@ User accepts, edits any line, or rejects. After acceptance, the skill re-issues 
 
 Discipline: **Opus only when cost-of-being-wrong is high.** Default-everything-Sonnet wastes Opus depth on routine work; default-everything-Opus burns time and tokens on mechanical tasks.
 
+### Subagent-mediated exploration (read-many = subagent)
+
+**Main context holds decisions and synthesis. Subagents hold raw inputs.** Any operation that reads more than one file — or reads a single large file purely to extract a small answer — goes through a subagent that consumes the raw content and returns a summary. The main thread receives the summary, not the files.
+
+**Triggers (always dispatch to a subagent):**
+- Codebase scans (`grep`, multi-file reads, dep-graph walks).
+- Reading cached search results from `.kmm/searches/` to inform a current decision — Sonnet extracts only the bit relevant to the current question.
+- Reading prior phase files during resume (see Resume protocol below).
+- Reading sibling session `coverage.md` files for cross-session ripple lookups.
+- Reading multiple per-type files from `references/test-discipline/` when a batch decision spans file types.
+- Reading reference docs (`references/expect-actual-boundaries.md`, etc.) when only a specific sub-question is needed — Sonnet extracts the rubric's answer, not the whole rubric.
+
+**Exceptions (main thread reads directly):**
+- The single file currently being edited / migrated.
+- The currently-active phase reference (one phase at a time).
+- `project.md` (small, durable, repeatedly consulted — caching it in main is correct).
+- The active phase's own output file (`scope.md`, `plan.md`, etc.) — the skill writes these progressively and must see their current state.
+
+**Why this matters.** Context degrades performance. A 5–9h session that reads every phase file into main and every cached search result into main fills the window with stale or low-relevance content, crowding out the current decision. The infinite-exploration failure mode — *"investigate X"* → read 50 files → context full → quality drops — is real. Subagent-mediated reads cap each exploration at its summary cost.
+
 ### Tooling discipline
 
 Reflex defaults that govern tool choice. These are not preferences — they shape the skill's output and are non-negotiable.
 
-- **Context7 first for library/SDK/API specifics.** Library APIs, SDK signatures, framework configuration syntax — Context7 is primary. Web search is secondary, for community patterns and antipatterns. Training-data API recall is not allowed. Cache results at `.kmm/searches/<topic-hash>.md`; reuse if ≤ 30 days old; auto-invalidate past that (TTL configurable in `project.md`).
+- **Context7 first for library/SDK/API specifics.** Library APIs, SDK signatures, framework configuration syntax — Context7 is primary. Web search is secondary, for community patterns and antipatterns. Training-data API recall is not allowed. Cache results at `.kmm/searches/<topic-hash>.md`; reuse if ≤ 30 days old; auto-invalidate past that (TTL configurable in `project.md`). **Cache reads go through a subagent** (per Subagent-mediated exploration) — the cache is for cross-session reuse, not main-context bloat.
 - **Web search for patterns and approaches.** *"How do people handle X in KMM?"* — community wisdom for architectural decisions, not API specifics. Parallelize Context7 + web search when both kinds of input are needed for the same decision.
 - **Regular `import` first; `import ... as Alias` only on collision.** Bring symbols in via normal import. When two imports collide on short name, alias one. Never inline the FQN at the call site — it's noisy and hides the dependency from the import list.
 - **`git restore <path>` over reverse-edits.** For any tracked-file undo, use git's restore. Manually reverting via str_replace is error-prone and skips git's history checks.
@@ -95,12 +115,23 @@ Trivial decisions (apply plan.md substitution; single obvious compile fix) — s
 
 ### Resume protocol (every invocation)
 
-1. Read `.kmm/project.md` and (if topic-relevant) `.kmm/searches/`.
-2. Detect current git branch (`git branch --show-current`).
-3. Branch on situation:
-   - On `kmm/...` branch with matching session folder → **resume**: read ALL phase files in that session folder in order, reconstruct full context (scope, decisions, evidence, tasks done, tasks pending), self-audit (baselines still green? uncommitted state? branch matches folder?), report state, pick up at next pending task. **Zero rediscovery.**
-   - On `kmm/...` branch without session folder → start fresh session here.
-   - On `main`/`master`/non-`kmm/` → branch + worktree setup (see Phase 0), then end invocation. Phase 0 runs in the new worktree.
+Resume is **driven by the `resume_session` SessionStart hook**, not by Claude-side logic. The hook runs once before Claude's first turn, reads phase files deterministically, and emits a structured state report (branch, per-phase status table, active phase, next pending task, recent decisions across phases, working-tree-dirty flag). The raw phase files are NOT read into main context.
+
+What Claude does on resume:
+
+1. Read the state report (already in context, courtesy of the hook).
+2. Read `.kmm/project.md` directly (small, durable; main context).
+3. Load **only the active phase's reference file** (per the report) and **only the active phase's output file** (e.g. `audit.md` if mid-Phase-B). Other phase files stay on disk; their state is already in the report.
+4. Pick up at the next pending task identified by the report.
+
+**Zero rediscovery, zero raw-file dump, no Haiku-resume subagent needed.** The hook makes the resume mechanical and deterministic.
+
+**Off-path situations** (the hook handles these too):
+- Non-`kmm/` branch → hook is silent, Claude starts fresh.
+- `kmm/...` branch with no matching `.kmm/migrations/<feature>-<depth>/` folder → hook prints a "fresh session" hint pointing at Phase 0.
+- No `.kmm/` initialized in the worktree → hook prints a "fresh worktree" hint pointing at Phase 0.
+
+If the SessionStart hook didn't run for some reason (hook crashed, plugin not loaded), Claude falls back: detect branch via `git branch --show-current`; if `kmm/...` and folder exists, dispatch a **Haiku subagent** to read phase files and return the same state report (per the Subagent-mediated exploration rule — never bulk-read phase files into main).
 
 ### Rule of three (auto-promotion to project.md)
 
@@ -132,8 +163,22 @@ For intentional behavior changes during migration (library substitution semantic
 
 - Exception file at `.kmm/exceptions/<YYYY-MM-DD>-<short-id>.md` with: what changed, why, risk, user sign-off.
 - Baseline edit references it: commit message contains `[migration-exception <id>]`.
-- Enforcement is **human-gated** via reviewer attention on the PR diff. No CI assumed; no CODEOWNERS dependency.
-- **Skill itself refuses to edit frozen baselines without a corresponding exception file present** — this is the primary enforcement layer.
+- **Mechanical enforcement** via the `frozen_baseline_guard` hook (see Hooks below): writes to frozen baselines are blocked at the tool-call layer unless an exception file referencing the baseline exists. This converts the prior advisory rule into deterministic enforcement.
+- **Human enforcement** via reviewer attention on the PR diff. No CI assumed; no CODEOWNERS dependency.
+
+### Hooks (deterministic enforcement)
+
+The skill ships three Claude Code hooks in `hooks/` at the plugin root. They convert the highest-stakes advisory invariants — and the most context-expensive workflow step (resume) — into mechanical operations that can't be silently bypassed or context-bloat their way around.
+
+| Hook | Trigger | Behavior |
+|---|---|---|
+| `resume_session.py` | SessionStart | If cwd is in a `kmm/<feature>-<depth>` worktree with a matching `.kmm/migrations/<feature>-<depth>/` folder, reads every phase file and emits a structured state report (per-phase status table, active phase + next pending task, recent decisions, working-tree-dirty flag) into the initial context. Raw phase files are NOT pulled into main context — the hook does the extraction. Silent on non-`kmm/` branches. |
+| `frozen_baseline_guard.py` | PreToolUse on `Write|Edit|MultiEdit|str_replace|create_file` | Reads session `coverage.md` to determine baseline status. Blocks writes to any baseline in status `frozen` / `migrated` / `promoted` unless a `.kmm/exceptions/*.md` file references the baseline by name. Exit code 2 (with explanation) on block. |
+| `kmm_write_notice.py` | PostToolUse on the same tools | Emits a conspicuous notice to stderr whenever a `.kmm/` write happens, so silent writes (missed diff-confirm) are at least visible in the transcript for post-hoc audit. |
+
+Hooks are configured via `hooks/hooks.json` and reference `${CLAUDE_PLUGIN_ROOT}` so they work uniformly across worktrees. They're additive — none of the skill's behavioral rules go away; the hooks are the enforcement floor below the rules.
+
+**Why these three.** Frozen-baseline edits are the single most damaging silent-bypass mode (corrupts the equivalence safety net the entire workflow exists to maintain), so it gets full deterministic blocking. Resume context cost was the biggest single context-budget leak in a long session (8 phase files × ~100 lines × growing-as-living-documents), so it moves to deterministic extraction at session start. The `.kmm/` write notice is a lighter touch — doesn't block, just makes silent writes auditable — because a true diff-confirm bypass-prevention hook requires the skill to stage proposed writes through a token-marker scheme, which is a larger change. The notice covers the audit-trail gap in the meantime.
 
 ### Phase file format
 
@@ -242,7 +287,7 @@ Read phase references **on demand** — when the workflow enters or resumes a ph
 
 **Cross-phase references:**
 
-- `references/test-discipline.md` — authoritative testing rules (per-file-type checklists, denylist, MockK templates, kotlin.test patterns, broken-test quarantine). Loaded by Phase B (mandatory) and consulted by any phase that touches test code (D foundation, E commonTest promotion, F regression checks).
+- `references/test-discipline/` — authoritative testing rules. **`index.md`** (Toolbox, decision matrices, cross-cutting rules, file-level skeletons, Verification gates) is loaded whenever test code is touched. **Per-type files** (`viewmodels.md`, `usecases.md`, `repositories.md`, `remote-stores.md`, `local-stores.md`, `mappers.md`, `models.md`, `interactors.md`, `presenters.md`, `composables-pages.md`, `workers-receivers-services.md`) are loaded **only when a SUT of that type is in scope this session** — per Subagent-mediated exploration, never bulk-load. **`migration-baselines.md`** (the former §12 — denylist, KMM-portable stack rules, feature-surface pattern, quarantine, migration-exception process) is always loaded in Phase B alongside `index.md`. Used by Phase B (mandatory) and consulted by phases that touch test code (D foundation, E commonTest promotion, F regression checks).
 - `references/expect-actual-boundaries.md` — design-vocabulary for choosing the right common/platform seam (`expect`/`actual` vs interface, semantic common APIs, thin actuals, Compose interop guidance, red flags). Loaded by Phase A (per-file seam strategy) and Phase D (D.0 foundation setup).
 
 **Phase E is conditional.** If no in-scope file reached `commonMain` by end of Phase D (intentional `androidMain` landings throughout), Phase E is skipped — baselines stay in `androidUnitTest` as their final destination this session. A future session can promote when code ripens.

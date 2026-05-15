@@ -4,9 +4,9 @@
 
 Relocation happens first because it preserves behavior trivially (`git mv` + consumer-import update, no Kotlin changes). Baselines are then written against the relocated code in the destination module's `androidUnitTest` source set — the same module where they'll live through Phase E.
 
-**Inputs:** `scope.md`, `plan.md`, `audit.md` (if resuming), `project.md`, `coverage.md`, **`references/test-discipline.md` (mandatory — load at Phase B startup)**.
+**Inputs:** `scope.md`, `plan.md`, `audit.md` (if resuming), `project.md`, `coverage.md`, **`references/test-discipline/index.md` and `references/test-discipline/migration-baselines.md` (mandatory — load at Phase B startup)**, plus **`references/test-discipline/<type>.md` per in-scope file type** (loaded on demand as each batch is processed — never bulk-load all per-type files).
 
-Phase B execution **must** load `references/test-discipline.md` before any audit or test-writing work. It contains the per-file-type checklists, the denylist (§12), the MockK templates, the broken-test quarantine pattern, and the KMM-portable stack rules that every sub-phase below relies on.
+Phase B execution **must** load `references/test-discipline/index.md` and `references/test-discipline/migration-baselines.md` before any audit or test-writing work. Together they contain: Toolbox + decision matrices + cross-cutting rules + file-level skeletons + KMM-portable stack rules (in `index.md`), and the denylist + feature-surface pattern + broken-test quarantine + migration-exception process (in `migration-baselines.md`). Per-type checklists and templates (`viewmodels.md`, etc.) are loaded per-batch as the audit/write loop reaches each file type — **subagent-mediated per cross-cutting rules** if multiple per-type files would otherwise enter main context simultaneously.
 
 ---
 
@@ -33,7 +33,7 @@ Commit per file (or coherent per-layer batch); commit messages note "relocation 
 Per Phase 0 step 8's broken-test discovery in `<dest>/androidUnitTest`:
 
 - For each pre-existing broken test, apply `@Ignore("<one-line reason>; see PR out-of-scope follow-ups")`.
-- Per `test-discipline §12 — Quarantine of unrelated broken tests`.
+- Per `test-discipline/migration-baselines.md` (Quarantine of unrelated broken tests).
 - Non-judgmental — does not assert the test is bad, only that fixing it is not this migration's job.
 
 After this step, `<dest>/androidUnitTest` compiles clean — ready for baselines to be written.
@@ -46,8 +46,8 @@ For each in-scope file with an existing test (currently in `:app/src/test/...` p
 
 - Read every test by name (Haiku does the parse).
 - Score on three dimensions:
-  - **Coverage %** — checklist items from `test-discipline §<file-type>` hit by existing tests, cited by test name (Sonnet scores).
-  - **Migration-safety %** — pass against `test-discipline §12` denylist (Mockito, Truth, Robolectric, `@get:Rule`, `org.junit.runner.*`, `java.time.*`, `System.currentTimeMillis`, `MainCoroutineRule`, etc.). Haiku scans imports; Sonnet judges edge cases.
+  - **Coverage %** — checklist items from `test-discipline/<type>.md` hit by existing tests, cited by test name (Sonnet scores).
+  - **Migration-safety %** — pass against `test-discipline/migration-baselines.md` denylist (MockK, Mockito, Truth, Robolectric, `@get:Rule`, `org.junit.runner.*`, `java.time.*`, `System.currentTimeMillis`, `MainCoroutineRule`, etc.). Haiku scans imports; Sonnet judges edge cases. **A test using MockK lands a hard 0 on this dimension** — MockK is now banned in baseline source sets (per the updated denylist), so a MockK-based test cannot be trusted as a baseline. Verdict for MockK-using existing tests is **Rewrite**.
   - **Bug-catching power %** — proven by deliberate-breakage mutation (see B.5); for existing tests, run the menu mutation now.
 - **Trust score = min(coverage%, migration-safety%, bug-catching%).** Forces explicit reasoning per dimension.
 - **Verdict: Trust / Augment / Rewrite**, citing specific test names + checklist items + denylist hits as evidence.
@@ -69,8 +69,8 @@ For files with audit verdict `Augment` / `Rewrite` or no existing test:
 - **Complex (Opus):** concurrency-heavy Interactor, multi-source cache Repository, state-machine Presenter, anything plan.md flagged high-stakes.
 
 Per file:
-- Identify file type → load `test-discipline §<type>` (checklist + template + KMM-portable stack).
-- Write the baseline in `<dest>/src/androidUnitTest/.../XTest.kt` using **kotlin.test + MockK + Turbine + hand-rolled fakes** (per `test-discipline §12`).
+- Identify file type → load `test-discipline/<type>.md` (checklist + template + KMM-portable stack).
+- Write the baseline in `<dest>/src/androidUnitTest/.../XTest.kt` using **kotlin.test + hand-rolled fakes + Turbine** (per `test-discipline/migration-baselines.md` — MockK is banned; fakes only).
 - **Apply principle #2 (clean code):** no test-only `*Holder` / `*Manager`; fakes earn their existence (≥2 consumers or required for KMM portability).
 - **Self-review before presenting.** Notes captured.
 - User confirms per batch (per file or per file-type cluster).
@@ -101,7 +101,7 @@ Reviewer can reproduce by re-applying the standard mutation. No vibes.
 
 ### B.6 — Feature-surface baselines (Opus, sequential)
 
-Beyond per-file unit tests, write higher-level tests exercising the **public feature surface** (per `test-discipline §12` "black-box at the feature surface").
+Beyond per-file unit tests, write higher-level tests exercising the **public feature surface** (per `test-discipline/migration-baselines.md` "black-box at the feature surface").
 
 Construct a `<Feature>.test(...)` factory that builds the production graph and exposes observables (`RecordingApiClient`, etc.). Baselines assert on observable feature behavior — strongest equivalence guarantee, because Phase D can rewrite the entire internal graph without breaking these.
 
@@ -149,7 +149,7 @@ Beyond universals:
 - B.2 quarantine applied to every broken pre-existing test surfaced at Phase 0. None deferred.
 - Every existing in-scope test **audited** by reading every test by name — not spot-checked.
 - Every new or rewritten test has **red-on-breakage proof** — no shortcuts.
-- Every test in `<dest>/androidUnitTest` uses the KMM-portable stack — **no exceptions** (no Mockito, no Truth, no Robolectric, no `java.time.*`). JVM-stack tests stay in `:app/src/test/` as regression cover only.
+- Every test in `<dest>/androidUnitTest` uses the KMM-portable stack with **hand-rolled fakes only** — **no exceptions** (no MockK, no Mockito, no Truth, no Robolectric, no `java.time.*`). JVM-stack tests (MockK or Mockito) stay in `:app/src/test/` as regression cover only.
 - Feature-surface baselines exist, or explicit opt-out with rationale recorded.
 - Full baseline suite green before Phase C.
 - User confirmation on each batch; nothing freezes silently.

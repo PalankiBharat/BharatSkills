@@ -42,21 +42,21 @@ Parallel Sonnet subagents from each seed. Bounds:
 **Walk reports confidence and unresolved bindings.** Example output: *"30 files via static + Hilt graph; 3 Koin DSL modules with dynamic logic — 2 unresolved bindings flagged for sanity check."* Skill admits limits; user sanity-checks before confirming. Koin DSL with dynamic logic / Hilt+Koin coexistence can hide bindings.
 
 ### 7. Classification
-Haiku subagent. Each discovered file → one type per `test-discipline` taxonomy:
+Haiku subagent. Each discovered file → one type per `test-discipline` taxonomy (see `test-discipline/index.md`):
 ViewModel / UseCase / Repository / RemoteStore / LocalStore / Mapper / Model / Interactor / Presenter / Composable / Worker / Receiver / Service / Other.
 
 Signals: filename suffix, class hierarchy, path heuristics, content markers. Unclassifiable files flagged for user resolution.
 
 ### 8. Test + registry pass
 Per file:
-- Mirrored test file exists (y/n) — by `test-discipline` package-mirror convention.
+- Mirrored test file exists (y/n) — by `test-discipline/index.md` package-mirror convention.
 - Already frozen elsewhere — scan sibling `.kmm/migrations/*/coverage.md` for matches. If found → flag *"already frozen by `<other-session>`; reuse the baseline rather than re-writing."*
 
 **Target test source-set health check** (one-time, per session):
-- **Test-compile state of `<dest>/androidUnitTest`.** All baselines land here in Phase B (uniform routing). Quick compile check; report clean / N broken (file list). Broken pre-existing tests are **quarantined via `@Ignore` in Phase B** (per `test-discipline §12 — Quarantine`), not fixed as part of this migration. `<dest>/commonTest` is not checked at Phase 0 — Phase E does its own pre-promotion check if any baseline migrates there.
+- **Test-compile state of `<dest>/androidUnitTest`.** All baselines land here in Phase B (uniform routing). Quick compile check; report clean / N broken (file list). Broken pre-existing tests are **quarantined via `@Ignore` in Phase B** (per `test-discipline/migration-baselines.md` (Quarantine section)), not fixed as part of this migration. `<dest>/commonTest` is not checked at Phase 0 — Phase E does its own pre-promotion check if any baseline migrates there.
 
 ### 9. Cross-feature ripple detection
-For each in-scope file, count back-references from out-of-scope project files. Shared models / utilities used widely → flag prominently.
+For each in-scope file, count back-references from out-of-scope project files. Shared models / utilities used widely → flag prominently. **Subagent-mediated** (Haiku, parallel) — raw `grep` output stays in the subagent; main thread receives only the per-file back-reference count + flagged shared deps (per SKILL.md Subagent-mediated exploration).
 
 Each shared dep gets a **per-occurrence decision** (include in this session / hold back). The lens: *"which carries less behavioral-drift risk for untouched features?"* Tightly-coupled utilities used by many features default to hold-back; isolated ones default to include. **No default-include.**
 
@@ -98,7 +98,7 @@ Living document, written progressively. Contains:
 - Per-ripple decisions (include / hold back, with reasoning)
 - Per-file deselections made during manifest review
 - Platform deps encountered
-- **Pre-existing test-compile state in `<dest>/androidUnitTest`** (clean / N broken; action: @Ignore in Phase B per `test-discipline §12 — Quarantine`)
+- **Pre-existing test-compile state in `<dest>/androidUnitTest`** (clean / N broken; action: @Ignore in Phase B per `test-discipline/migration-baselines.md` (Quarantine section))
 - Tasks (checklist)
 - Decisions log (chronological)
 - Status

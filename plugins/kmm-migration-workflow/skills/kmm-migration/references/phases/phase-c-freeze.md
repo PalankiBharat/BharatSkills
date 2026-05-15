@@ -29,10 +29,10 @@ Triggered if `project.md` indicates enforcement isn't set up. Otherwise skipped 
 The only mechanical enforcement is a detekt rule that catches stack-drift in `<dest>/androidUnitTest` (and later `<dest>/commonTest`). The skill's own refusal to edit frozen baselines without a migration-exception file (SKILL.md cross-cutting) is the behavioral enforcement layer; reviewer attention on PR diffs is the human layer. No CODEOWNERS dependency; no pre-commit / commit-msg hook.
 
 - **Haiku** scans the repo for existing detekt config.
-- **Sonnet** drafts the **detekt rule extension** per `test-discipline §12` denylist:
-  - Fail on imports: `org.mockito.*`, `com.google.common.truth.*`, `org.junit.runner.*`, `org.junit.Rule`, `org.junit.Before`, `org.junit.After`, `androidx.test.*`, `androidx.compose.ui.test.*`, `org.robolectric.*`, `java.time.*`, `java.util.Date`.
-  - Fail on usage: `@get:Rule`, `@Rule`, `System.currentTimeMillis()`, `System.nanoTime()`, `Thread.sleep(`, `MainCoroutineRule`.
-  - Warn on `verify(` and `mockk(...)` without `relaxed = false`.
+- **Sonnet** drafts the **detekt rule extension** per `test-discipline/migration-baselines.md` denylist:
+  - Fail on imports: `io.mockk.*` (MockK — baselines use hand-rolled fakes), `org.mockito.*`, `com.google.common.truth.*`, `org.junit.runner.*`, `org.junit.Rule`, `org.junit.Before`, `org.junit.After`, `androidx.test.*`, `androidx.compose.ui.test.*`, `org.robolectric.*`, `java.time.*`, `java.util.Date`.
+  - Fail on usage: `@get:Rule`, `@Rule`, `System.currentTimeMillis()`, `System.nanoTime()`, `Thread.sleep(`, `MainCoroutineRule`, `mockk<`, `mockk(`, `every {`, `coEvery {`, `verify {`, `coVerify {` (MockK API surface).
+  - Scope: applies to `<dest>/androidUnitTest` and `<dest>/commonTest` (baseline source sets). `:app/src/test/` is exempt — JVM-only stack lives there.
 - **Opus** reviews the draft — project-wide and durable. Mistakes here corrupt every future migration.
 - User confirms.
 - On acceptance: `project.md` updated with `enforcement_setup: true` + path to the detekt config file.
@@ -56,7 +56,7 @@ The only mechanical enforcement is a detekt rule that catches stack-drift in `<d
 
 **Non-negotiable.** Verifies the detekt rule actually bites:
 
-- **Sonnet** adds a forbidden import to a frozen baseline test — e.g., `import org.mockito.kotlin.whenever`.
+- **Sonnet** adds a forbidden import to a frozen baseline test — e.g., `import io.mockk.mockk` (MockK is now banned in baseline source sets per the updated denylist; Mockito works too — pick either).
 - Runs `./gradlew :<dest>:detekt` (or project-specific task per `project.md`).
 - Expected: detekt failure citing the denylist rule for that import.
 - **Haiku** parses output, confirms the failure type matches.

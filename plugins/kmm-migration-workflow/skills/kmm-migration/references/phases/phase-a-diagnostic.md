@@ -19,7 +19,7 @@ Based on Phase 0 manifest, fire live searches:
 - *"SKIE `<pattern>`"* for Swift-consumption concerns relevant to scope.
 - Context7 lookups for KMM-native library API signatures (current).
 
-Results cached in `.kmm/searches/<topic-hash>.md` — subagents consume from cache; future sessions don't re-search.
+Results cached in `.kmm/searches/<topic-hash>.md` — **subagents consume from cache** (per SKILL.md Subagent-mediated exploration; the cache exists for cross-session reuse, not main-context bloat). Future sessions don't re-search.
 
 ### 2. Per-file analysis (parallel Sonnet)
 
@@ -45,7 +45,7 @@ Per in-scope file:
 ### 3. Cross-file synthesis (Opus)
 
 - **Phase D migration ordering** — topological for `migrate`-plan files: leaves first (Models, Mappers), layers up (Repositories, UseCases), Presentation last if in scope. `hold`-plan files don't participate in Phase D ordering.
-- **DI module plan** — Koin module structure for destination per profile's DI stance and `test-discipline` MockK-default rules. Covers both `commonMain` bindings (for migrated files) and `androidMain` bindings (for held files).
+- **DI module plan** — Koin module structure for destination per profile's DI stance and `test-discipline/index.md` MockK-default rules. Covers both `commonMain` bindings (for migrated files) and `androidMain` bindings (for held files).
 - **Aggregated risk register** — dedup risks, group by category, each paired with the Phase B baseline test type that will catch it.
 - **Consolidated `expect`/`actual` interfaces** — merge where multiple `migrate`-plan files need the same abstraction (one `Clock`, one `NumberFormatter`, etc.). **≥2-consumer test enforced** — single-consumer abstractions get inlined.
 - **Phase D plan reassessment** — any file initially marked `migrate` that synthesis reveals is too risky / iOS-incomplete → flip to `hold` with rationale recorded. Scope itself doesn't change; only the per-file Phase D plan flips. User confirms each flip.
