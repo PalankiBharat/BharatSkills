@@ -88,6 +88,18 @@
         "is_migration_file": {
           "type": "boolean",
           "description": "True if this file is part of the detected migration."
+        },
+        "batch_id_correctness": {
+          "type": "string",
+          "description": "Optional. ID of the batch (from batches.json) that the correctness lane dispatched this file under. Absent for cache hits or below-threshold runs that bypass batching."
+        },
+        "batch_id_idiom": {
+          "type": "string",
+          "description": "Optional. ID of the batch that the idiom lane dispatched this file under. Absent for cache hits, below-threshold runs, or tiers that don't run an idiom lane."
+        },
+        "batch_id_master": {
+          "type": "string",
+          "description": "Optional. ID of the batch that the master-grounded lane (necessity or drift) dispatched this file under. Absent for cache hits, below-threshold runs, or tiers that don't run a master-grounded lane."
         }
       }
     }

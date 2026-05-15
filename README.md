@@ -15,7 +15,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
 | `kmm-plugin` | 6.6.0 | Battle-tested KMM migration orchestrator — 5-phase workflow (Plan → Scaffold → Migrate → Wire Android → Wire iOS), per-file TDD, 3-layer verification, parallel agent teams, static parity analysis, verify-first Appium, observe/discuss retrospective |
 | `review-pr` | 1.0.0 | Multi-agent PR review — 25 focused agents in parallel per file type, inline GitHub comments, calibration (human-in-loop) and autopilot (`--auto`) modes |
-| `kmm-pr-review` | 1.0.0 | Citation-required PR review for Kotlin Multiplatform — tiered specialist swarm (correctness, idiom, master-grounded), conditional rule loading, persistent plan, attribution-aware P0–P3 prioritization, aggressive iOS-readiness on migration PRs |
+| `kmm-pr-review` | 1.1.0 | PR review for KMP repos — spawns specialist subagents per file (correctness, idiom, master-grounded) against canonical docs, every finding cites a source or gets dropped, P0–P3 with PR-induced vs pre-existing attribution, iOS-readiness auto-promotes to P0 on migration PRs |
 
 ## Installation
 

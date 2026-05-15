@@ -1,5 +1,5 @@
 {
   "name": "kmm-pr-review",
-  "description": "Rigorous, citation-required PR review for Kotlin Multiplatform repos. Tiered specialist subagent swarm (correctness, idiom, master-grounded) reviews each file with conditional rule loading. Persistent plan and findings on disk guarantee coverage; cite-or-drop enforcement; attribution-aware P0–P3 prioritization.",
-  "version": "1.0.0"
+  "description": "PR review for Kotlin Multiplatform repos. Spawns specialist subagents per file (correctness, idiom, master-grounded) against canonical JetBrains / Android / SKIE docs — every finding cites a source or is dropped. P0–P3 prioritization with PR-induced vs pre-existing attribution so existing debt never blocks merge; iOS-readiness auto-promotes to P0 on migration PRs.",
+  "version": "1.1.0"
 }

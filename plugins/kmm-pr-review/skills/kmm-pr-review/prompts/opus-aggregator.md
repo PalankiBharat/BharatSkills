@@ -16,6 +16,34 @@ You receive structured findings from multiple specialists across all reviewed fi
 
 ## Workflow
 
+### 0. Phase 3 — dispatch (batched or per-file)
+
+After Phase 2 marks cache hits, **count pending files**: entries in `plan.json` with `status == "pending"`.
+
+- **If pending ≤ 30** → dispatch **per file** using the single-file prompts (`correctness-specialist.md`, `idiom-specialist.md`, `master-grounded-specialist.md`). No batching. Existing flow; no change.
+- **If pending > 30** → dispatch **batched**:
+  1. Run `scripts/build_batches.py <state_dir>` → produces `batches.json` and stamps `batch_id_<lane>` fields into `plan.json`.
+  2. For each batch in `batches.json`, dispatch one specialist agent in parallel (Task tool), using the matching `*-specialist-batched.md` prompt:
+     - `lane == "correctness"` or `lane == "haiku-relocation"` → `correctness-specialist-batched.md` (Haiku uses the same shape; only the model and rule sweep differ — relocation batches only check directory correctness per `_base.md`'s relocation rules)
+     - `lane == "idiom"` → `idiom-specialist-batched.md`
+     - `lane == "master-grounded-necessity"` or `"master-grounded-drift"` → `master-grounded-specialist-batched.md` (set `mode` in the preamble)
+  3. For each completed batch:
+     - Parse the agent's JSON. Verify `files_reviewed` matches `batch.files`. On mismatch, see failure recovery below.
+     - Drop any finding whose `file` is not in `batch.files` (log a warning).
+     - For each file in the batch: write the subset of findings (where `finding.file == file`) to `findings/<content_hash>.json` AND `cache/<content_hash>-<rules_hash>.json`. Empty list is fine.
+     - For each file in the batch: if **every lane its `swarm_tier` requires** has now completed, set `status = "done"` in `plan.json`. Otherwise leave it `pending`.
+
+**Failure recovery for batched dispatch**:
+
+| Failure | Recovery |
+|---|---|
+| Malformed JSON | Retry the batch once. On second fail, split the batch's `files` in half and re-dispatch each half. Max depth 2. |
+| `files_reviewed` is shorter than `batch.files` | Re-dispatch a smaller batch containing only the missing files. |
+| Orphan finding (`finding.file ∉ batch.files`) | Drop the finding; log. Do not mark unrelated files done. |
+| Agent timeout | Same as malformed: retry, then bisect. |
+
+Files that don't reach `status = "done"` stay `pending`. Phase 5 will fail loudly per the existing coverage contract; that is correct behavior.
+
 ### 1. Coverage gate
 
 Run `scripts/verify_plan_complete.py <state_dir>`. Non-zero exit → stop, report the failure. The skill does not produce a partial report.

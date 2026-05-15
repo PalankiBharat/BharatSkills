@@ -29,7 +29,7 @@ Six phases, enforced by the scripts and schemas in this skill.
 | 0. Ingest | Detect PR source (URL, branch, pasted diff); compute diff against master; copy master baselines into state directory; capture PR title/body (via `gh pr view`) for migration-keyword detection | `scripts/ingest.sh` |
 | 1. Plan | Classify each file (surface, role, change_type), detect migration (path heuristic + PR text keywords), flag ambiguous cases, materialize sibling baselines (capped at 5), determine swarm tier and rules to load, write `plan.json` | `scripts/classify.py` |
 | 2. Cache | Skip files where `(content_hash, rules_hash)` matches a prior run | inline |
-| 3. Swarm | Dispatch tiered Sonnet/Haiku specialists per file (see "Swarm tiers" below). Specialists load `_index.md` + the always-loaded rule files in full, and lazy-load conditional rule bodies only when a candidate fires | orchestrator (Opus) |
+| 3. Swarm | Dispatch tiered Sonnet/Haiku specialists. **Threshold-gated**: if pending files ≤ 30, dispatch **per file** using single-file prompts (existing flow). If > 30, run `scripts/build_batches.py` and dispatch one specialist per **batch** using `*-specialist-batched.md` prompts. Specialists load `_index.md` + the always-loaded rule files in full, and lazy-load conditional rule bodies only when a candidate fires | orchestrator (Opus) |
 | 4. Aggregate | Interview the user on any ambiguous migrations (Phase 1 output); dedupe by `(rule_id, file, line)`; **verify each finding via `scripts/verify_finding.py` (drops hallucinated findings)**; collapse derivative findings under their root cause (per `references/derivative-map.md`); apply attribution gate; assign final priority | `scripts/dedupe_findings.py` + `scripts/verify_finding.py` + orchestrator |
 | 5. Verify | Assert every plan entry is `done` or `cache-hit`; fail loudly otherwise | `scripts/verify_plan_complete.py` |
 | 6. Report | Severity-bucketed markdown to stdout (and optionally a file). Parent findings list collapsed derivatives inline. | orchestrator |
@@ -79,17 +79,41 @@ The reason: hallucinated rules in code review produce confidently-stated bad adv
 
 Tier comes from `change_type` (assigned in Phase 1). Role determines which rule files load alongside `_base.md`.
 
-| change_type | Tier | Agents | Lenses |
-|---|---|---|---|
-| `RELOCATION` (pure move ≥95% similarity) | haiku-1 | 1 Haiku | Directory correctness only. No rule sweep. |
-| `TEST`, `BUILD` | sonnet-1 | 1 Sonnet | Role rules only. |
-| `MODIFIED` | sonnet-2 | 2 Sonnets | A: correctness (loads `_base`, role rules, `ios-readiness` if commonMain). B: idiom (Kotlin conventions, `hygiene`). |
-| `NEW` in commonMain | sonnet-3-new | 3 Sonnets | A + B + C: master-grounded specialist in **necessity mode** (loads `new-commonmain-file`, `new-file-clean-code`; reads sibling master files to assess duplication/conventions). |
-| `MIGRATION` (drift detected) | sonnet-3-migration | 3 Sonnets | A + B + C: master-grounded specialist in **drift mode** (loads `migration-drift`, `ios-readiness` with iOS-blocking findings auto-promoted to P0). |
+| change_type | Tier | Agents | Lenses | Batch cap (files/agent, above threshold) |
+|---|---|---|---|---|
+| `RELOCATION` (pure move ≥95% similarity) | haiku-1 | 1 Haiku | Directory correctness only. No rule sweep. | 40 |
+| `TEST`, `BUILD` | sonnet-1 | 1 Sonnet | Role rules only. | 15 |
+| `MODIFIED` | sonnet-2 | 2 Sonnets | A: correctness (loads `_base`, role rules, `ios-readiness` if commonMain). B: idiom (Kotlin conventions, `hygiene`). | 10 each |
+| `NEW` in commonMain | sonnet-3-new | 3 Sonnets | A + B + C: master-grounded specialist in **necessity mode** (loads `new-commonmain-file`, `new-file-clean-code`; reads sibling master files to assess duplication/conventions). | A: 6, B: 6, C: 3 |
+| `MIGRATION` (drift detected) | sonnet-3-migration | 3 Sonnets | A + B + C: master-grounded specialist in **drift mode** (loads `migration-drift`, `ios-readiness` with iOS-blocking findings auto-promoted to P0). | A: 6, B: 6, C: 2 |
 
 Two lenses (A correctness + B idiom) rather than four identical Sonnets: real variance comes from different rule slices and framing, not from running the same prompt twice. The master-grounded specialist (C) is the same Sonnet role with two preambles — necessity for NEW files, drift for MIGRATION — to avoid prompt-drift between near-identical agents.
 
-See the prompt files in `prompts/` for the exact instructions each specialist receives.
+See the prompt files in `prompts/` for the exact instructions each specialist receives. Below the batching threshold, the single-file `*-specialist.md` prompts run; above it, `*-specialist-batched.md`.
+
+## Batching
+
+Per-file dispatch doesn't scale to migration-sized PRs (1000+ files). Phase 3 batches **only when pending files exceed 30** (the threshold). Below that, the orchestrator skips batching entirely and uses the existing per-file flow — small PRs are bit-identical to the pre-batching skill.
+
+When triggered, `scripts/build_batches.py` groups Phase-2 cache-miss files by `(lane, swarm_tier, rules_hash, role, surface, package_root)` and greedy-fills per-tier file-count and token caps. The orchestrator then dispatches **one specialist per batch** instead of per file.
+
+| Tier | Lane(s) | Files/batch | Token cap (chars/4) |
+|---|---|---|---|
+| `haiku-1` | haiku-relocation | 40 | 60,000 |
+| `sonnet-1` | correctness | 15 | 100,000 |
+| `sonnet-2` | correctness, idiom | 10 each | 90,000 |
+| `sonnet-3-new` | correctness, idiom | 6 each | 80,000 |
+| `sonnet-3-new` | master-grounded-necessity | 3 | 70,000 |
+| `sonnet-3-migration` | correctness, idiom | 6 each | 80,000 |
+| `sonnet-3-migration` | master-grounded-drift | 2 | 60,000 |
+
+**Grouping rationale.** `rules_hash` is the amortizer — files with identical rule loadouts share the ~12k-token rule-loading cost across the batch. `role` and `surface` keep batches topically coherent. `package_root` (first 3 path segments) is a tiebreaker that keeps the specialist's attention in one neighborhood per batch. Same-`package_root` files batch together; if a hard-partition bucket is small, contiguity naturally clusters by package without needing relaxation.
+
+**Cache stays per-file.** Batches are formed from cache-miss files only. After a batch completes, the orchestrator splits findings back to per-file `findings/<content_hash>.json` and `cache/<content_hash>-<rules_hash>.json`. A future re-run that hits the cache on file X skips batching X entirely.
+
+**Coverage preserved.** Each file's `plan.json` `status` flips to `done` only after **every lane required by its tier** has completed. Phase 5 (`verify_plan_complete.py`) is unchanged. Partial batch failures leave their files `pending`, which fails Phase 5 loudly — that's intentional.
+
+Per-batch coverage assertion: each batched specialist returns `files_reviewed`, listing every file it scanned (including zero-finding ones). The orchestrator fails the batch on mismatch and re-dispatches the missing subset.
 
 ## Attribution gate
 
@@ -180,6 +204,7 @@ Each finding:
 
 - `scripts/ingest.sh` — Phase 0: detect PR source, capture title/body via `gh`, load master baselines.
 - `scripts/classify.py` — Phase 1: classify, detect migration (with PR-keyword fallback), materialize sibling baselines (capped at 5), flag ambiguous migrations, write `plan.json`.
+- `scripts/build_batches.py` — Phase 3 prep (only when pending files > 30): groups cache-miss files into lane-specific batches subject to per-tier file-count + token caps; writes `batches.json`; stamps `batch_id_<lane>` back into `plan.json`.
 - `scripts/dedupe_findings.py` — Phase 4 dedupe step.
 - `scripts/verify_finding.py` — Phase 4 verification step. Rule-keyed grep/AST/file-existence checks reject hallucinated findings before they ship. Single most important quality gate. Runs in `--batch` mode after dedupe; produces `findings.verified.json`.
 - `scripts/verify_plan_complete.py` — Phase 5: assert every plan entry is `done` or `cache-hit`.
@@ -207,10 +232,21 @@ Each finding:
 
 ## Prompts
 
+Single-file prompts (used when pending files ≤ 30):
+
 - `prompts/correctness-specialist.md` — Sonnet A: KMP correctness, type leakage, expect/actual, coroutines, iOS bridging, SKIE structure.
 - `prompts/idiom-specialist.md` — Sonnet B: Kotlin idiom, hygiene, clean code on NEW files, role-specific style.
 - `prompts/master-grounded-specialist.md` — Sonnet C: necessity check on NEW files in commonMain (necessity mode) or drift check on migration files (drift mode). The only specialist with master baseline + sibling baselines.
-- `prompts/opus-aggregator.md` — Opus: ambiguity interview, dedupe, verification pass, false-positive filter, attribution gate, derivative collapse, priority assignment, cross-file aggregation, verdict, report.
+
+Batched prompts (used when pending files > 30):
+
+- `prompts/correctness-specialist-batched.md` — same role, accepts a `files: [...]` envelope; loads rule bodies once, scans each file in order, emits one combined JSON with `batch_id` + `files_reviewed` + flat `findings` array.
+- `prompts/idiom-specialist-batched.md` — same role plus a batch-consistency demotion rule: judgment patterns present across **all** same-package siblings in the batch are treated as team convention.
+- `prompts/master-grounded-specialist-batched.md` — same role plus cross-file NC-01 duplication detection within the batch. Small batches (2-3 files) to protect the most cognitively heavy lane.
+
+Orchestrator:
+
+- `prompts/opus-aggregator.md` — Opus: Phase 3 dispatch (per-file or batched), ambiguity interview, dedupe, verification pass, false-positive filter, attribution gate, derivative collapse, priority assignment, cross-file aggregation, verdict, report.
 
 ## Invocation
 
