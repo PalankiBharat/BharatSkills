@@ -16,9 +16,19 @@ You receive structured findings from multiple specialists across all reviewed fi
 
 ## Workflow
 
-### 0. Phase 3 — dispatch (batched or per-file)
+### 0. Phase 3 — dispatch (script for RELOCATIONs, then batched or per-file)
 
-After Phase 2 marks cache hits, **count pending files**: entries in `plan.json` with `status == "pending"`.
+**Step 3.0 — Run `scripts/verify_relocations.py <state_dir>`.** This script
+processes every `plan.json` entry with `swarm_tier == "haiku-1"` and
+`status == "pending"` deterministically — path/source-set checks plus
+cheap content greps on commonMain landings (S-TYPE-01/02, M-CLEANUP-02).
+It writes per-file findings to `findings/<content_hash>.json`, mirrors
+them to `cache/<content_hash>-<rules_hash>.json`, and flips each entry's
+`status` to `done`. **No LLM dispatch for any haiku-1 file.**
+
+**Step 3.5 — Count remaining pending files** (after Phase 2 cache replay
+AND Phase 3.0 script). If pending ≤ 30 → per-file flow (below). Else →
+batched flow (below).
 
 - **If pending ≤ 30** → dispatch **per file** using the single-file prompts (`correctness-specialist.md`, `idiom-specialist.md`, `master-grounded-specialist.md`). No batching. Existing flow; no change.
 - **If pending > 30** → dispatch **batched**:
@@ -182,6 +192,81 @@ Parent findings with collapsed derivatives:
 - [<other_path>:<line>] <rule_id> — <one-line>
 - [<other_path>:<line>] <rule_id> — <one-line>
 ```
+
+### 12. Phase 7 — GitHub posting (approval-gated, inline-mandatory)
+
+After the report renders to stdout, offer to post the review to GitHub.
+**Approval is mandatory — no findings reach the PR without an explicit yes.**
+
+#### 12.1 Plain-language rewrite (before asking)
+
+Before the approval prompt, rewrite each finding's `why` and `suggestion`
+fields into **plain English**. These become **What** and **How** in the
+posted comment, so they must read naturally to a reviewer who hasn't seen
+the rule body.
+
+- **What:** the problem, in 1-2 short sentences. Lead with the concrete
+  consequence ("this won't compile on iOS"). Drop jargon unless it's a
+  standard term the team uses (e.g., commonMain, Hilt, SKIE).
+- **How:** the fix, in 1-2 short sentences. Concrete: name the API,
+  package, or pattern to use. Reference the source for details if the
+  full reasoning matters.
+
+If a finding lacks a clean rewrite (the rule body is too technical to
+plain-language faithfully), keep the original `why`/`suggestion` and
+flag the finding as off-diff so it lands in the review body rather than
+inline (where dense prose is jarring).
+
+#### 12.2 The approval question
+
+Ask via `AskUserQuestion`:
+
+> Post `<N inline>` inline comments + `<M off-diff>` body items + verdict
+> `<verdict>` to PR #`<num>`?
+
+Options:
+- **Post** — run `scripts/post_review.py --state <dir> --verdict <verdict>`.
+  On success, return the review URL.
+- **Dry run** — run `scripts/post_review.py --state <dir> --verdict <verdict> --dry-run`.
+  Print the payload. Then ask again (Post / Skip).
+- **Skip** — done. Report stays in stdout only.
+
+#### 12.3 Inline-comment shape (mandatory)
+
+Every inline comment includes, in order:
+
+1. A **one-line bold summary** derived from the rewritten What.
+2. `**What:** <plain-English problem>` — required.
+3. `**How:** <plain-English fix>` — required.
+4. `**Source:** <URL or references/rules path>` — required.
+
+The script (`post_review.py render_finding_body`) emits this shape from
+each finding's fields. The file path and line number are encoded as the
+GitHub inline-comment target (`path`, `line`, `side: "RIGHT"`), not in the
+body — GitHub renders them inline.
+
+#### 12.4 Off-diff findings
+
+GitHub rejects inline comments outside the PR's diff hunks. Those findings
+fall back to the review **body** under "Other findings (outside the diff)",
+formatted with `path:line` in the heading — nothing is dropped.
+
+#### 12.5 Verdict mapping
+
+| Skill verdict | GitHub event |
+|---|---|
+| `Block` | `REQUEST_CHANGES` |
+| `Request changes` | `REQUEST_CHANGES` |
+| `Approve with nits` | `COMMENT` |
+| `Approve` | `APPROVE` |
+
+#### 12.6 Safety
+
+- Default is no-post. The question runs every time, including when there
+  are zero findings (user still confirms an "Approve").
+- One review per skill run. Re-runs ask again.
+- Failures (`gh api` rejection, hunk-resolution miss) surface in stderr;
+  the report on stdout is unaffected.
 
 ## Don't
 

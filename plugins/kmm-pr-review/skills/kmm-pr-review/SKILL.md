@@ -29,10 +29,11 @@ Six phases, enforced by the scripts and schemas in this skill.
 | 0. Ingest | Detect PR source (URL, branch, pasted diff); compute diff against master; copy master baselines into state directory; capture PR title/body (via `gh pr view`) for migration-keyword detection | `scripts/ingest.sh` |
 | 1. Plan | Classify each file (surface, role, change_type), detect migration (path heuristic + PR text keywords), flag ambiguous cases, materialize sibling baselines (capped at 5), determine swarm tier and rules to load, write `plan.json` | `scripts/classify.py` |
 | 2. Cache | Skip files where `(content_hash, rules_hash)` matches a prior run | inline |
-| 3. Swarm | Dispatch tiered Sonnet/Haiku specialists. **Threshold-gated**: if pending files ≤ 30, dispatch **per file** using single-file prompts (existing flow). If > 30, run `scripts/build_batches.py` and dispatch one specialist per **batch** using `*-specialist-batched.md` prompts. Specialists load `_index.md` + the always-loaded rule files in full, and lazy-load conditional rule bodies only when a candidate fires | orchestrator (Opus) |
+| 3. Swarm | **First** run `scripts/verify_relocations.py` — handles every `haiku-1` (pure RELOCATION) entry deterministically with path checks + cheap content greps on commonMain landings; no LLM. **Then** dispatch tiered Sonnet specialists for remaining pending files: **threshold-gated** — if remaining pending ≤ 30, dispatch **per file** using single-file prompts (existing flow). If > 30, run `scripts/build_batches.py` and dispatch one specialist per **batch** using `*-specialist-batched.md` prompts. Specialists load `_index.md` + the always-loaded rule files in full, and lazy-load conditional rule bodies only when a candidate fires | orchestrator (Opus) + `verify_relocations.py` |
 | 4. Aggregate | Interview the user on any ambiguous migrations (Phase 1 output); dedupe by `(rule_id, file, line)`; **verify each finding via `scripts/verify_finding.py` (drops hallucinated findings)**; collapse derivative findings under their root cause (per `references/derivative-map.md`); apply attribution gate; assign final priority | `scripts/dedupe_findings.py` + `scripts/verify_finding.py` + orchestrator |
 | 5. Verify | Assert every plan entry is `done` or `cache-hit`; fail loudly otherwise | `scripts/verify_plan_complete.py` |
 | 6. Report | Severity-bucketed markdown to stdout (and optionally a file). Parent findings list collapsed derivatives inline. | orchestrator |
+| 7. Post | **Approval-gated** GitHub review with inline-mandatory comments. Orchestrator asks (`Post` / `Dry run` / `Skip`), rewrites `why`/`suggestion` into plain-English **What** / **How**, and `scripts/post_review.py` builds the Reviews API payload (event from verdict, body with off-diff findings, `comments[]` with `path` + `line` + `side: RIGHT` + What/How body). Posts via `gh api`. | orchestrator + `scripts/post_review.py` |
 
 The plan is the contract. Phase 5 fails the run if any plan entry was skipped. Coverage is not best-effort.
 
@@ -81,7 +82,7 @@ Tier comes from `change_type` (assigned in Phase 1). Role determines which rule 
 
 | change_type | Tier | Agents | Lenses | Batch cap (files/agent, above threshold) |
 |---|---|---|---|---|
-| `RELOCATION` (pure move ≥95% similarity) | haiku-1 | 1 Haiku | Directory correctness only. No rule sweep. | 40 |
+| `RELOCATION` (pure move ≥95% similarity) | haiku-1 | **handled by `verify_relocations.py` — no LLM** | Path/source-set checks + cheap content greps on commonMain landings (S-TYPE-01/02, M-CLEANUP-02). | n/a |
 | `TEST`, `BUILD` | sonnet-1 | 1 Sonnet | Role rules only. | 15 |
 | `MODIFIED` | sonnet-2 | 2 Sonnets | A: correctness (loads `_base`, role rules, `ios-readiness` if commonMain). B: idiom (Kotlin conventions, `hygiene`). | 10 each |
 | `NEW` in commonMain | sonnet-3-new | 3 Sonnets | A + B + C: master-grounded specialist in **necessity mode** (loads `new-commonmain-file`, `new-file-clean-code`; reads sibling master files to assess duplication/conventions). | A: 6, B: 6, C: 3 |
@@ -95,11 +96,13 @@ See the prompt files in `prompts/` for the exact instructions each specialist re
 
 Per-file dispatch doesn't scale to migration-sized PRs (1000+ files). Phase 3 batches **only when pending files exceed 30** (the threshold). Below that, the orchestrator skips batching entirely and uses the existing per-file flow — small PRs are bit-identical to the pre-batching skill.
 
+Note: pure RELOCATIONs (haiku-1) are removed from this count before the threshold check — they're handled by `scripts/verify_relocations.py` (Phase 3a) deterministically, no LLM. The threshold and batching apply only to Sonnet tiers (sonnet-1, sonnet-2, sonnet-3-new, sonnet-3-migration).
+
 When triggered, `scripts/build_batches.py` groups Phase-2 cache-miss files by `(lane, swarm_tier, rules_hash, role, surface, package_root)` and greedy-fills per-tier file-count and token caps. The orchestrator then dispatches **one specialist per batch** instead of per file.
 
 | Tier | Lane(s) | Files/batch | Token cap (chars/4) |
 |---|---|---|---|
-| `haiku-1` | haiku-relocation | 40 | 60,000 |
+| `haiku-1` | **n/a — `verify_relocations.py` handles deterministically** | — | — |
 | `sonnet-1` | correctness | 15 | 100,000 |
 | `sonnet-2` | correctness, idiom | 10 each | 90,000 |
 | `sonnet-3-new` | correctness, idiom | 6 each | 80,000 |
@@ -196,18 +199,20 @@ Each finding:
 - Suggest Hilt — team migrated to Koin.
 - Fabricate metrics ("30% slower") without a benchmark.
 - Flag findings outside the diff. Unchanged-code observations go under pre-existing P3 with master file:line.
-- Auto-post to GitHub via `gh pr review`. Always inline output unless the user explicitly requests file/comment posting.
+- Auto-post to GitHub. Phase 7 posts inline review comments via `gh api` **only after explicit user approval** (`Post` / `Dry run` / `Skip` prompt). Default behaviour with no answer = `Skip`.
 - Defer with "I'm unsure" — either a rule fires or research happens.
 - Skip files silently — Phase 5 fails loudly on incomplete plans.
 
 ## Scripts
 
 - `scripts/ingest.sh` — Phase 0: detect PR source, capture title/body via `gh`, load master baselines.
-- `scripts/classify.py` — Phase 1: classify, detect migration (with PR-keyword fallback), materialize sibling baselines (capped at 5), flag ambiguous migrations, write `plan.json`.
-- `scripts/build_batches.py` — Phase 3 prep (only when pending files > 30): groups cache-miss files into lane-specific batches subject to per-tier file-count + token caps; writes `batches.json`; stamps `batch_id_<lane>` back into `plan.json`.
+- `scripts/classify.py` — Phase 1: classify, detect migration (recognizes any legacy `<module>/src/main/` → `<module>/src/commonMain/` move plus PR-keyword fallback for ambiguous renames), materialize sibling baselines (capped at 5), flag ambiguous migrations, write `plan.json`.
+- `scripts/verify_relocations.py` — Phase 3a: deterministic sweep for pure RELOCATIONs (`swarm_tier == "haiku-1"`). Path/source-set checks + cheap content greps on commonMain landings (S-TYPE-01/02, M-CLEANUP-02). Emits per-file findings, writes cache, marks `status: "done"`. **Replaces the haiku-1 LLM tier — zero LLM dispatch for RELOCATIONs.**
+- `scripts/build_batches.py` — Phase 3 prep (only when remaining pending files > 30, after `verify_relocations.py`): groups cache-miss files into lane-specific batches subject to per-tier file-count + token caps; writes `batches.json`; stamps `batch_id_<lane>` back into `plan.json`. Skips haiku-1 entries entirely.
 - `scripts/dedupe_findings.py` — Phase 4 dedupe step.
 - `scripts/verify_finding.py` — Phase 4 verification step. Rule-keyed grep/AST/file-existence checks reject hallucinated findings before they ship. Single most important quality gate. Runs in `--batch` mode after dedupe; produces `findings.verified.json`.
 - `scripts/verify_plan_complete.py` — Phase 5: assert every plan entry is `done` or `cache-hit`.
+- `scripts/post_review.py` — Phase 7 (user-approved): builds the GitHub Reviews API payload from `findings.verified.json` + `pr_meta.json` + `gh pr diff` output, posts via `gh api`. `--dry-run` prints the payload without posting. Inline-mandatory: every finding whose `(file, line)` is in a diff hunk posts inline; off-diff findings fall back to the review body.
 
 ## Reference files
 

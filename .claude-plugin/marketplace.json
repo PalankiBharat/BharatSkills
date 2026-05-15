@@ -140,7 +140,7 @@
       "name": "kmm-pr-review",
       "source": "./plugins/kmm-pr-review",
       "description": "PR review for Kotlin Multiplatform repos. Spawns specialist subagents per file (correctness, idiom, master-grounded) against canonical JetBrains / Android / SKIE docs — every finding cites a source or is dropped. P0–P3 prioritization with PR-induced vs pre-existing attribution so existing debt never blocks merge; iOS-readiness auto-promotes to P0 on migration PRs.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "category": "developer-tools",
       "tags": ["kmm", "kotlin-multiplatform", "code-review", "pull-request", "android", "ios", "skie", "compose", "swiftui", "expect-actual"],
       "keywords": ["kmm", "kmp", "pr review", "kotlin-multiplatform", "commonMain", "iosMain", "expect actual", "skie", "migration drift", "review pr"]

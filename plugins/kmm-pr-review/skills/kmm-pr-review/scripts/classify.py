@@ -134,17 +134,33 @@ def change_type_from_status(status: str) -> str:
 
 # ---- Migration detection ----
 
+_LEGACY_ANDROID_SRC_RE = re.compile(r"(?:^|/)src/main/")
+
+
+def is_legacy_android_source(path: str) -> bool:
+    """True if `path` is in any module's legacy Android single-target layout (`<module>/src/main/...`).
+
+    Recognizes `app/src/main/`, `androidApp/src/main/`, and any other module
+    using the legacy Android Gradle layout (e.g. `sesame-sdk/src/main/`).
+    """
+    return bool(path) and bool(_LEGACY_ANDROID_SRC_RE.search(path))
+
+
 def detect_migration(diff_entries: list[dict], pr_meta: Optional[dict] = None) -> tuple[bool, list[str], list[dict]]:
     """
     Returns (migration_detected, list of new-file paths that are part of the migration, ambiguous_cases).
-    
+
     ambiguous_cases: renames in the 80-94% similarity range moving android-only -> commonMain
     that the orchestrator should interview the user about.
     """
     migrated_paths = set()
     ambiguous = []
-    # Rule 1: deletion in app/src/main paired with addition in :shared/src/commonMain with matching basename
-    deletions = {Path(e["file"]).name: e["file"] for e in diff_entries if e["change_type"] == "DELETED" and e["file"].startswith(("app/src/main/", "androidApp/src/main/"))}
+    # Rule 1: deletion in legacy Android src/main/ paired with addition in :shared/src/commonMain with matching basename
+    deletions = {
+        Path(e["file"]).name: e["file"]
+        for e in diff_entries
+        if e["change_type"] == "DELETED" and is_legacy_android_source(e["file"])
+    }
     for e in diff_entries:
         if e["change_type"] == "NEW" and "/src/commonMain/" in e["file"]:
             basename = Path(e["file"]).name
@@ -153,10 +169,13 @@ def detect_migration(diff_entries: list[dict], pr_meta: Optional[dict] = None) -
                 for d in diff_entries:
                     if d["file"] == deletions[basename]:
                         migrated_paths.add(d["file"])
-    # Rule 2: rename moving android-only path → commonMain
+    # Rule 2: rename moving any legacy Android src/main/ path → commonMain
+    # (covers `app/`, `androidApp/`, and any module's `<module>/src/main/` layout
+    # such as `sesame-sdk/src/main/...` — the case that caused PR #12 to miss
+    # migration detection before this generalization)
     for e in diff_entries:
         if e["change_type"] in ("RELOCATION", "RENAMED_MODIFIED") and e.get("old_file"):
-            if e["old_file"].startswith(("app/src/main/", "androidApp/src/main/")) and "/src/commonMain/" in e["file"]:
+            if is_legacy_android_source(e["old_file"]) and "/src/commonMain/" in e["file"]:
                 # Extract similarity from status (e.g. R85 means 85% similar)
                 status = e.get("status", "R100")
                 try:

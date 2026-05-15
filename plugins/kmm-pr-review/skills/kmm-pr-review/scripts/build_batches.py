@@ -20,13 +20,15 @@ Grouping key (in priority order):
   (lane, swarm_tier, rules_hash, role, surface, package_root)
 
 Per-tier caps (file count AND token budget; whichever triggers first):
-  haiku-1            haiku-relocation              40 files /  60000 tokens
   sonnet-1           correctness                   15 files / 100000 tokens
   sonnet-2           correctness, idiom            10 files /  90000 tokens
   sonnet-3-new       correctness, idiom             6 files /  80000 tokens
   sonnet-3-new       master-grounded-necessity      3 files /  70000 tokens
   sonnet-3-migration correctness, idiom             6 files /  80000 tokens
   sonnet-3-migration master-grounded-drift          2 files /  60000 tokens
+
+haiku-1 (pure RELOCATIONs) is NOT batched here — verify_relocations.py
+handles those entries deterministically in Phase 3a, before this script runs.
 
 Usage: build_batches.py <state_dir>
 """
@@ -40,8 +42,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # (file_cap, token_cap) per (swarm_tier, lane)
+# Note: haiku-1 / RELOCATION is no longer an LLM tier — scripts/verify_relocations.py
+# handles those entries deterministically in Phase 3a, before this script runs.
 CAPS: dict[tuple[str, str], tuple[int, int]] = {
-    ("haiku-1", "haiku-relocation"): (40, 60_000),
     ("sonnet-1", "correctness"): (15, 100_000),
     ("sonnet-2", "correctness"): (10, 90_000),
     ("sonnet-2", "idiom"): (10, 90_000),
@@ -53,9 +56,8 @@ CAPS: dict[tuple[str, str], tuple[int, int]] = {
     ("sonnet-3-migration", "master-grounded-drift"): (2, 60_000),
 }
 
-# Lanes each tier dispatches
+# Lanes each tier dispatches. haiku-1 omitted — handled by verify_relocations.py.
 TIER_LANES: dict[str, list[str]] = {
-    "haiku-1": ["haiku-relocation"],
     "sonnet-1": ["correctness"],
     "sonnet-2": ["correctness", "idiom"],
     "sonnet-3-new": ["correctness", "idiom", "master-grounded-necessity"],
@@ -64,7 +66,6 @@ TIER_LANES: dict[str, list[str]] = {
 
 # Map lane → plan.json batch_id field
 LANE_TO_FIELD = {
-    "haiku-relocation": "batch_id_correctness",  # haiku tier has only one lane; reuse correctness slot
     "correctness": "batch_id_correctness",
     "idiom": "batch_id_idiom",
     "master-grounded-necessity": "batch_id_master",
