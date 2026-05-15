@@ -6,7 +6,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 
 | Plugin | Version | Description |
 |---|---|---|
-| `feature-analyzer` | 1.0.0 | Two-phase user story and feature analysis for Android development |
+| `feature-analyzer` | 2.2.0 | Pre-dev story interrogation — team-lead orchestrator walks code + Figma flows, honours project memory, strips out-of-platform sections, emits a centred dark-mode HTML doc with the original story pinned alongside option-pill questions across PM / Backend / Android / Design / QA / Compliance / DevOps roles |
 | `qa-autopilot` | 1.0.0 | Automated QA — analyzes git changes, generates test cases, executes on Android devices |
 | `skill-feedback` | 1.0.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
 | `clean-code` | 1.2.7 | Clean Code principles (Uncle Bob) with auto-loading prehook — naming, functions, classes, error handling, testing |
@@ -14,6 +14,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `bug-finder` | 1.0.0 | Evidence-based bug/crash root cause diagnosis — flow mapping, hypothesis formation, log verification, root cause report |
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
 | `kmm-plugin` | 6.6.0 | Battle-tested KMM migration orchestrator — 5-phase workflow (Plan → Scaffold → Migrate → Wire Android → Wire iOS), per-file TDD, 3-layer verification, parallel agent teams, static parity analysis, verify-first Appium, observe/discuss retrospective |
+| `review-pr` | 1.0.0 | Multi-agent PR review — 25 focused agents in parallel per file type, inline GitHub comments, calibration (human-in-loop) and autopilot (`--auto`) modes |
 
 ## Installation
 
@@ -33,6 +34,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install bug-finder@punchhq-skills
 /plugin install om-pipeline@punchhq-skills
 /plugin install kmm-plugin@punchhq-skills
+/plugin install review-pr@punchhq-skills
 ```
 
 ### 3. Use the skills
@@ -57,6 +59,10 @@ skill feedback
 /kmm-plugin:kmm-workflow create my-feature-module
 /kmm-plugin:kmm-workflow continue
 /kmm-plugin:kmm-workflow verify
+
+# PR review (calibration = human-in-loop, --auto = fully autonomous)
+/review-pr:review-pr 123
+/review-pr:review-pr 123 --auto
 ```
 
 ## For Teams
@@ -85,7 +91,6 @@ To pre-enable specific plugins:
     "qa-autopilot@punchhq-skills": true,
     "skill-feedback@punchhq-skills": true,
     "clean-code@punchhq-skills": true,
-    "kmm-plugin@punchhq-skills": true,
   }
 }
 ```
@@ -155,16 +160,15 @@ claude-code-skills/
 │   │       ├── om.md                  # Master orchestrator
 │   │       ├── om-bramha.md           # Creation: plan, side effects, execute, review, regression
 │   │       └── om-vishnu.md           # Preservation: test cases, device testing, bug assessment
-│   ├── kmm-plugin/
+│   ├── kmm-migration-workflow/
 │   │   ├── .claude-plugin/
 │   │   │   └── plugin.json
 │   │   └── skills/
-│   │       ├── kmm/
-│   │       │   ├── SKILL.md
-│   │       │   └── references/        # 7 reference files (patterns, gotchas, dep map, etc.)
-│   │       └── kmm-workflow/
+│   │       └── kmm-migration/
 │   │           ├── SKILL.md
-│   │           └── references/        # batched-execution, feedback-capture
+│   │           └── references/
+│   │               ├── test-discipline.md
+│   │               └── phases/        # phase-0-discovery through phase-g-pr
 └── README.md
 ```
 

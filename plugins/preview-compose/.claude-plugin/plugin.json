@@ -1,0 +1,19 @@
+{
+  "name": "preview-compose",
+  "version": "0.1.0",
+  "description": "Runs Jetpack Compose @Preview functions from the terminal without opening Android Studio. Two paths: headless PNG via Paparazzi and interactive on-device render via a debug-only PreviewActivity. Auto-offers on @Preview edits and runs when the user says 'preview', 'show me', 'render this', or 'on the emulator'. Requires scripts/preview-compose.sh in the target project.",
+  "author": {
+    "name": "PunchHQ",
+    "email": "manish@punchhq.com"
+  },
+  "category": "android",
+  "keywords": [
+    "compose",
+    "preview",
+    "android",
+    "paparazzi",
+    "layoutlib",
+    "emulator",
+    "ui-iteration"
+  ]
+}

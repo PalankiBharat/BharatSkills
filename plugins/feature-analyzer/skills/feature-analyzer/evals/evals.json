@@ -1,0 +1,26 @@
+{
+  "skill_name": "feature-analyzer",
+  "evals": [
+    {
+      "id": 0,
+      "name": "extension-story",
+      "prompt": "Analyze this user story. It's for our Android trading app (sniper-v2-android).\n\n# Custom Time Frame\n\nLet users add custom durations to the chart timeframe picker. Today the DurationSelectionBottomSheet shows ~20 fixed durations (1m, 5m, 1h, etc.) from ChartDurationModel in marketpulse-android-sdk. We want users to add their own.\n\n## Acceptance criteria (Android)\n- Tap 'Add custom' chip in the duration sheet opens a configurator.\n- User picks a base unit (seconds/minutes/hours/days) and a value (e.g. 7 minutes).\n- Custom durations persist per user and appear as chips alongside built-in ones.\n- Tapping a custom chip applies it to the chart (same flow as a built-in duration).\n- Show 'Edit' / 'Delete' on long-press of a custom chip.\n\n## Acceptance criteria (Desktop)\n- Custom durations sync across the 4 chart panes (multi-monitor mode).\n- Hotkey Ctrl+Shift+D opens the custom-duration creator.\n- Custom durations show in the right-click context menu of any chart.\n\n## Acceptance criteria (iOS)\n- iOS picker UI should match the existing duration picker style.\n- Use SwiftUI sheet, not UIKit modal.\n\n## Notes\n- Backend: need to confirm if the existing /history endpoint accepts arbitrary duration values or only the predefined enum.\n- Compliance: NSE/BSE market-hours rules still apply.",
+      "expected_output": "HTML doc with: (a) extension story detected, (b) scope-report stripping desktop+iOS sections, (c) backend conditionally included because story mentions endpoint, (d) flow-trace pointing at DurationSelectionBottomSheet + ChartDurationModel + the marketpulse SDK, (e) every question has 3-4 options + 1 Recommended.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "new-feature-story",
+      "prompt": "Analyze this user story for our Android trading app.\n\n# Watchlist Group Sharing\n\nLet users share a watchlist group with another user in-app. This is a brand-new feature; nothing similar exists in the app today.\n\n## Acceptance criteria\n- User taps 'Share' on a watchlist group.\n- Show share sheet: 'In-app share' or 'Copy link'.\n- In-app share asks for recipient's username (we have a user-search API).\n- Recipient gets a notification with accept/reject.\n- On accept, recipient gets a copy of the watchlist (not live-linked; one-time snapshot).\n- Sender sees delivery status (sent / accepted / rejected).\n\n## Notes\n- Privacy: shared watchlist contains only symbols, no user portfolio data.\n- Rate limit: max 10 shares per user per day to prevent spam.",
+      "expected_output": "HTML doc where Phase 0.5 flow-trace is SKIPPED (not an extension story). Questions still ship with option pills + Recommended. Domain questions cover rate-limit edge cases. No desktop/iOS sections to strip.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "backend-conditional-story",
+      "prompt": "Analyze this user story.\n\n# Order Tag Filters\n\nAdd tag filters to the order history screen so users can find their tagged orders fast.\n\n## Acceptance criteria (Android)\n- Show a filter chip row above the order list.\n- Tapping a chip filters orders by that tag (tags already exist on orders today).\n- Multi-select chips (chips can be combined with AND logic).\n- Save the last-used filter set in shared prefs.\n- New backend endpoint: /orders/by-tags accepting a list of tag IDs (we don't have this today).\n\n## Acceptance criteria (Web)\n- Same filter UI as Android but in the web app.\n\n## Notes\n- The 'tags' feature already ships; users tag orders via long-press on an order row.\n- Backend needs a new endpoint because the current /orders endpoint doesn't support tag filtering server-side.",
+      "expected_output": "HTML doc with: (a) extension story detected (tags already ship), (b) flow-trace of existing tag plumbing, (c) scope-report stripping web sections, (d) backend section INCLUDED with reason 'Android requires new endpoint /orders/by-tags', (e) questions with option pills.",
+      "files": []
+    }
+  ]
+}

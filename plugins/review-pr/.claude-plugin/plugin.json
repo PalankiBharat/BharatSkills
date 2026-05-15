@@ -1,0 +1,5 @@
+{
+  "name": "review-pr",
+  "description": "Multi-agent PR review — spawns 25 focused single-responsibility agents in parallel by file type (prod/test/config), aggregates findings, and posts inline GitHub comments. Supports calibration (human-in-loop) and autopilot (--auto) modes.",
+  "version": "1.0.0"
+}

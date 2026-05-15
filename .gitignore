@@ -30,3 +30,16 @@ venv/
 
 # Logs
 *.log
+
+# Claude Code local/install artifacts (speckit commands, personal settings)
+.claude/commands/
+.claude/settings.local.json
+
+# oh-my-claudecode runtime state (sessions, checkpoints, ultrawork)
+.omc/
+
+# Speckit local init artifacts
+.specify/
+
+# kmm-pr-reviewer per-PR state and reports
+kmm_pr_review/
