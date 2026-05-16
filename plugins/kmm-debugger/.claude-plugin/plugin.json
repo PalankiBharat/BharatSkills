@@ -1,0 +1,5 @@
+{
+  "name": "kmm-debugger",
+  "description": "Investigation workflow + mindset for debugging post-migration regressions in Kotlin Multiplatform SDKs. Anchors in 'right KMM + don't break prod' (not 'match master'). Parallel Opus subagents per bug, PR archeology, pre-migration baseline comparison, feasibility analysis. Catalog of 6 common KMM pitfalls (commonMain BuildConfig, suspend DAO race, ObjectBox→Room gap, init-time scope leaks, transitive Ktor drift, multi-flavor publish). Closes every session with a 5-question retro that proposes concrete edits back to the skill so it keeps sharpening.",
+  "version": "1.0.0"
+}

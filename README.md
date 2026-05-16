@@ -16,6 +16,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `kmm-plugin` | 6.6.0 | Battle-tested KMM migration orchestrator — 5-phase workflow (Plan → Scaffold → Migrate → Wire Android → Wire iOS), per-file TDD, 3-layer verification, parallel agent teams, static parity analysis, verify-first Appium, observe/discuss retrospective |
 | `review-pr` | 1.0.0 | Multi-agent PR review — 25 focused agents in parallel per file type, inline GitHub comments, calibration (human-in-loop) and autopilot (`--auto`) modes |
 | `kmm-pr-review` | 1.1.1 | PR review for KMP repos — spawns specialist subagents per file (correctness, idiom, master-grounded) against canonical docs, every finding cites a source or gets dropped, P0–P3 with PR-induced vs pre-existing attribution, iOS-readiness auto-promotes to P0 on migration PRs |
+| `kmm-debugger` | 1.0.0 | Investigation workflow + mindset for post-migration KMM regressions — "right KMM + don't break prod" framing, parallel Opus subagents per bug, PR archeology, baseline comparison, 6-pitfall catalog (commonMain BuildConfig, suspend DAO race, ObjectBox→Room, init-time scope leak, transitive Ktor drift, multi-flavor publish), session-end retro that proposes edits back to the skill |
 
 ## Installation
 
@@ -37,6 +38,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install kmm-plugin@punchhq-skills
 /plugin install review-pr@punchhq-skills
 /plugin install kmm-pr-review@punchhq-skills
+/plugin install kmm-debugger@punchhq-skills
 ```
 
 ### 3. Use the skills
@@ -68,6 +70,9 @@ skill feedback
 
 # KMM PR review (auto-fires on KMP repos; or invoke explicitly)
 review this KMP PR: https://github.com/<org>/<repo>/pull/123
+
+# KMM debugger (post-migration regression debugging; closes with a self-improving retro)
+QA filed 3 issues on our KMM alpha — Scan-QR is a no-op, post-OTP crash on upgrade, brokerage promo keeps reappearing. How should we investigate?
 ```
 
 ## For Teams
@@ -184,6 +189,14 @@ claude-code-skills/
 │   │           ├── references/        # rules/, canonical-sources, derivative-map
 │   │           ├── schemas/           # finding + plan JSON schemas
 │   │           └── scripts/           # ingest, classify, dedupe, verify
+│   ├── kmm-debugger/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── skills/
+│   │       └── kmm-debugger/
+│   │           ├── SKILL.md
+│   │           ├── references/        # pitfalls.md, subagent-prompts.md, retro-questions.md
+│   │           └── sessions/          # per-session retro log entries
 └── README.md
 ```
 
