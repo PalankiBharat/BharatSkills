@@ -8,13 +8,18 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 |---|---|---|
 | `feature-analyzer` | 2.2.0 | Pre-dev story interrogation — team-lead orchestrator walks code + Figma flows, honours project memory, strips out-of-platform sections, emits a centred dark-mode HTML doc with the original story pinned alongside option-pill questions across PM / Backend / Android / Design / QA / Compliance / DevOps roles |
 | `qa-autopilot` | 1.0.0 | Automated QA — analyzes git changes, generates test cases, executes on Android devices |
-| `skill-feedback` | 1.0.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
+| `skill-feedback` | 1.2.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
 | `clean-code` | 1.2.7 | Clean Code principles (Uncle Bob) with auto-loading prehook — naming, functions, classes, error handling, testing |
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
 | `bug-finder` | 1.0.0 | Evidence-based bug/crash root cause diagnosis — flow mapping, hypothesis formation, log verification, root cause report |
 | `om-pipeline` | 1.0.0 | Supreme 8-stage dev pipeline — plan, side-effect analysis, execute, harsh review, regression check, device testing, bug fix loops |
-| `kmm-plugin` | 6.6.0 | Battle-tested KMM migration orchestrator — 5-phase workflow (Plan → Scaffold → Migrate → Wire Android → Wire iOS), per-file TDD, 3-layer verification, parallel agent teams, static parity analysis, verify-first Appium, observe/discuss retrospective |
+| `branch-manager` | 1.0.0 | Branch dev environment lifecycle — git worktrees, dedicated tmux panes with Claude Code, isolated Android emulators per branch, interactive cleanup with safety checks |
+| `legacy-refactor` | 1.0.0 | Safe legacy code refactoring (Michael Feathers' "Working Effectively with Legacy Code") — seams, characterization tests, dependency breaking, sprout/wrap, Kotlin/Android patterns |
+| `release` | 1.0.0 | Release builds with correct release notes — `/release` slash command for Play Store builds |
+| `instructions-feedback` | 1.0.0 | End-of-session auditor that reviews the conversation for instruction corrections and 'always/never' directives, then drafts user-approved GitHub Issues proposing amendments to CLAUDE.md, path-scoped rules, or the project constitution |
 | `review-pr` | 1.0.0 | Multi-agent PR review — 25 focused agents in parallel per file type, inline GitHub comments, calibration (human-in-loop) and autopilot (`--auto`) modes |
+| `preview-compose` | 0.1.0 | Renders Jetpack Compose `@Preview` composables on a connected Android emulator from the terminal — installs the debug APK and launches a bundled PreviewActivity with the target preview's FQN |
+| `kmm-migration-workflow` | 1.3.0 | Android-to-KMM migration orchestrator with behavioral-equivalence safety — discovery, diagnostic, baseline tests, freeze, `git mv` + surgical edits, validation, PR. Live API knowledge via web + Context7, project conventions in `.kmm/project.md`, diff-confirm on every `.kmm/` write |
 | `kmm-pr-review` | 1.1.1 | PR review for KMP repos — spawns specialist subagents per file (correctness, idiom, master-grounded) against canonical docs, every finding cites a source or gets dropped, P0–P3 with PR-induced vs pre-existing attribution, iOS-readiness auto-promotes to P0 on migration PRs |
 | `kmm-debugger` | 1.1.0 | Deep-investigation workflow for post-migration KMM regressions — hard-gated A/B subagent pair dispatch per topic before any plan or fix, bias guard against defending existing implementation, "is this even our bug?" as first question (catches upstream contract violations), Doctrine 3 (always prefer clean long-term solutions over hotfixes / iterative patches), auto-firing retro after each push/PR/publish |
 
@@ -33,10 +38,16 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install qa-autopilot@punchhq-skills
 /plugin install skill-feedback@punchhq-skills
 /plugin install clean-code@punchhq-skills
+/plugin install skill-tester@punchhq-skills
 /plugin install bug-finder@punchhq-skills
 /plugin install om-pipeline@punchhq-skills
-/plugin install kmm-plugin@punchhq-skills
+/plugin install branch-manager@punchhq-skills
+/plugin install legacy-refactor@punchhq-skills
+/plugin install release@punchhq-skills
+/plugin install instructions-feedback@punchhq-skills
 /plugin install review-pr@punchhq-skills
+/plugin install preview-compose@punchhq-skills
+/plugin install kmm-migration-workflow@punchhq-skills
 /plugin install kmm-pr-review@punchhq-skills
 /plugin install kmm-debugger@punchhq-skills
 ```
@@ -59,10 +70,8 @@ skill feedback
 # Om pipeline (full dev pipeline: plan → build → review → test on device)
 /om add dark mode toggle in settings screen
 
-# KMM migration (create, continue, or verify)
-/kmm-plugin:kmm-workflow create my-feature-module
-/kmm-plugin:kmm-workflow continue
-/kmm-plugin:kmm-workflow verify
+# KMM migration (auto-invoked skill; just describe the migration)
+migrate the funds screen to KMM
 
 # PR review (calibration = human-in-loop, --auto = fully autonomous)
 /review-pr:review-pr 123
@@ -156,6 +165,13 @@ claude-code-skills/
 │   │       └── clean-code/
 │   │           ├── SKILL.md
 │   │           └── references/
+│   ├── skill-tester-plugin/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── skills/
+│   │       └── skill-tester/
+│   │           ├── SKILL.md
+│   │           └── references/
 │   ├── bug-finder/
 │   │   ├── .claude-plugin/
 │   │   │   └── plugin.json
@@ -170,6 +186,51 @@ claude-code-skills/
 │   │       ├── om.md                  # Master orchestrator
 │   │       ├── om-bramha.md           # Creation: plan, side effects, execute, review, regression
 │   │       └── om-vishnu.md           # Preservation: test cases, device testing, bug assessment
+│   ├── branch-manager/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── skills/
+│   │       ├── setup-branch/
+│   │       │   └── SKILL.md
+│   │       └── cleanup-branch/
+│   │           └── SKILL.md
+│   ├── legacy-refactor/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── skills/
+│   │       └── legacy-refactor/
+│   │           ├── SKILL.md
+│   │           └── references/
+│   ├── release/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   ├── commands/
+│   │   │   └── release.md
+│   │   └── skills/
+│   │       └── release/
+│   │           └── SKILL.md
+│   ├── instructions-feedback/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── skills/
+│   │       └── instructions-feedback/
+│   │           ├── SKILL.md
+│   │           └── references/
+│   ├── preview-compose/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   ├── scripts/
+│   │   ├── skills/
+│   │   │   └── preview-compose/
+│   │   │       └── SKILL.md
+│   │   └── templates/                # Bundled PreviewActivity sources
+│   ├── review-pr/
+│   │   ├── .claude-plugin/
+│   │   │   └── plugin.json
+│   │   └── skills/
+│   │       └── review-pr/
+│   │           ├── SKILL.md
+│   │           └── patterns/         # Per-file-type review rules
 │   ├── kmm-migration-workflow/
 │   │   ├── .claude-plugin/
 │   │   │   └── plugin.json
