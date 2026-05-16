@@ -16,7 +16,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `kmm-plugin` | 6.6.0 | Battle-tested KMM migration orchestrator — 5-phase workflow (Plan → Scaffold → Migrate → Wire Android → Wire iOS), per-file TDD, 3-layer verification, parallel agent teams, static parity analysis, verify-first Appium, observe/discuss retrospective |
 | `review-pr` | 1.0.0 | Multi-agent PR review — 25 focused agents in parallel per file type, inline GitHub comments, calibration (human-in-loop) and autopilot (`--auto`) modes |
 | `kmm-pr-review` | 1.1.1 | PR review for KMP repos — spawns specialist subagents per file (correctness, idiom, master-grounded) against canonical docs, every finding cites a source or gets dropped, P0–P3 with PR-induced vs pre-existing attribution, iOS-readiness auto-promotes to P0 on migration PRs |
-| `kmm-debugger` | 1.0.0 | Investigation workflow + mindset for post-migration KMM regressions — "right KMM + don't break prod" framing, parallel Opus subagents per bug, PR archeology, baseline comparison, 6-pitfall catalog (commonMain BuildConfig, suspend DAO race, ObjectBox→Room, init-time scope leak, transitive Ktor drift, multi-flavor publish), session-end retro that proposes edits back to the skill |
+| `kmm-debugger` | 1.1.0 | Deep-investigation workflow for post-migration KMM regressions — hard-gated A/B subagent pair dispatch per topic before any plan or fix, bias guard against defending existing implementation, "is this even our bug?" as first question (catches upstream contract violations), Doctrine 3 (always prefer clean long-term solutions over hotfixes / iterative patches), auto-firing retro after each push/PR/publish |
 
 ## Installation
 

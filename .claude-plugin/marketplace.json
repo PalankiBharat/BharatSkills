@@ -148,11 +148,11 @@
     {
       "name": "kmm-debugger",
       "source": "./plugins/kmm-debugger",
-      "description": "Investigation workflow + mindset for debugging post-migration regressions in Kotlin Multiplatform SDKs. Anchors in 'right KMM + don't break prod' (not 'match master'). Parallel Opus subagents per bug, PR archeology, pre-migration baseline comparison, feasibility analysis. Catalog of 6 common KMM pitfalls (commonMain BuildConfig, suspend DAO race, ObjectBox→Room gap, init-time scope leaks, transitive Ktor drift, multi-flavor publish). Closes every session with a 5-question retro that proposes concrete edits back to the skill so it keeps sharpening.",
-      "version": "1.0.0",
+      "description": "Deep-investigation debugging workflow for KMM post-migration regressions. Hard-gated A/B subagent pair dispatch per topic before any plan or fix, bias guard against defending existing implementation, 'is this even our bug?' as the first question (catches upstream contract violations), Doctrine 3 'always prefer clean long-term solutions over hotfixes / iterative patches', auto-firing retro after each push/PR/publish.",
+      "version": "1.1.0",
       "category": "developer-tools",
       "tags": ["kmm", "kotlin-multiplatform", "debugging", "post-migration", "regressions", "android", "ios", "expect-actual", "buildkonfig", "room-kmp", "ktor"],
-      "keywords": ["kmm bug", "kmm debug", "post-migration regression", "expect actual", "BuildKonfig", "Room KMP", "ObjectBox to Room", "Ktor drift", "init-time leak", "async cache race", "transitive version drift"]
+      "keywords": ["kmm bug", "kmm debug", "post-migration regression", "expect actual", "BuildKonfig", "Room KMP", "ObjectBox to Room", "Ktor drift", "init-time leak", "async cache race", "transitive version drift", "consensus dispatch", "reverse the diagnosis", "bias guard", "fresh lens", "clean long-term solution", "patches keep failing", "latent invariant", "BE contract violation"]
     }
   ]
 }

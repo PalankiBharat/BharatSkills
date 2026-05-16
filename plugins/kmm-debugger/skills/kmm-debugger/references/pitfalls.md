@@ -260,6 +260,52 @@ If keeping BuildKonfig as the source for both platforms is non-negotiable, the p
 
 ---
 
+## 7. Latent invariant in expect/actual or annotation-driven schemas
+
+**Symptom**
+- Sudden crash or constraint violation in a code path that's been stable for months
+- The failing code looks correct — well-typed, asserts hold, no recent migration changes in the area
+- The crash is on a value/shape coming from a remote source (BE response, partner API, file payload)
+- Logs show `UniqueViolationException`, `MissingFieldException`, `IllegalStateException: expected X`, schema-constraint violations, or similar contract-violation shapes
+- One platform (often iOS) handles it gracefully; the sibling platform (often Android) crashes — i.e., asymmetric resilience between platforms
+
+**Root cause**
+- The SDK encodes an invariant via type system, annotation, or expect/actual declaration. Examples: `@DbUnique` + `@Id(assignable = true)` together require "PK is stable per unique-field value"; a `kotlinx.serialization` non-nullable field requires "this field is always present in the response"; an `expect class` signature requires "every platform implements this contract identically"
+- The invariant is **load-bearing on a remote contract** that may be undocumented or only implicit
+- The invariant has held for the entire SDK lifetime so far — no failures, no tests exercise the boundary
+- The remote source has just violated the contract — possibly via a BE deploy, partner API change, schema migration, or scope expansion
+
+**Why this is easy to misdiagnose**
+- The crash points at the SDK because that's where the exception throws
+- Natural diagnosis: "the SDK is broken" → propose new architecture, new fields, new compensating machinery
+- But the SDK is correctly trusting a contract that was just broken; the new architecture preserves the broken assumption with extra cost
+- Patching the SDK to silently absorb the violation removes the early-warning signal — every future contract drift becomes a silent corruption
+
+**Right investigation pattern**
+1. Find the invariant being violated. Read the annotation / type signature / expect/actual declaration. Write it out in plain English: "PK X is stable per unique field Y, established by `@DbUnique` + `@Id(assignable=true)` since commit ABC123."
+2. Trace the invariant to its source — who's responsible for upholding it? Often the BE, sometimes the consumer, rarely the SDK itself.
+3. `git log --all -S "<annotation or field>"` to find when the invariant was added. Was it deliberate (load-bearing on a stated contract) or accidental (a side effect of using the annotation)?
+4. Check the upstream source for recent changes — has the contract been violated only just now, or has it been drifting silently? If drifting, this isn't a one-off — both shield and escalation are needed.
+5. **Cross-platform consistency check.** If the SDK is multi-platform, check the sibling platform. Often one platform already shielded and the other didn't — the asymmetric implementation is the deviant. Converge to the shielded shape rather than designing new architecture from scratch.
+
+**Right fix: shield + escalate, in parallel — not patch and forget**
+- **Shield (client-side):** make the SDK robust to the contract violation in the specific way that doesn't lose data or crash. Examples: business-key upsert instead of PK upsert; tolerant deserialization with a fallback shape; `runCatching` with a logged recovery path.
+- **Escalate (upstream):** report the violation to the team responsible for the contract. The shield is a stopgap; contract restoration is the real fix.
+- **Telemetry:** instrument the shielded path so future drift surfaces fast. The shield without telemetry is a silent corruption waiting to happen.
+
+**What NOT to do**
+- Don't propose new fields, new event types, or new architecture as the primary fix. The architecture isn't the problem; the contract is.
+- Don't remove the original invariant declaration thinking it's "wrong". The invariant correctly captures a real contract; the contract just isn't being upheld.
+- Don't ship the shield without escalating. The shield is a workaround, not a cure.
+- Don't iterate on the shield with patch-after-patch when it doesn't fully work — that's the patches-after-patches anti-pattern Doctrine 3 prohibits. Re-fire Phase 1 with the new evidence (see `fix-loop-protocol.md`).
+
+**Why this matters in KMM specifically**
+- KMM annotations (`@Id`, `@DbUnique`, `@Entity`, `@Serializable`) are even more load-bearing than their Android-only equivalents — they bind to Room codegen AND the cross-platform schema contract
+- A latent invariant in commonMain affects every platform simultaneously when the upstream contract drifts
+- The cross-platform asymmetry (one platform shielded, other isn't) is a strong tell that the issue is contract-vs-platform-resilience, not architecture
+
+---
+
 ## Cross-cutting principle
 
 When you see multiple pitfalls in a single migration (very common — the same author often makes the same class of mistake in multiple places), the right fix usually involves **deletion** rather than addition. The migration's machinery to bridge the new platform's constraints often does more harm than good. Subtract back to a simpler shape that respects each platform's native mechanisms.

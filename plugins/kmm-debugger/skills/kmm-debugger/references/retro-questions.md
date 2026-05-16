@@ -1,6 +1,20 @@
 # Closing retro — question-to-action mapping
 
-The retro asks 5 questions. Each answer category maps to a specific edit proposal. The skill's curator (the user) approves, modifies, or skips each one.
+The retro asks 6 questions. Each answer category maps to a specific edit proposal. The skill's curator (the user) approves, modifies, or skips each one.
+
+## When to fire the retro (hard gate)
+
+The retro is NOT user-initiated. Fire proactively after any of:
+- `git push` to remote
+- PR opened or updated
+- `./gradlew publish` to Nexus / Maven Central
+- Alpha tagged and pushed
+- All planned fixes for the session are shipped
+- Phase 1 was re-fired due to a fix-didn't-fully-resolve loop (highest-value retro signal — the workflow caught itself, the user should see what the skill learned)
+
+Don't wait for the user to signal "we're done" or "thanks" or to invoke `/skill-feedback`. The user-signaled trigger is one of many, not the only one. By the time the user signals closure, the session context is decaying and the highest-value lessons are already harder to recall.
+
+If the user says "skip" or "later", respect it and note the offer in the session log. If they ask to come back to it later, the trigger conditions above apply at any point in a future session.
 
 ## Q1: Did the pitfall catalog map correctly?
 
@@ -58,6 +72,20 @@ The most important question. Listen for sequencing changes, phase skips, framing
 | "I'd ask the user for a Logcat / stack trace before dispatching any subagents" | Add a "Phase 0 — concrete signal collection" step to SKILL.md, OR add to each Phase 1 prompt a "request a Logcat capture from the user if a crash is involved." |
 | "I'd run Phase 1 in series instead of parallel because the bugs were related" | This contradicts the skill's default. Push back: "I think parallel was right here — the bugs were independent enough that wall-time savings outweighed synthesis cost. What made you feel they were related?" Then decide if the answer reveals a genuine pattern (related bugs benefit from sequential) or was a perception. |
 | "I'd skip the formal investigation entirely because the bug was obvious from the symptom" | This is a real signal — there's a class of obvious bugs where the workflow is overkill. Add to SKILL.md a "When to skip phases" section: "If the bug is a single symptom with a one-line fix obvious from the symptom (e.g., 'forgot to handle null'), skip directly to the fix. The workflow is for *unclear* multi-defect regressions." |
+
+## Q6: Did the three doctrines (no-bias, deep-investigation, clean-solution) hold?
+
+Ask: did you catch yourself anchoring on existing implementation, proposing minimal patches, or starting to write Fix N+1 as a patch on Fix N?
+
+| Answer | Action |
+|---|---|
+| "Doctrines held; no bias detected" | No edit. Note in session log. |
+| "I anchored on the existing implementation for defect X — had to re-fire with explicit bias-guard reminder" | Strengthen the bias-guard preamble in `references/subagent-prompts.md`. Make the named bias more specific (e.g., "do not defend the existing storage shape because the migration author marked it as deliberate"). Add the bias mode to `references/doctrines.md` Doctrine 1 named-bias-modes list. |
+| "I proposed a minimal patch for defect X when the clean fix was feasible" | Add the specific patch-instinct trigger to `references/doctrines.md` Doctrine 3 anti-pattern table. Quote the user's correction verbatim — the user's phrasing is what catches the same pattern next time. |
+| "I shipped Fix N, it didn't fully work, and I started writing Fix N+1 as a patch on Fix N before catching myself" | Strengthen the recognition criteria in `references/fix-loop-protocol.md` "Recognizing the loop" section. The fact that the protocol existed and drift still happened is the signal — sharpen the trigger language so the next session catches it faster. |
+| "I shipped Fix N, it didn't fully work, and I started writing Fix N+1 as a patch on Fix N WITHOUT catching myself — the user had to stop me" | Same as above, plus: this is a serious failure mode. Surface the specific drift pattern to the user and propose adding a hard reminder near the top of `SKILL.md` Phase 1 — something like "if your last fix didn't fully resolve, jump to `fix-loop-protocol.md` immediately, do not proceed". |
+| "A/B pair dispatch felt overkill for this bug" | Push back: was it actually overkill, or did it feel that way because A and B agreed? Agreement is the success case of A/B dispatch, not a failure. If genuinely overkill, the bug was unambiguous and the doctrine still says A/B for unambiguous bugs — surface the disagreement and we discuss whether to adjust the doctrine. |
+| "Doctrines held but I felt slowed down" | This is a real cost worth tracking. Add to the session log how much wall time the dispatch added. If the pattern recurs across sessions, that's data for revisiting the dispatch matrix. Do not edit the doctrine on a single data point. |
 
 ## Edit application discipline
 
