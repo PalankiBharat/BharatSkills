@@ -90,7 +90,7 @@ Schema-fail → lead retries with the validation error appended (≤2 retries pe
 
 ### `questioner` (replaces domain/tech/qa questioners)
 
-**Owns**: every non-design pillar question. One specialist produces them all so duplicates are caught before merge, and so cross-pillar concerns (e.g. an Android-implementation question that also has a backend touch-point) stay coherent.
+**Owns**: every non-design pillar question. One specialist produces them all so duplicates are caught before merge, and so cross-pillar concerns (e.g. an api-contract question that the Android team owns answering and the Backend team owns implementing) stay coherent.
 **Inputs**: filtered story, flow-tracer output (facts + delta), `project_memory`, scope-report (incl. `backend-android-driven` flag).
 **Output**:
 ```json
@@ -109,7 +109,7 @@ Questions still carry stable qid + role tag per the schema below. The split into
 **Hard rules**:
 - Every question MUST include `reason_not_derivable`. No reason → critic rejects.
 - Every question MUST cite a template slot from `determinism-rules.md` (the template catalog). Freestyle → `freestyle: true` + extra critic scrutiny.
-- For Android-scoped projects, the questioner MUST emit at least one Android-role question per touch-point in the delta. Empty Android coverage when delta has UI changes → critic flags `missing_android_coverage`.
+- Every question MUST pass the doer-decides rubric: "If the question can be resolved unilaterally in a PR with a code review, it's not a clarification question." Implementation choices (module placement, Hilt scoping, Compose state hoisting, ViewModel ↔ UseCase wiring, mapper / factory location, `@Preview` shape, navigation route mechanics) fail this rubric → critic flags `doer_decides_at_code_time`.
 - The questioner respects `project_memory` constraints — questions whose subject appears in a memory marked "not supported / not applicable" are auto-suppressed.
 - Strikethrough-revival: if `story-clarifier.strikethrough_branches[]` carries a settled-decision marker for a topic, the questioner MUST NOT generate a question that surfaces the rejected branch as an option. (See `critic-rubric.md` for the matching critic check.)
 
@@ -121,7 +121,7 @@ Questions still carry stable qid + role tag per the schema below. The split into
 ```json
 {
   "findings": [
-    {"type": "schema_fail|evidence_missing|duplicate|conflict|count_overflow|backend_internals_leak|strikethrough_revival|missing_android_coverage",
+    {"type": "schema_fail|evidence_missing|duplicate|conflict|count_overflow|backend_internals_leak|strikethrough_revival|doer_decides_at_code_time|evidence_against_memory",
      "target_id": "...", "detail": "...", "suggested_action": "drop|reprompt|user_ask"}
   ]
 }
@@ -184,7 +184,7 @@ Visible **role tag** ≠ internal **pillar slug**. The map is fixed:
 | Compliance / Legal | `domain` |
 | DevOps / Infra | `tech` |
 
-`Android` is a first-class role tag, mapping to the `tech` pillar. When the scope filter retains any Android section, the questioner MUST produce Android-tagged questions across the Android-implementation slots in `determinism-rules.md` (compose state hoisting, module placement, Hilt providers, navigation, toast/error mapper, preview plan, ViewModel ↔ UseCase wiring).
+`Android` is a first-class role tag, mapping to the `tech` pillar. It applies only when the answer is a genuinely Android-shaped stakeholder decision drawn from the slot set in `determinism-rules.md` (LD-flag scope, deep-link support, push-notification surface, test-environment toggle, rollback procedure ownership, Android-observable backend contracts). There is **no Android-implementation catalog** — module placement, Hilt scoping, Compose state hoisting, navigation mechanics, ViewModel ↔ UseCase wiring, `@Preview` shape, mapper / factory location are decided by the developer at code time and rejected by the critic.
 
 ### Option count rule
 

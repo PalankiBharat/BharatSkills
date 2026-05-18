@@ -60,18 +60,21 @@ Freestyle questions outside the catalog → require a `freestyle: true` flag + a
 - `idempotency-rule` — Android-side retry guard
 - `auth-shape` — header / token format
 
-**Tech / Android (Android-implementation, F5 from #173):**
-- `module-placement` — where does new code live: shared lib / sniper-library / app module
-- `compose-state-hoisting` — StateFlow observed in composable, hoisted in ViewModel, or static refresh-only
-- `hilt-provider-placement` — which Hilt module + scope (Singleton / ViewModel-scoped / fragment-scoped)
-- `navigation-route` — back-stack pop vs persisted Route vs new destination
-- `toast-error-mapper` — extend existing ToastFactory vs introduce new factory
-- `viewmodel-usecase-wiring` — where the orchestration lives
-- `compose-preview-plan` — `@Preview` factory shape + parameter source
-- `mapper-location` — enum/value mapper lives in shared / library / app
-- `error-bs-source` — error bottom-sheet copy source (server payload vs local-cache reconciliation)
+**Android-shaped stakeholder slots (F5 revised from #173):**
 
-The questioner MUST cover at least one Android slot per touch-point in `flow-tracer.delta[]` whose target_state touches UI / ViewModel / Hilt. Critic flags `missing_android_coverage` for empty slots.
+There is **no Android-implementation catalog**. Implementation choices (module placement, Hilt scoping, Compose state hoisting, ViewModel↔UseCase wiring, `@Preview` shape, mapper location, factory selection, navigation route mechanics) are decided by the developer at code time and rejected by the critic — see `critic-rubric.md` → "Doer decides at code time".
+
+Android-tagged questions may only come from genuinely stakeholder-shaped slots, drawn from existing pillars:
+
+- `rollout-strategy` (Domain) — LD-flag scope, cohort, percentage
+- `analytics-events` (Domain) — properties the Android client must emit
+- `api-contract` / `error-code-mapping` / `polling-cadence` (Tech-Backend) — when Android owns the negotiation
+- `deep-link-support` — whether the feature is reachable via a deep link, and the URI shape (cross-team contract)
+- `push-notification-surface` — whether a push channel exists and what payload Android consumes
+- `test-environment-toggle` — whether a test/staging environment switch needs to ship in the build
+- `rollback-procedure` — kill-switch / remote-config rollback ownership
+
+Tag the question `role: Android` when the Android team is the answer-owner. The questioner does NOT have a mandatory Android-coverage count — Android questions appear only when the slot above genuinely applies to the story.
 
 **QA:**
 - `user-test-cases` — happy path + permission denied + empty state + timeout
