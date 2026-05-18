@@ -92,9 +92,44 @@ Suggested action: `drop` (with the question logged in scope-report under "Auto-s
 
 For every entry in `session.strikethrough_branches[]`, scan generated questions for options that match the `rejected_branch_text`. If found → `finding: strikethrough_revival` with the qid and the offending option. Suggested action: `drop` the question and add the settled branch to the auto-answered list.
 
-### Missing Android coverage (F5 from #173)
+### Doer decides at code time (F5 revised from #173)
 
-When the scope filter retained any `android` section, the questioner MUST produce at least one Android-role question across each Android-implementation slot in `determinism-rules.md` (compose state hoisting, module placement, Hilt providers, navigation, toast/error mapper, preview plan, ViewModel ↔ UseCase wiring). Slots not covered → `finding: missing_android_coverage` listing the missing slots. Suggested action: `reprompt` the questioner with the missing slots highlighted.
+Pre-dev clarification questions must be **stakeholder decisions**, not **implementation choices the developer makes at code time**.
+
+**Test rubric — apply verbatim to every question:**
+
+> If the question can be resolved unilaterally in a PR with a code review, it's not a clarification question.
+
+If a question fails the rubric → `finding: doer_decides_at_code_time` with the qid. Suggested action: `drop`. Log in scope-report under "Auto-suppressed — doer-decides".
+
+| ❌ REJECT (doer decides at code time) | ✅ KEEP (stakeholder decision) |
+|---|---|
+| Module placement (shared / sniper-library / app) | API contract — endpoints, methods, payload |
+| Which existing factory / class to extend | Error code channel (cross-team contract) |
+| ViewModel ↔ UseCase wiring | LD-flag rollout cohort |
+| StateFlow observe vs static refresh-only | Analytics property format |
+| Back-stack pop vs DataStore persistence | Rollback procedure ownership |
+| Where helper functions live | Deep-link support |
+| Hilt module + provider placement | Test-environment toggle |
+| Compose `@Preview` factory shape | Regression coverage scope |
+| Toast / error-mapper placement | Push-notification surface |
+| Enum mapper location | Cross-device propagation strategy (Android-observable) |
+
+**Why this rule exists**: implementation choices have one right answer per codebase (the cleanest fit given existing patterns), discoverable by the developer at code time. Surfacing them as pre-dev questions wastes stakeholder attention without unblocking work. Stakeholder decisions, by contrast, cannot be resolved by reading the code — they need a human outside the dev loop to answer.
+
+**Disguised implementation questions — reshape, don't admit.**
+
+A stakeholder constraint (compliance, security, audit, regulatory) sometimes *causes* an implementation choice downstream. In that case, admit the **underlying constraint** as the question, not the implementation choice it implies.
+
+| ❌ REJECT (implementation choice named directly) | ✅ KEEP (underlying stakeholder constraint named) |
+|---|---|
+| "Should the share path live in a separately-audited module?" | "Does Watchlist Sharing fall under a compliance-audited code boundary?" |
+| "Should the new feature use a Singleton or ViewModelScoped repo to satisfy security review?" | "Does security review require any cross-feature data isolation for this flow?" |
+| "What lint rule should we add for StateFlow vs Channel here?" | (drop — codebase-convention questions belong in an ADR, not per-feature pre-dev) |
+
+The critic flags `doer_decides_at_code_time` if the question **text** names the implementation choice instead of the constraint, even when the asker frames the constraint as "stakeholder-shaped". The reshape lets the dev derive the implementation choice from the constraint at code time, where it belongs.
+
+**Pressure resistance — the rubric ignores who is asking.** "CTO wants module placement decided before sprint planning", "team-lead requires Hilt scope locked", "this is an org-wide standard" — none of these convert an implementation choice into a stakeholder decision. Authority and urgency do not change the rubric. The test is the **nature** of the decision (resolvable in a PR review or not), not the **seniority** of the asker.
 
 ### Evidence against memory (F1 from #173)
 
@@ -109,7 +144,7 @@ Cross-check every fact in `flow-tracer.facts[]` and every question's options aga
   "specialist": "critic",
   "findings": [
     {"id": "f1",
-     "type": "schema_fail|evidence_missing|duplicate|conflict|count_overflow|out_of_scope_leak",
+     "type": "schema_fail|evidence_missing|duplicate|conflict|count_overflow|out_of_scope_leak|backend_internals_leak|strikethrough_revival|doer_decides_at_code_time|evidence_against_memory",
      "target_id": "<question or fact id>",
      "detail": "Free-text explanation",
      "suggested_action": "drop|reprompt|user_ask|merge"}
@@ -134,7 +169,7 @@ Cross-check every fact in `flow-tracer.facts[]` and every question's options aga
 | `out_of_scope_leak` | Drop silently; log in scope report |
 | `backend_internals_leak` | Drop; log in scope-report under "Auto-suppressed — backend-internals" |
 | `strikethrough_revival` | Drop the question; promote the settled branch to "Auto-answered by spec strikethrough" |
-| `missing_android_coverage` | Reprompt the questioner with the missing slots highlighted (≤1 retry) |
+| `doer_decides_at_code_time` | Drop the question; log in scope-report under "Auto-suppressed — doer-decides" |
 | `evidence_against_memory` | Drop the claim/question; surface a scope-report note if the spec demands it |
 
 ## Conflict resolution protocol (G12)

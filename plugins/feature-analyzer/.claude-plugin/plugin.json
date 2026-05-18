@@ -1,5 +1,5 @@
 {
   "name": "feature-analyzer",
   "description": "Hardened team-lead orchestrator for pre-dev story interrogation. Walks existing code + Figma flows, strips out-of-platform sections, and emits a shareable dark-mode HTML doc with the original story pinned alongside option-pill questions.",
-  "version": "2.2.0"
+  "version": "2.2.1"
 }
