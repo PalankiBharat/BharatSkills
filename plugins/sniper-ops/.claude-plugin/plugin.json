@@ -1,0 +1,18 @@
+{
+  "name": "sniper-ops",
+  "version": "1.0.0",
+  "description": "Day-to-day operational shortcuts for the sniper-v2-android repo — fast paths for the everyday script chores that aren't worth typing out every time (share build to CircleCI, install debug builds to a device). Designed to grow as more repetitive ops show up.",
+  "author": {
+    "name": "PunchHQ",
+    "email": "manish@punchhq.com"
+  },
+  "category": "developer-tools",
+  "keywords": [
+    "sniper",
+    "android",
+    "share-build",
+    "circleci",
+    "install",
+    "shortcuts"
+  ]
+}

@@ -153,6 +153,15 @@
       "category": "developer-tools",
       "tags": ["kmm", "kotlin-multiplatform", "debugging", "post-migration", "regressions", "android", "ios", "expect-actual", "buildkonfig", "room-kmp", "ktor"],
       "keywords": ["kmm bug", "kmm debug", "post-migration regression", "expect actual", "BuildKonfig", "Room KMP", "ObjectBox to Room", "Ktor drift", "init-time leak", "async cache race", "transitive version drift", "consensus dispatch", "reverse the diagnosis", "bias guard", "fresh lens", "clean long-term solution", "patches keep failing", "latent invariant", "BE contract violation"]
+    },
+    {
+      "name": "sniper-ops",
+      "source": "./plugins/sniper-ops",
+      "description": "Day-to-day operational shortcuts for the sniper-v2-android repo. Currently bundles share-prod and share-staging (commit + push + release-notes pre-flight then trigger CircleCI build) and install-prod / install-staging (local install to a connected Android device). Designed to grow as more repetitive ops chores show up.",
+      "version": "1.0.0",
+      "category": "developer-tools",
+      "tags": ["sniper", "android", "share-build", "circleci", "install", "ops", "shortcuts"],
+      "keywords": ["share build", "share prod", "share staging", "install prod", "install staging", "circleci", "kick off build", "share apk", "install on device", "sniper"]
     }
   ]
 }
