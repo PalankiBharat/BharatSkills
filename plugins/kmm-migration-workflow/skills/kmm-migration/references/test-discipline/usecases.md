@@ -14,6 +14,12 @@ typically `suspend fun perform(request): Response` or `fun observe():
 Flow<…>`. The most pure-logic layer in the app, and therefore the
 layer where bugs cost the most. Test exhaustively.
 
+### When to skip the baseline
+
+- **Pure interface** (`interface XUseCase { suspend fun invoke(...): ... }` with no default impls) → **skip**. Coverage transitive through the `*Impl` baseline.
+- **Pure-factory UseCase impl** (the impl just constructs and returns a domain object; private-val collaborators are not directly assertable; no branching, no side effects) → **skip**. Coverage transitive through the returned object's baseline.
+- Impls with branching, suspend/Flow coordination, or side effects always get a baseline.
+
 ### What to fake
 
 - ✅ Every collaborating repository / store / SDK boundary — hand-rolled fake implementing the interface.

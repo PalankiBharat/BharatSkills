@@ -10,9 +10,11 @@ Files with `Phase D plan: hold` are not touched in Phase D — they stay in `<de
 
 ## Sub-phases
 
-### D.0 — Foundation setup (one-time per session)
+### D.0 — Foundation setup + followups review (one-time per session)
 
-Per plan.md's `expect`/`actual` and DI plans. Consult `references/expect-actual-boundaries.md` for the seam-pattern rubric (semantic common APIs, thin actuals, interface-over-`expect class` when tests/DI/lifecycle matter, Compose leaf rule).
+First action: **read `phase-d-followups.md`** (populated by Phase B). This is Phase D's entry-point checklist — every Path B deferral, static-service-locator deferral, or post-migration cleanup that Phase B accumulated. Skill scans the open followups and slots them into the per-batch work below: foundation interfaces (e.g., IUserQueryRepository for UserModel.getUcc replacement) land at D.0; Path B baselines land alongside their file's D.1 batch; pure cleanups land at D.2.
+
+Then proceed with per plan.md's `expect`/`actual` and DI plans. Consult `references/expect-actual-boundaries.md` for the seam-pattern rubric (semantic common APIs, thin actuals, interface-over-`expect class` when tests/DI/lifecycle matter, Compose leaf rule).
 
 - **Opus** finalizes consolidated `expect`/`actual` interfaces in destination `commonMain`. ≥2-consumer check enforced.
 - **Sonnet** writes interface declarations + **working `actual` impls** in `androidMain` AND `iosMain` — no `NotImplementedError` stubs. Done-means-done applies to foundation too.
@@ -58,20 +60,24 @@ For each layer-batch — files committed individually within the batch:
 
 8. **Consumer impact check** (Sonnet). Intra-module moves typically don't change FQN — no consumer updates required. If the project has package conventions that differ between source sets, Sonnet drafts the FQN search-replace plan, Haiku applies, diff-confirmed. After any updates, baselines re-green via Haiku gradle run.
 
-9. **Commit per file** (staged `git add` + `git commit` cycles within the batch). Sonnet composes messages. One file per commit, or coherent unit per commit.
+9. **Commit per file** via the two-commit cadence (SKILL.md): code commit + audit commit. Autopilot, one-line announcements. Sonnet composes messages. One file (or coherent unit) per code commit.
 
-10. **`migration.md` updated** per file (Haiku structured fields + Sonnet prose rationale).
+10. **`migration.md` updated** per file (Haiku structured fields + Sonnet prose rationale). If this file resolved a `phase-d-followups.md` entry, flip that entry's `**Status:**` to `done`.
 
 If iOS check (step 7) fails irrecoverably for a file this session → Phase D plan flip proposed (D.3).
 
-### D.2 — Integration verification (after all batches)
+### D.2 — Integration verification + followups close (after all batches)
 
 - **Haiku** runs full baseline suite (`<dest>/androidUnitTest`). Green required.
 - **Haiku** assembles full XCFramework. Clean — no SKIE warnings.
 - **Sonnet** runs deferral grep across all migrated files (`TODO`, `FIXME`, `HACK`, suspect `@Suppress`). Clean required.
 - **Opus** reviews `migration.md` for completeness — every `migrate`-plan file has every sub-step done, every substitution cited.
+- **`phase-d-followups.md` close-out**: every entry with `Status: open` either flips to `done` (resolved this phase) or gets explicit rationale appended for why it's deferred to a future session (rare — most should close). Open entries surviving Phase D become Phase G PR-body "Out-of-scope follow-ups".
 
 Any failure → not done. Investigate, fix, or flip affected file to `hold` with user approval (see D.3).
+
+### D.4 — Phase D retro
+Amend `retro.md` with `## Phase D — KMM-ification (captured YYYY-MM-DD)`. Five-bullet structure. User can skip with `skip retro`.
 
 ### D.3 — Phase D plan flip (`migrate` → `hold`) — if invoked during D.1 or D.2
 
@@ -81,7 +87,7 @@ For a file initially marked `migrate` that proves unmigratable cleanly this sess
 - User confirms.
 - The file's **Phase B relocation commit stays** — code is correctly in `<dest>/androidMain`, that's its valid hold position.
 - Any Phase D commits for this file (commonMain mv, partial substitutions) are reverted via `git revert`.
-- `plan.md` Phase D plan flips `migrate` → `hold` for this file (diff-confirmed, rationale captured in decisions log).
+- `plan.md` Phase D plan flips `migrate` → `hold` for this file (rationale captured in decisions log).
 - `coverage.md` for this file: status stays `frozen`; Phase D plan column flips to `hold`; final code path = `<dest>/androidMain/...`.
 - Phase D continues with remaining `migrate`-plan files.
 

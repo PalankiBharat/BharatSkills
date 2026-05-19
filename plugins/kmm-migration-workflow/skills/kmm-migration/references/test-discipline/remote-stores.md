@@ -6,6 +6,8 @@
 > Stack: **KMM-portable**. RemoteStores wrap Ktor (which is KMP-native)
 > and head to `:shared` along with the data layer.
 
+> **Lib-swap note**: RemoteStores backed by Retrofit (or another JVM-only HTTP library) are library-substitution targets — see `migration-baselines.md` §Library-substitution. Default to Path A (contract baseline via MockWebServer / hand-rolled HTTP fake, no Retrofit imports). Only fall back to Path B (defer baseline to Phase D) if the SUT's public surface exposes Retrofit-specific exception types (e.g., `Result<T, retrofit2.HttpException>` in the public signature).
+
 ### Responsibility
 
 The HTTP boundary. Build a request from typed args; deserialize the

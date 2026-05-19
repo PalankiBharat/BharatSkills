@@ -20,17 +20,6 @@
           }
         ]
       }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit|str_replace|create_file",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/kmm_write_notice.py\""
-          }
-        ]
-      }
     ]
   }
 }

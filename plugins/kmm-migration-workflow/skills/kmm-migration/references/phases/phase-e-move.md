@@ -48,9 +48,9 @@ Fix via surgical edit (per Tooling discipline: `git restore` for revert; never r
 
 If host doesn't support iOS testing (non-macOS dev machine): skill flags this clearly — full local verification is incomplete. **User decides handling** — test on a Mac, defer until team has access. Skill does not auto-defer to CI.
 
-### E.5 — Update coverage.md (Sonnet drafts, Haiku applies)
+### E.5 — Update coverage.md
 
-For each baseline promoted: file status flips `migrated` → `promoted`; `Final baseline path` field filled with the commonTest path. Diff-confirmed.
+For each baseline promoted: file status flips `migrated` → `promoted`; `Final baseline path` field filled with the commonTest path. Silent write per SKILL.md Diff-confirm scope (`migrations/` writes are not gated).
 
 For files whose baselines stayed in androidUnitTest (held files, or feature-surface baselines tied to mixed migrate+hold features), no change — status remains `frozen` or `migrated`; `Final baseline path` stays at the androidUnitTest path.
 
@@ -59,6 +59,10 @@ For files whose baselines stayed in androidUnitTest (held files, or feature-surf
 - **Haiku** fills structured sections (file moves table, test counts, commit SHA, quarantine summary if E.0 applied).
 - **Sonnet** writes prose: any commonTest issues encountered, iOS test results, feature-surface baseline promotion decisions.
 - Living document, finalized at E.6 with status complete.
+- Final commit follows two-commit cadence (SKILL.md): code commit (the `git mv`) + audit commit (`move.md` + `coverage.md`). Autopilot.
+
+### E.7 — Phase E retro
+Amend `retro.md` with `## Phase E — Baseline Promotion (captured YYYY-MM-DD)`. Five-bullet structure. User can skip with `skip retro`. Skipped if Phase E itself was skipped (no `migrated` files).
 
 ---
 
@@ -85,13 +89,11 @@ Beyond universals:
 - All promoted baselines green in `<dest>/commonTest` on JVM.
 - All promoted baselines green in iosTest (or explicit user acknowledgment of host limitation).
 - `coverage.md` updated with `promoted` status per promoted file.
-- User confirms before commit.
 
 ---
 
 ## Post-session (outside Phase E, after PR merge)
 
 After the PR merges to main:
-- Skill offers `git worktree remove <path>` for cleanup.
-- User confirms; skill runs.
+- Skill offers `git worktree remove <path>` for cleanup. User confirms (this is destructive — removes the worktree directory).
 - Branch `kmm/<feature>-<depth>` can be deleted (or kept as audit-trail tag).

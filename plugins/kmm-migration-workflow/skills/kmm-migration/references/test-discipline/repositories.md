@@ -14,6 +14,11 @@ whether to serve cache, refresh in background, fall through to
 network, or fail. The most-violated layer for concurrency bugs —
 test as if the trading floor depends on it, because it does.
 
+### When to skip the baseline
+
+- **Pure interface** (`interface XRepository { ... }` with no default impls, no `companion object` logic) → **skip**. Coverage is transitive through the `*Impl` baseline or the feature surface (Phase B.6). Audit row flips `relocated` → `audited` directly; no test file written.
+- Implementation classes (`*RepositoryImpl`) always get a baseline.
+
 ### What to fake
 
 - ✅ `RemoteStore` collaborators — hand-rolled fake (their HTTP layer is tested separately at the RemoteStore level).

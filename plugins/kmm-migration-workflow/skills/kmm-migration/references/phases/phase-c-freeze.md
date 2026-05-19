@@ -41,16 +41,14 @@ The only mechanical enforcement is a detekt rule that catches stack-drift in `<d
 
 - All baseline test files for in-scope files (in `<dest>/src/androidUnitTest/`) committed atomically.
 - **Sonnet** composes the commit message — references the session, lists files frozen, aggregates trust scores from audit.md.
-- User runs `git commit` (skill proposes the exact command + confirms before running).
-- Resulting commit SHA = **frozen-at marker** for this session.
-- Optional: tag the commit (e.g., `baseline-funds-business-logic-2026-05-13`) — user's call.
+- Skill commits autopilot per the two-commit cadence (SKILL.md). Resulting commit SHA = **frozen-at marker** for this session.
+- Optional: tag the commit (e.g., `baseline-funds-business-logic-2026-05-13`) — user's call, asked once.
 
 ### C.4 — Update coverage.md
 
-- **Sonnet** drafts the coverage.md diff: in-scope files flip from `audited` to `frozen` with the freeze SHA.
-- Diff-confirm protocol — user accepts / edits / rejects.
-- **Haiku** applies after confirmation.
-- This update is committed alongside C.3 (or as an immediate follow-up commit; both belong to the freeze).
+- In-scope files flip from `audited` to `frozen` with the freeze SHA.
+- Silent write (per SKILL.md Diff-confirm scope — `migrations/` writes are not gated).
+- Committed as the audit half of the two-commit cadence alongside C.3.
 
 ### C.5 — Detekt smoke test
 
@@ -73,6 +71,9 @@ The skill's behavioral refusal to edit frozen baselines is not smoke-testable me
 - **Sonnet** writes prose: decisions log, smoke test narrative.
 - Living document, written progressively through C.1–C.5.
 
+### C.7 — Phase C retro
+Amend `retro.md` with `## Phase C — Freeze (captured YYYY-MM-DD)`. Five-bullet structure. User can skip with `skip retro`.
+
 ---
 
 ## Output: `freeze.md`
@@ -92,6 +93,4 @@ Beyond universals:
 
 - Phase B complete (`audit.md` status = complete; baselines green per B.7).
 - **Detekt enforcement** verified working via smoke test — **no exceptions**.
-- `coverage.md` update diff-confirmed before write.
 - Frozen-at SHA recorded in both `freeze.md` and `coverage.md` before Phase D can start.
-- User confirmation on the atomic freeze commit.

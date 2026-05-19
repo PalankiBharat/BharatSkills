@@ -22,9 +22,15 @@ If user is on `main` or any non-`kmm/` branch:
 - Capture feature + depth from user.
 - Propose branch: `kmm/<feature>-<depth>` (e.g., `kmm/funds-business-logic`).
 - Propose worktree path: `../<repo>-<branch-suffix>/` (default; configurable in `project.md`).
-- User confirms → run `git worktree add <path> -b <branch>`.
-- Tell user: *"Worktree ready at `<path>`. Open it in your editor and re-invoke the skill there to begin Phase 0."*
-- **This invocation ends.** User re-invokes in the worktree; Phase 0 continues from step 5 there.
+- User confirms (one line) → run `git worktree add <path> -b <branch>`.
+- Skill runs `cd <path>` (Bash, sticks for the rest of the session) and announces *"Worktree at `<path>`. Continuing Phase 0 here."*
+- **Phase 0 continues in this same conversation** at step 4.5. No re-invocation needed.
+
+### 4.5. `.gitignore` bootstrap
+- Skill reads the repo's top-level `.gitignore`.
+- If `.kmm/migrations/` is absent, propose appending it. One-time, diff-confirmed (this is a repo-level config touch, worth one prompt).
+- Result: `.kmm/project.md`, `.kmm/searches/`, `.kmm/exceptions/` tracked; `.kmm/migrations/<feature>/*` local-only.
+- Skipped silently if the entry already exists.
 
 ### 5. Seed resolution
 **Primary path — navigation flow:** ask *"How do you navigate to that screen in the app?"* User describes (e.g., *"JumpTo menu → Funds → Fund screen"*). Sonnet subagent walks the navigation graph: app entry / main nav → JumpTo menu code → Funds menu item → its click/nav action → target screen. Confirm resolved file with user.
@@ -82,6 +88,9 @@ Filter manifest by depth.
 ### 12. Confirm scope
 Hard gate: scope + depth + destination + per-ripple decisions all user-confirmed before Phase A.
 
+### 13. Phase 0 retro
+Before marking Phase 0 complete, amend `.kmm/migrations/kmm/<feature>-<depth>/retro.md` with a `## Phase 0 — Discovery & Scoping (captured YYYY-MM-DD)` section: five-bullet structure per SKILL.md (recap / smooth / stuck / could-improve / user steering log). User can skip with `skip retro`. Purely reflective — no skill/drop verdicts.
+
 ---
 
 ## Output: `scope.md`
@@ -102,6 +111,8 @@ Living document, written progressively. Contains:
 - Tasks (checklist)
 - Decisions log (chronological)
 - Status
+
+**No counts in section headers.** Write `### Repositories`, not `### Repositories (11)`. Hand-written counts drift from their lists as scope evolves mid-phase; the headers stay correct only by accident. A single total line at the top of scope.md (`Total: N files`) can be auto-computed by re-counting the manifest at write-time — never typed by hand.
 
 ---
 
