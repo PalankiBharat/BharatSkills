@@ -25,21 +25,12 @@ Testing rules for the whole workflow live in `references/test-discipline/` (spli
 
 ## Cross-cutting rules
 
-### Diff-confirm protocol
+### Diff-confirm protocol (scoped to `.kmm/project.md` only)
 
-Every write to anything under `.kmm/` is a **gated operation**. Before any such write, the skill produces the following pre-write checklist as visible output:
-
-```
-Pre-write check for <path>:
-- Diff for this exact path proposed in prior turn?  [y/n]
-- User accepted (`a` or explicit accept) in subsequent user turn?  [y/n]
-- Both yes → proceed.  Either no → abort, produce diff-confirm prompt instead.
-```
-
-If both answers are yes, the write proceeds. If either is no, the write is aborted and the diff-confirm prompt is produced instead:
+Writes to `.kmm/project.md` — the one cross-session, human-curated config file — are gated. The skill produces the diff-confirm prompt before any project.md write:
 
 ```
-Proposed updates to <file>:
+Proposed updates to .kmm/project.md:
 
 [+] Add to <section>: <text>
 [~] Update <section>:
@@ -50,9 +41,11 @@ Proposed updates to <file>:
 Apply all / edit / reject? [a/e/r]
 ```
 
-User accepts, edits any line, or rejects. After acceptance, the skill re-issues the pre-write checklist (now both `[y]`) and the write happens.
+User accepts (`a`), edits (`e`), or rejects (`r`). On accept, the write happens.
 
-**No silent writes anywhere.** The checklist ritual is not optional — skipping it is a discipline violation, recoverable only by re-running the gate. Post-hoc rationalization ("treating as draft pending accept") is not recovery; abort + diff prompt is the only recovery.
+**All other `.kmm/` writes are silent** — session-local working state (`scope.md`, `plan.md`, `audit.md`, `coverage.md`, `freeze.md`, `migration.md`, `move.md`, `validation.md`, `heatmap.md`, `pr.md`, `phase-d-followups.md`, `retro.md`) and machine-managed caches (`searches/`, `exceptions/`) write without prompting. Migration speed depends on this; the gate exists only where edits ship across sessions.
+
+Skill source files (the plugin's own `.md` files under `skills/kmm-migration/`) are **never edited from within a migration session**. Skill improvements happen in dedicated planning sessions that consume retro.md (see §Special actions → Per-phase retro).
 
 ### Smart subagent routing
 
@@ -83,6 +76,24 @@ Discipline: **Opus only when cost-of-being-wrong is high.** Default-everything-S
 - The active phase's own output file (`scope.md`, `plan.md`, etc.) — the skill writes these progressively and must see their current state.
 
 **Why this matters.** Context degrades performance. A 5–9h session that reads every phase file into main and every cached search result into main fills the window with stale or low-relevance content, crowding out the current decision. The infinite-exploration failure mode — *"investigate X"* → read 50 files → context full → quality drops — is real. Subagent-mediated reads cap each exploration at its summary cost.
+
+### Output economy
+
+The skill's job in the chat is to drive the workflow, not to recite artifacts.
+
+- **File writes**: one-line acknowledgment + path (`Wrote XTest.kt — 4 cases, all red`). Never paste the contents.
+- **Test bodies, code diffs, full file contents**: never reproduced in chat unless the user explicitly asks (`show me`, `paste the file`).
+- **Search results / cache contents**: subagent returns a summary; main chat preserves that abstraction. Don't unfold the raw cache into chat.
+- **Commits**: announce one-liner (`Committed: <subject>`), no diff dump.
+- **Subagent output**: surface decisions and verdicts; don't relay the subagent's intermediate reasoning.
+
+Brevity is the contract. If the user wants to inspect, they open the file or invoke a deliberate "show me" — the default is silent and pointer-only.
+
+### Context budget — phase boundaries
+
+At the end of each phase, if main context feels heavy (heavy reads this phase, several subagent dispatches with large returns, conversation already long), the skill **suggests** the user open a new session for the next phase. State is fully serialized in `.kmm/migrations/kmm/<feature>-<depth>/`; `resume_session.py` picks up at the next phase.
+
+Suggestion, not a cutoff. Phrasing: *"This phase used a lot of context. Want to continue Phase X in a fresh session? State is saved; re-invoke the skill in a new chat."* — user can decline and continue. Skip the suggestion when the next phase is trivially small (Phase E with zero promotions, Phase G PR-only). Skill self-assesses; no token-count required.
 
 ### Tooling discipline
 
@@ -139,7 +150,7 @@ Patterns applied **≥3 times in the same session** become project.md promotion 
 
 Setup facts (modules, DI framework, source-set wiring) captured on **first** occurrence via Phase 0 gap-fill — they're state, not patterns; rule of three doesn't apply.
 
-Rule of three targets **KMM patterns specific to this repo** (project.md). General workflow rules that surfaced during a session (tool choices, edit discipline, ordering reflexes) are handled by the **session-retro skill-improvement step** — see Special actions below.
+Rule of three targets **KMM patterns specific to this repo** (project.md). General workflow rules that surfaced during a session (tool choices, edit discipline, ordering reflexes) get captured in `retro.md` per phase and reviewed in a separate skill-improvement planning session — they don't auto-promote.
 
 ### Scope-creep traceability gate
 
@@ -152,7 +163,7 @@ Every in-flight action must be traceable to a confirmed artifact. The skill halt
 On halt, the skill presents three options:
 
 1. **Extend scope** — invokes the existing `update scope` action; Phase 0 re-walks deps from the new file; affected later-phase files reset.
-2. **Extend plan** — Phase A reopens to add the foundation/interface; logged in plan.md decisions log via diff-confirm.
+2. **Extend plan** — Phase A reopens to add the foundation/interface; logged in plan.md decisions log.
 3. **Follow-up** — logged to `pr.md` "Out-of-scope follow-ups" section, not done this session.
 
 The gate fires immediately at the point of attempted action, not at phase end. Untraceable work is treated as scope creep regardless of size — there is no numeric threshold.
@@ -168,17 +179,16 @@ For intentional behavior changes during migration (library substitution semantic
 
 ### Hooks (deterministic enforcement)
 
-The skill ships three Claude Code hooks in `hooks/` at the plugin root. They convert the highest-stakes advisory invariants — and the most context-expensive workflow step (resume) — into mechanical operations that can't be silently bypassed or context-bloat their way around.
+The skill ships two Claude Code hooks in `hooks/` at the plugin root. They convert the highest-stakes invariant (frozen-baseline edits) and the most context-expensive workflow step (resume) into mechanical operations.
 
 | Hook | Trigger | Behavior |
 |---|---|---|
-| `resume_session.py` | SessionStart | If cwd is in a `kmm/<feature>-<depth>` worktree with a matching `.kmm/migrations/<feature>-<depth>/` folder, reads every phase file and emits a structured state report (per-phase status table, active phase + next pending task, recent decisions, working-tree-dirty flag) into the initial context. Raw phase files are NOT pulled into main context — the hook does the extraction. Silent on non-`kmm/` branches. |
-| `frozen_baseline_guard.py` | PreToolUse on `Write|Edit|MultiEdit|str_replace|create_file` | Reads session `coverage.md` to determine baseline status. Blocks writes to any baseline in status `frozen` / `migrated` / `promoted` unless a `.kmm/exceptions/*.md` file references the baseline by name. Exit code 2 (with explanation) on block. |
-| `kmm_write_notice.py` | PostToolUse on the same tools | Emits a conspicuous notice to stderr whenever a `.kmm/` write happens, so silent writes (missed diff-confirm) are at least visible in the transcript for post-hoc audit. |
+| `resume_session.py` | SessionStart | If cwd is in a `kmm/<feature>-<depth>` worktree with a matching `.kmm/migrations/kmm/<feature>-<depth>/` folder, reads every phase file and emits a structured state report (per-phase status table, active phase + next pending task, recent decisions, working-tree-dirty flag) into the initial context. Raw phase files are NOT pulled into main context — the hook does the extraction. Silent on non-`kmm/` branches. |
+| `frozen_baseline_guard.py` | PreToolUse on `Write\|Edit\|MultiEdit\|str_replace\|create_file` | Reads session `coverage.md` to determine baseline status. Blocks writes to any baseline in status `frozen` / `migrated` / `promoted` unless a `.kmm/exceptions/*.md` file references the baseline by name. Exit code 2 (with explanation) on block. |
 
-Hooks are configured via `hooks/hooks.json` and reference `${CLAUDE_PLUGIN_ROOT}` so they work uniformly across worktrees. They're additive — none of the skill's behavioral rules go away; the hooks are the enforcement floor below the rules.
+Hooks are configured via `hooks/hooks.json` and reference `${CLAUDE_PLUGIN_ROOT}` so they work uniformly across worktrees.
 
-**Why these three.** Frozen-baseline edits are the single most damaging silent-bypass mode (corrupts the equivalence safety net the entire workflow exists to maintain), so it gets full deterministic blocking. Resume context cost was the biggest single context-budget leak in a long session (8 phase files × ~100 lines × growing-as-living-documents), so it moves to deterministic extraction at session start. The `.kmm/` write notice is a lighter touch — doesn't block, just makes silent writes auditable — because a true diff-confirm bypass-prevention hook requires the skill to stage proposed writes through a token-marker scheme, which is a larger change. The notice covers the audit-trail gap in the meantime.
+**Why these two.** Frozen-baseline edits are the single most damaging silent-bypass mode (corrupts the equivalence safety net the entire workflow exists to maintain), so it gets full deterministic blocking. Resume context cost was the biggest single context-budget leak in a long session (8 phase files × ~100 lines × growing-as-living-documents), so it moves to deterministic extraction at session start.
 
 ### Phase file format
 
@@ -204,22 +214,32 @@ Last updated: <ISO timestamp>
 - <considered X, chose Y because Z>
 ```
 
-Files are **living documents** — written progressively as work proceeds (batched per logical unit, diff-confirmed), not at phase end. Resume relies on this.
+Files are **living documents** — written progressively as work proceeds (batched per logical unit), not at phase end. Resume relies on this.
 
 ### Branch + worktree
 
 - Branch naming: `kmm/<feature>-<depth>` (e.g., `kmm/funds-business-logic`, `kmm/funds-presentation`, `kmm/funds-full`).
 - One branch = one session = one folder under `.kmm/migrations/`.
 - Default worktree path: `../<repo-name>-<branch-suffix>/` — the `kmm/` prefix is dropped to avoid filesystem slashes. Configurable via `worktree_path_template` in `project.md`.
-- Skill never creates branches or commits silently — proposes commands, user confirms.
+- Worktree creation does not end the invocation — skill `cd`s into the new worktree and continues Phase 0 in the same session.
+
+### Commit cadence (autopilot)
+
+Invoking the skill authorizes the workflow's commit cadence. Default rhythm per sub-phase: **up to two commits — code + audit**, both autopilot, both composed by Sonnet. Skill announces each as a one-liner (`Committed: <subject>`); no `[run/edit/hold]` prompt.
+
+- **Commit 1 (code)** — test files, migrated source, `git mv` results, foundation interfaces.
+- **Commit 2 (audit)** — `audit.md`, `coverage.md`, `phase-d-followups.md` updates. Conventional message: `chore(kmm): audit update — <sub-phase>`.
+
+If a sub-phase produces only one kind of change, the cadence collapses to one commit. The rule is "up to two", not "exactly two".
+
+**Opt-out**: user passes `commit-cadence: manual` in Phase 0. Skill switches to proposing commands instead of running them. Default is autopilot.
 
 ### Universal hard gates (every phase)
 
 - Phase predecessor must be complete (status field).
-- All `.kmm/` writes go through the diff-confirm pre-write checklist.
-- No silent updates.
+- Writes to `.kmm/project.md` go through the diff-confirm pre-write checklist.
 - Scope-creep traceability gate enforced at every action.
-- User confirmation gates transition to next phase.
+- User confirmation gates transition to next phase (one-line acknowledgment, not a ceremony).
 
 Phase-specific gates are listed in each phase's reference file.
 
@@ -229,25 +249,28 @@ Phase-specific gates are listed in each phase's reference file.
 
 ```
 .kmm/
-├── project.md                      # cross-session: reusable KMM knowledge for this repo
-├── searches/                       # cross-session: cached live-search results (30-day TTL)
+├── project.md                      # TRACKED — cross-session: reusable KMM knowledge for this repo
+├── searches/                       # TRACKED — cross-session: cached live-search results (30-day TTL)
 │   └── <topic-hash>.md
-├── exceptions/                     # cross-session: migration-exception files
+├── exceptions/                     # TRACKED — cross-session: migration-exception files
 │   └── <YYYY-MM-DD>-<short-id>.md
-└── migrations/
-    └── kmm/<feature>-<depth>/      # per-session, mirrors branch path
+└── migrations/                     # LOCAL-ONLY — gitignored, per-session working state
+    └── kmm/<feature>-<depth>/      # mirrors branch path
         ├── scope.md                # Phase 0
         ├── plan.md                 # Phase A
         ├── audit.md                # Phase B
         ├── coverage.md             # session-local registry (audited → frozen → migrated → promoted)
+        ├── phase-d-followups.md    # accumulator for SUTs deferred to Phase D + post-migration cleanups
         ├── freeze.md               # Phase C
         ├── migration.md            # Phase D
         ├── move.md                 # Phase E
         ├── validation.md           # Phase F
         ├── heatmap.md              # Phase F — QA checklist artifact
         ├── pr.md                   # Phase G
-        └── retro.md                # Session-end friction signal (see Special actions)
+        └── retro.md                # Per-phase friction dump (see Special actions)
 ```
+
+**Git tracking** — `project.md`, `searches/`, `exceptions/` are checked into the repo (they're reusable across sessions and across contributors). `migrations/` is gitignored via a top-level `.gitignore` entry (`.kmm/migrations/`) — session working state is local to whoever ran the migration. Phase 0 proposes this entry on first run in a repo if it's missing.
 
 **project.md scope** — reusable KMM knowledge for this repo: modules + source-set hierarchy, DI framework + coexistence stance, persistence tech + schema locations, networking config (baseUrl, BuildKonfig), UI strategy (native vs CMP timeline), SKIE config, iOS consumption / distribution flow, manual QA workflow, test-infra wiring, conventions, hard-won gotchas. **Excludes:** migration state (lives in session folders), generic KMM how-tos (runtime lookup).
 
@@ -296,17 +319,28 @@ Read phase references **on demand** — when the workflow enters or resumes a ph
 
 ## Special actions (anytime, user-invoked)
 
-- **Abandon session.** User invokes `abandon session`. Skill prompts for **session retro first** (see below) — friction signal matters most from abandoned sessions. Then asks: revert changes / keep but archive? Confirms. Removes session folder, optionally `git worktree remove`. Branch left for user to handle.
+- **Abandon session.** User invokes `abandon session`. Skill prompts for retro on the current in-flight phase first — friction signal matters most from abandoned sessions. Then asks: revert changes / keep but archive? Confirms. Removes session folder, optionally `git worktree remove`. Branch left for user to handle.
 - **Update scope.** Post-Phase-0, user wants to add/remove files. Phase 0 re-runs in update-mode: re-walks deps from new files, re-classifies, re-confirms. Affected later-phase files reset (audit/freeze/migration entries removed for newly out-of-scope files; new entries added for newly in-scope).
 - **Update project.md manually.** User invokes; skill shows current contents; user proposes change; diff-confirm; write.
 - **Resume.** Implicit on every invocation in an in-flight session. Self-audit on resume catches drift before continuing.
-- **Session retro.** Fires automatically after Phase G PR opens, or as the first step of `abandon session`. Skill asks the user four short questions and writes responses to `.kmm/migrations/kmm/<feature>-<depth>/retro.md`:
-    1. **What went smoothly?** (workflow steps, automation, decisions that landed cleanly)
-    2. **What got stuck?** (skill or reference fell short, repeated clarifications, gates that didn't fit)
-    3. **What would have helped?** (missing example, tighter rule, new gate, clearer phrasing, new reference section)
-    4. **Workflow rules to promote.** Haiku scans the session's decision logs and self-review notes for general workflow rules (tool choices, edit discipline, ordering reflexes) that recurred as user-feedback or course-correction. Sonnet drafts each as a candidate skill-file edit. User marks each `skill` / `drop`. `skill` candidates are routed to the relevant file (cross-cutting in SKILL.md if global to the skill, the relevant phase reference if phase-specific), diff-confirmed, written. This is the skill's own learning loop — distinct from Rule of three (which targets project.md for KMM patterns specific to the repo).
-  
-  Bullet points, not essays. Diff-confirm before writing. Purpose is structured friction signal for the next skill iteration — not a postmortem. The user can skip with `skip retro`, but the default is to capture. Across sessions, `retro.md` files accumulate as the maintenance backlog for the skill itself.
+
+### Per-phase retro
+
+Retro fires at the **end of each phase** (Phase 0 through Phase G). It is **purely reflective** — concise dump of friction signal. No skill/drop verdicts, no promotion candidates, no in-session decisions. Decisions about what to promote into the skill happen in a **separate planning session** that consumes retro.md (user opens a fresh session in the skill repo, enters plan mode, drops retro.md content into context, walks through improvements collaboratively, edits skill files there). Migration sessions stay focused on migration.
+
+**File:** `.kmm/migrations/kmm/<feature>-<depth>/retro.md`, **amended** with a new section per phase. Header format: `## Phase X — <name> (captured YYYY-MM-DD)`.
+
+**Per-phase contents** — five short bullet sections, scannable:
+
+1. **Phase recap** (1–2 lines) — what was accomplished this phase (e.g., scope count, key library substitutions chosen, baselines green, files migrated). Lets a future skill-improvement session understand context without re-reading the migration session.
+2. **What went smoothly** — workflow steps that landed cleanly, subagent dispatches that paid off, decisions that compounded.
+3. **What got stuck** — gates that didn't fit, repeated clarifications, deps surfaced late, classpath gaps, subagent context drops.
+4. **What could improve the skill** — concrete refinements (e.g., "auto-inject resolved decisions into per-file subagent prompts", "Phase 0 should scan SUT classpaths upfront"). One line per item. No verdicts, no `[skill/drop]` — just signal.
+5. **User steering log** — every moment in the phase where the user manually corrected, redirected, or guided the model. Highest-signal section — these are exactly where the skill failed to anticipate. One line per entry: `<verbatim or close paraphrase of user steering> — context: <what model was doing>`. The skill self-tags these during the phase (mental note: "user just steered me here, log at retro") so retro-time scan doesn't have to recover them from full context. Examples to capture: "no", "don't", "stop", "actually", "wait", "do X instead", or any non-trivial direction change the user introduced.
+
+**Format discipline:** Bullets, not essays. Concise but self-contained — a separate session reading retro.md (without the original migration conversation) should understand what happened and what could improve. No drama. Pure signal.
+
+User can skip with `skip retro` — skill writes one "skipped" line for that phase and moves on.
 
 ---
 

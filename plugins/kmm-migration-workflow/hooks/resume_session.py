@@ -72,12 +72,12 @@ def session_folder(kmm_root: Path, branch: str) -> Path | None:
     """Resolve session folder from branch name.
 
     Branch convention: `kmm/<feature>-<depth>` → folder
-    `.kmm/migrations/<feature>-<depth>/`.
+    `.kmm/migrations/kmm/<feature>-<depth>/`.
     """
     if not branch.startswith("kmm/"):
         return None
     suffix = branch[len("kmm/"):]
-    candidate = kmm_root / "migrations" / suffix
+    candidate = kmm_root / "migrations" / "kmm" / suffix
     if candidate.is_dir():
         return candidate
     return None

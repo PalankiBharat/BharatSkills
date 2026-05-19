@@ -46,11 +46,11 @@ Re-read the draft:
 - If user wants skill to drive: `gh pr create --title <X> --body-file .kmm/migrations/<branch>/pr.md`.
 - Else: skill outputs the body to terminal, user opens PR manually.
 
-### G.5 — Session retro
+### G.5 — Phase G retro
 
-After PR is open (or body output), the skill runs the **Session retro** action (see `SKILL.md` → Special actions). Four short questions, written to `.kmm/migrations/<branch>/retro.md` — including the workflow-rules-to-promote review that routes general workflow improvements back into the skill itself. Diff-confirmed before write. User can `skip retro` to bypass.
+After PR is open (or body output), amend `retro.md` with `## Phase G — PR Creation (captured YYYY-MM-DD)` — five-bullet structure (recap / smooth / stuck / could-improve / user steering log). User can skip with `skip retro`.
 
-This is the final step of the workflow. The retro.md file is the closing artifact of the session, parallel to pr.md being the closing artifact for the PR.
+This is the final phase retro of the session. **No session-end consolidate, no skill/drop verdicts.** The retro.md file (now containing one section per phase that ran) is the closing artifact of the session, parallel to pr.md being the closing artifact for the PR. A future planning session can read retro.md to drive skill improvements; this session does not.
 
 ---
 

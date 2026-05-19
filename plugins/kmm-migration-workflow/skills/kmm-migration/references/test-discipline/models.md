@@ -15,6 +15,7 @@ Hold data. Most also have computed properties (`val pnl: Double get() = …`) or
 - ✅ Factory / static builder.
 - ✅ Manually overridden `equals`/`hashCode` (rare in Kotlin — flag if seen).
 - ❌ Pure data class with no logic? No test. Don't waste keystrokes asserting that `data class Foo(val x: Int)` round-trips through copy.
+- ❌ DTOs with serializer annotations (`@SerializedName`, `@SerialName`) and no logic: library-substitution targets. See `migration-baselines.md` §Library-substitution — almost always Path B (defer to Phase D, write the round-trip test on the migrated `@Serializable` type then).
 
 ### Coverage checklist
 

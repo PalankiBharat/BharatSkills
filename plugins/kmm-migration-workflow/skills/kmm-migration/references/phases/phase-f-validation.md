@@ -121,6 +121,9 @@ After fix → **return to F.1, re-validate fully**. No partial re-validation.
 
 When all F passes → user explicit "migration complete" confirmation → `validation.md` status complete.
 
+### F.8 — Phase F retro
+Amend `retro.md` with `## Phase F — Validation (captured YYYY-MM-DD)`. Five-bullet structure. User can skip with `skip retro`. User-steering log section is especially load-bearing here — F.6 is human-driven and friction often surfaces verbally.
+
 ---
 
 ## Outputs

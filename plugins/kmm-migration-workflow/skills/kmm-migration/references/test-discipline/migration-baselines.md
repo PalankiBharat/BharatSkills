@@ -17,6 +17,57 @@ This only works if every test is written so that the only thing it
 can fail on is **observable behavior change** — never internal code
 shape.
 
+### Skip rules (when no baseline is written)
+
+Not every in-scope file gets a baseline. The skip rules below are the canonical list — refer here from per-type files rather than re-deriving.
+
+| Rule | Detail | Source |
+|---|---|---|
+| Pure data class | `data class Foo(val x: Int)` with no logic, no computed properties, no overridden `equals`/`hashCode`. Round-trip-by-copy isn't a test. | `models.md` |
+| Pure interface | `interface XRepository { ... }` / `interface XUseCase { ... }` with no default impls, no `companion object` logic. Coverage transitive through `*Impl`. | `repositories.md`, `usecases.md` |
+| Pure-factory UseCase impl | Impl just constructs and returns a domain object; private-vals not assertable; no branching, no side effects. Coverage transitive through returned object's baseline. | `usecases.md` |
+| `lib-swap: path-b` deferral | SUT exposes lib-specific types (Retrofit exception in public Result, `@SerializedName` IS the contract). Baseline deferred to Phase D — see §Library-substitution below. | this file, Phase A audit |
+| Static-service-locator deferral | SUT calls non-injectable static deps (e.g., `UserModel.getUcc()`). Baseline deferred to Phase D after the inject-the-collaborator refactor. Tracked in `phase-d-followups.md`. | Phase B |
+| Pre-existing broken test (not in scope) | `@Ignore`'d in B.2 / E.0. Not the migration's job. | this file §Quarantine |
+
+Skipped rows flip `coverage.md` status `relocated` → `audited` directly with `baseline-deferred-to-phase-d` (for the deferral rules) or no baseline path (for the pure-* rules).
+
+### Library-substitution targets (Retrofit→Ktor, Joda→kotlinx-datetime, Gson→kotlinx.serialization)
+
+A SUT migrated alongside a library swap gets classified during Phase A audit. **Default Path A**; Path B only when Path A is impossible.
+
+**Path A — contract baseline (default).** SUT output is assertable without referencing the old-lib types. Write the baseline against parsed model / returned DTO using MockWebServer or a hand-rolled HTTP fake (no Retrofit imports), against the SUT's date-string output (no Joda imports), or against round-tripped objects (no Gson imports). The baseline survives the swap unchanged because it never touched the swapped surface.
+
+```kotlin
+// GOOD — Path A. Asserts on SUT output; HTTP layer is contract-faked.
+class ReportRemoteStoreTest {
+    private val mockWebServer = MockWebServer()
+    private val sut = ReportRemoteStoreImpl(baseUrl = mockWebServer.url("/").toString())
+
+    @Test
+    fun `getReports parses ISO dates correctly`() = runTest {
+        mockWebServer.enqueue(MockResponse().setBody("""[{"date":"2026-05-19","amount":100}]"""))
+        val out = sut.getReports().getOrThrow()
+        assertEquals(LocalDate(2026, 5, 19), out[0].date)
+        assertEquals(100, out[0].amount)
+    }
+}
+```
+
+**Path B — defer to Phase D (fallback only).** SUT public surface unavoidably exposes old-lib types — e.g., a RemoteStore method returning `Result<T, retrofit2.HttpException>` to callers, or a DTO whose contract IS its `@SerializedName`-annotated wire format. Phase A audit marks the row `lib-swap: path-b`. Phase B writes a `phase-d-followups.md` entry (Source row / Reason / Proposed action / Status: open) and skips the baseline. Phase D writes the baseline against the migrated impl, runs it red against pre-migration code as an inverted equivalence check, then flips green post-swap.
+
+```kotlin
+// BAD for Path A — couples baseline to Retrofit. Defer to Phase D instead.
+@Test
+fun `getReports returns HttpException on 500`() = runTest {
+    // ...
+    val failure = sut.getReports().exceptionOrNull()
+    assertIs<retrofit2.HttpException>(failure)  // ← can't survive Retrofit removal
+}
+```
+
+**Decision rule**: if a baseline can be written that compiles unchanged before and after the lib swap → Path A. Only otherwise → Path B. Bias hard toward A — most lib swaps don't expose swapped types in the public surface.
+
 ### What "observable" means (allowlist + denylist)
 
 **Allowed assertions (these survive migration):**
