@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Use when reviewing a GitHub PR — spawns 25 focused single-responsibility agents in parallel by file type, aggregates findings, supports calibration (human in loop) and autopilot (--auto) modes.
+description: Use when reviewing a GitHub PR — spawns up to 8 grouped review agents in parallel by file type, aggregates findings, supports calibration (human in loop) and autopilot (--auto) modes.
 ---
 
 # PR Review — Multi-Agent Team
@@ -65,8 +65,8 @@ Parse the full diff into per-file chunks. Route each file:
 
 | File path pattern | Agent group |
 |---|---|
-| `**/src/main/**`, `**/src/commonMain/**` | prod (21 agents) |
-| `**/src/test/**`, `**/src/androidTest/**` | test (2 agents) |
+| `**/src/main/**`, `**/src/commonMain/**` | prod (3–6 agents) |
+| `**/src/test/**`, `**/src/androidTest/**` | test (1 agent) |
 | `*.gradle`, `*.toml`, `libs.versions.toml`, root `*.xml` (not `AndroidManifest.xml`) | config (1 agent) |
 | `releasenotes*`, `CHANGELOG*`, `*.txt` at root | **skip** |
 | anything else | **skip and log** |
@@ -75,58 +75,41 @@ State total routed file count upfront: "N files to review (X prod, Y test, Z con
 
 ---
 
-## Step 3: Triage Then Spawn
+## Step 3: Group Selection Then Spawn
 
-### Step 3a: Decider Agent (which agents to spawn)
+Patterns are grouped into 6 themed review agents for prod files. **Always read all pattern files for each group before spawning** — inject their full text into the agent prompt.
 
-Spawn one lightweight decider agent per file **before** any review agents. The decider reads the full diff and reasons about which specialized agents are genuinely needed — not just keyword presence, but whether the concerns actually apply to this code.
+### Agent Groups
 
-**Core agents — always spawn, no decision needed (7):**
-`naming`, `oop`, `readability`, `code-smell`, `bug-detection`, `solid`, `design-patterns`
+**Always-run (3 — spawn for every prod file):**
 
-**Decider agent prompt:**
-```
-Read the diff below line by line. Decide which specialized review agents to spawn beyond the 7 core agents (naming, oop, readability, code-smell, bug-detection, solid, design-patterns — always spawned separately).
+| Group | Patterns covered |
+|---|---|
+| `code-quality` | naming, readability, code-smell, comments |
+| `design` | oop, solid, design-patterns |
+| `safety` | bug-detection, error-handling, null-safety, blast-radius |
 
-For each specialized agent, spawn it only if the diff contains code where those concerns GENUINELY apply — not just because a keyword appears. Examples of when NOT to spawn:
-- Don't spawn concurrency just because `suspend` appears on a trivial delegating function
-- Don't spawn performance just because `.map {}` appears in a one-shot setup path
-- Don't spawn comments just because `//` appears in an import block
-- Don't spawn blast-radius for a private helper nobody calls
+**Conditional (spawn only when triggers match in the diff):**
 
-## Specialized agents and what they cover:
-- error-handling: try/catch blocks, when/else exhaustiveness on sealed classes or enums, exception swallowing, CancellationException propagation
-- null-safety: force-unwrap (!!), unsafe collection access (.first() / [0] without guard), nullable returned but used without check
-- concurrency: coroutines (launch/async/Flow/Channel), shared mutable state across coroutines, Dispatchers, suspend functions with side effects
-- logging: Log.* / Timber.* calls, TAG consistency, PII in log messages, log level appropriateness
-- immutability: var fields that could be val, MutableList/MutableMap exposed, state mutation patterns
-- performance: N+1 queries, allocations in hot paths (onDraw / mapIndexed on every frame), wrong data structure for access pattern
-- comments: non-obvious WHY comments present or missing; misleading/outdated docstrings
-- blast-radius: public/internal API signature or semantic changes, silent failure regressions (throws → returns default), data loss paths
-- security: credentials/tokens hardcoded, PII in logs, unencrypted SharedPreferences, WebView JS, exported components, cleartext URLs
-- architecture: layer boundary violations (network calls in UI, business logic in data layer), Repository/ViewModel dependency direction
-- scalability: pagination, caching strategy, debounce/throttle for user input, SSOT violations
-- compose: @Composable, remember/derivedStateOf, side-effect APIs (LaunchedEffect/DisposableEffect), collectAsState lifecycle, LazyColumn keys
-- android-lifecycle: Activity/Fragment lifecycle, wrong coroutine scope, listener registration without cleanup, StateFlow without repeatOnLifecycle
-- android-guidelines: Android framework usage patterns, WorkManager, DataStore, Ktor networking, DI scoping, permissions, notifications
+| Group | Patterns covered | Trigger keywords in diff |
+|---|---|---|
+| `runtime` | concurrency, performance, scalability, immutability | `suspend`, `Flow`, `Channel`, `launch`, `async`, `Dispatchers`, `coroutineScope`, `var ` (shared state) |
+| `android` | android-lifecycle, android-guidelines, compose | `Activity`, `Fragment`, `@Composable`, `ViewModel`, `onResume`, `onCreate`, `WorkManager`, `repeatOnLifecycle`, `LaunchedEffect` |
+| `security-arch` | security, architecture, logging | `Log.`, `Timber.`, `http://`, `SharedPreferences`, `Repository`, `UseCase`, token, secret, password, credential |
 
-## Output format — respond with ONLY a JSON array, no explanation:
-["error-handling", "null-safety"]
-```
-
-The decider output drives Step 3b. State the result: "Spawning N agents for `<filename>`: core(7) + [decider output]"
+State upfront: "Spawning N agents for `<filename>`: always(3) + conditional([groups])."
 
 ### Step 3b: Spawn Selected Agents
 
-For each file group, spawn all selected agents simultaneously. Each agent receives:
+Read all pattern files for each selected group in parallel, then spawn all selected agents simultaneously — one agent per group. Each agent receives:
 1. The file diff (trimmed to `+` lines with hunk context)
 2. The TechStackProfile as a structured block
-3. The content of its dedicated pattern file — **read the file with the Read tool first, then inject its full text into the prompt**
+3. All pattern checklists for its group, clearly labelled by sub-pattern name
 
 ### Agent Prompt Template
 
 ```
-You are the <AGENT_NAME> for a code review. Your single job: <JOB>.
+You are the <GROUP_NAME> reviewer for a code review. You cover: <list of sub-patterns>.
 
 ## Tech Stack
 networking: <value>
@@ -138,34 +121,38 @@ database: <value>
 navigation: <value>
 serialization: <value>
 
-## Your Pattern Checklist
-<full content of ~/.claude/skills/review-pr/patterns/<agent>.md>
+## Your Pattern Checklists
+
+### <sub-pattern-1>
+<full content of ~/.claude/skills/review-pr/patterns/<sub-pattern-1>.md>
+
+### <sub-pattern-2>
+<full content of ~/.claude/skills/review-pr/patterns/<sub-pattern-2>.md>
+
+... (repeat for each sub-pattern in the group)
 
 ## Instructions
-Review ONLY the diff below. Report findings that match your checklist.
+Review ONLY the diff below. Report findings that match any checklist above.
 For each finding:
   - path: <file path>
   - line: <line number from + side of hunk header>
   - severity: blocker | non-blocking | nit
-  - agent: <your agent name>
+  - agent: <sub-pattern name that owns this finding, e.g. "null-safety" not "safety">
   - finding: <concise description>
 
 If no findings, respond with exactly: NO_FINDINGS
 
-Do NOT report findings outside your checklist scope.
+Do NOT report findings outside your checklist scopes.
 
 ## Diff
 <file diff>
 ```
 
-### Prod file agents (up to 21, selected by triage in Step 3a):
-naming, oop, solid, error-handling, design-patterns, code-smell, comments,
-security, concurrency, performance, scalability, null-safety, architecture,
-immutability, readability, logging, android-lifecycle, compose,
-android-guidelines, bug-detection, blast-radius
+### Prod file agents (3–6, based on trigger matching):
+code-quality, design, safety (always) + runtime, android, security-arch (conditional)
 
-### Test file agents (spawn both in parallel per test file):
-test-coverage, test-patterns
+### Test file agent (1 per test file — always):
+Merge test-coverage and test-patterns into a single `test` agent using both pattern files.
 
 ### Config agent (1 per config file):
 versions
@@ -280,4 +267,6 @@ EOF
 - Reviewing releasenotes/changelogs → skip by default.
 - Guessing tech stack → always detect from build files in Step 0.
 - Moving to next file without waiting (calibration mode) → always pause after findings.
-- Spawning agents sequentially → spawn all agents for a file simultaneously in one message.
+- Spawning groups sequentially → spawn all selected groups for a file simultaneously in one message.
+- Labelling findings with group name → always use the sub-pattern name (e.g. `null-safety`, not `safety`).
+- Skipping trigger check → always scan the diff for conditional group keywords before deciding which groups to spawn.
