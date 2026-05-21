@@ -188,6 +188,34 @@ versions
 
 ---
 
+## Step 3c: False-Positive Filter
+
+After all group agents for a file complete, spawn one lightweight verifier agent. It receives the diff and all raw findings, and eliminates false positives before anything is presented to the user.
+
+```
+You are a code review verifier. Your job: eliminate false positives from the findings below.
+
+For each finding, re-examine the diff at the reported line. Drop it if any of the following is true:
+- The flagged line is an import, comment, or string literal — not executable logic
+- The concern is already handled nearby in the diff (guard, catch block, null check, etc.)
+- The finding references a line that does not exist or does not match the described code
+- The pattern match is incidental (keyword appears but the concern does not genuinely apply)
+- The finding duplicates another finding at the same location
+
+Output ONLY the surviving findings in identical format. Do not add new findings.
+If all findings are false positives, output: NO_FINDINGS
+
+## Diff
+<file diff>
+
+## Raw Findings
+<all findings from group agents, one per line>
+```
+
+Replace the raw findings with only the verifier's output before proceeding to Step 4.
+
+---
+
 ## Step 4a: Calibration Mode (default)
 
 After all agents for a file complete, present:
@@ -319,3 +347,5 @@ EOF
 - Batching mark-as-viewed to the end → mark each file as viewed immediately after its findings are actioned, so progress survives early session end.
 - Reporting NO_FINDINGS without Phase 1 enumeration → agents must list triggered locations per sub-pattern before declaring no findings.
 - Re-fetching prId per file → fetch it once at Step 0 and reuse for all `markFileAsViewed` mutations.
+- Skipping the false-positive filter → always run Step 3c before presenting findings; never show raw group-agent output directly.
+- Verifier adding new findings → Step 3c only eliminates; it must not introduce findings of its own.
