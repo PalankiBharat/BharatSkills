@@ -130,6 +130,17 @@ Verdict: 🟢 SAFE TO MERGE | 🟡 MERGE WITH CAUTION | 🔴 DO NOT MERGE
 **Generate Only** (no MCP): Generate YAML files → Report with all PENDING, note files are ready  
 **Re-run Failures**: Read existing report, re-run only ❌ and ⚠️ tests
 
+## Common Mistakes
+
+| Mistake | Correct approach |
+|---|---|
+| Tracing class dependencies to decide what to test | Start from user journeys — what is the user trying to accomplish? |
+| Dumping all tests into one large YAML file | One `.yaml` file per test case — easier to re-run and read failures |
+| Putting edge cases into `.maestro/flows/` | Smoke flows only in `flows/` — branch-specific tests go in `edge-cases/{branch}/` |
+| Using `text:` selectors for stock app elements | Prices, symbols, % appear 4+ times per screen — always use `id:` |
+| Marking tests PASS without running them | If Maestro MCP is unavailable, mark PENDING — never claim PASS without execution evidence |
+| Writing tests before checking if tags exist | Always grep for testTag/semanticsTag first (maestro-android-testing STEP 1) |
+
 ## Key Principles
 
 1. **Journeys first, code second.** Start from what the user is trying to do — not the class that changed.
