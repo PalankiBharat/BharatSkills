@@ -43,6 +43,24 @@ Detect from dependency names present in the file:
 
 If undetected → set to `unknown` and the relevant agent must flag "unknown stack — review manually" instead of guessing.
 
+Then fetch the PR node ID and viewed status for all files in one GraphQL call — store both for reuse across all later steps:
+
+```bash
+gh api graphql -f query='
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      id
+      files(first: 100) {
+        nodes { path viewerViewedState }
+      }
+    }
+  }
+}' -f owner=<owner> -f repo=<repo> -F number=<number>
+```
+
+Save `prId` (the `id` field) and `viewedPaths` (paths where `viewerViewedState == "VIEWED"`) for use in Steps 2 and 4. Note: GitHub auto-resets `VIEWED` state when the author pushes new commits to a file — so previously reviewed files reappear correctly when they change.
+
 ---
 
 ## Step 1: PR Description Check
@@ -71,7 +89,7 @@ Parse the full diff into per-file chunks. Route each file:
 | `releasenotes*`, `CHANGELOG*`, `*.txt` at root | **skip** |
 | anything else | **skip and log** |
 
-State total routed file count upfront: "N files to review (X prod, Y test, Z config)."
+After routing, cross-reference `viewedPaths` from Step 0 and skip any file whose `viewerViewedState` is `VIEWED`. State upfront: "N files to review (X prod, Y test, Z config) — S already viewed and skipped."
 
 ---
 
@@ -132,15 +150,26 @@ serialization: <value>
 ... (repeat for each sub-pattern in the group)
 
 ## Instructions
-Review ONLY the diff below. Report findings that match any checklist above.
-For each finding:
+Review ONLY the diff below. Follow this two-phase process:
+
+**Phase 1 — Enumerate locations:** For every sub-pattern in your group, walk the diff and list every line that triggered inspection. This forces a full pass before any verdict.
+
+## Locations examined
+### <sub-pattern-1>
+- <file>:<line> — <what triggered inspection>
+- (or: no triggers found in this diff)
+
+### <sub-pattern-2>
+- ...
+
+**Phase 2 — Report findings:** For each triggered location that represents a genuine problem, emit a finding:
   - path: <file path>
   - line: <line number from + side of hunk header>
   - severity: blocker | non-blocking | nit
   - agent: <sub-pattern name that owns this finding, e.g. "null-safety" not "safety">
   - finding: <concise description>
 
-If no findings, respond with exactly: NO_FINDINGS
+Only respond with NO_FINDINGS after Phase 1 confirms no triggers exist across all sub-patterns.
 
 Do NOT report findings outside your checklist scopes.
 
@@ -183,15 +212,22 @@ FINDINGS:
 **STOP here. Present the block above and wait for user response before doing anything else.**
 
 Feedback handling:
-- `raise` or `raise all` → post all findings for this file as inline GitHub comments (use Step 5 format)
-- `skip <N>` → discard finding N, ask "should I weaken this pattern?" (y/n)
-- `edit <N> "<text>"` → post finding N with the provided text instead
-- `next` → move to next file without posting any comments
+- `raise` or `raise all` → post all findings for this file as inline GitHub comments (use Step 5 format), then mark file as viewed
+- `skip <N>` → discard finding N, ask "should I weaken this pattern?" (y/n) — do NOT mark as viewed yet
+- `edit <N> "<text>"` → post finding N with the provided text instead — do NOT mark as viewed yet
+- `next` → move to next file without posting any comments, then mark file as viewed
 - Natural language miss:
   1. Post the described finding as an inline comment immediately
   2. Determine which agent owns this pattern (ask user if not clear)
   3. Append a new rule to `~/.claude/skills/review-pr/patterns/<agent>.md`
   4. Confirm: "Added to <agent>.md — will catch this next time."
+
+Mark a file as viewed using:
+```bash
+gh api graphql -f query='mutation($prId:ID!, $path:String!) {
+  markFileAsViewed(input:{pullRequestId:$prId, path:$path}) { clientMutationId }
+}' -f prId=<prId> -f path=<file-path>
+```
 
 Repeat for each file. After all files: go to Step 5.
 
@@ -209,7 +245,9 @@ inside `.onSuccess {}` means failures trigger a retry on every subsequent call.
 
 Only skip or raise a finding after the intent is clear. In autopilot mode, ambiguous findings become questions posted inline — they do not block the verdict unless they reveal a definite bug.
 
-Collect all findings from all agents across all files. Post in one or a few API calls:
+Collect all findings from all agents across all files. Post comments and mark each file as viewed immediately after its comments are posted — don't batch the mark-as-viewed calls to the end. This ensures partial progress is saved if the session ends early.
+
+Post in one or a few API calls:
 
 ```bash
 gh api repos/<owner>/<repo>/pulls/<number>/reviews \
@@ -223,6 +261,13 @@ gh api repos/<owner>/<repo>/pulls/<number>/reviews \
   ]
 }
 EOF
+```
+
+After posting comments for each file, mark it as viewed:
+```bash
+gh api graphql -f query='mutation($prId:ID!, $path:String!) {
+  markFileAsViewed(input:{pullRequestId:$prId, path:$path}) { clientMutationId }
+}' -f prId=<prId> -f path=<file-path>
 ```
 
 Then go to Step 5.
@@ -270,3 +315,7 @@ EOF
 - Spawning groups sequentially → spawn all selected groups for a file simultaneously in one message.
 - Labelling findings with group name → always use the sub-pattern name (e.g. `null-safety`, not `safety`).
 - Skipping trigger check → always scan the diff for conditional group keywords before deciding which groups to spawn.
+- Skipping viewed-file filter → always cross-reference `viewedPaths` before routing; don't re-review already-viewed files.
+- Batching mark-as-viewed to the end → mark each file as viewed immediately after its findings are actioned, so progress survives early session end.
+- Reporting NO_FINDINGS without Phase 1 enumeration → agents must list triggered locations per sub-pattern before declaring no findings.
+- Re-fetching prId per file → fetch it once at Step 0 and reuse for all `markFileAsViewed` mutations.
