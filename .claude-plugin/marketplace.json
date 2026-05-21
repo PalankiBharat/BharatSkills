@@ -5,8 +5,8 @@
     "email": "manish@punchhq.com"
   },
   "metadata": {
-    "description": "Claude Code skills for Android development workflows \u2014 feature analysis, QA automation, and more.",
-    "version": "1.6.1",
+    "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",
+    "version": "1.7.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -43,8 +43,8 @@
     {
       "name": "qa-autopilot",
       "source": "./plugins/qa-autopilot",
-      "description": "Automated QA testing \u2014 analyzes git branch changes, generates comprehensive test cases, and executes them on a real Android device via phone-driver.",
-      "version": "1.0.0",
+      "description": "Automated QA testing — analyzes git branch changes, generates Maestro YAML test flows (smoke + edge-case directories), and produces a QA report with pass/fail results.",
+      "version": "1.1.0",
       "category": "testing",
       "tags": [
         "android",

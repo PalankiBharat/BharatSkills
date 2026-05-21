@@ -229,15 +229,14 @@ Steps: Navigate to {affected screen}
 Expected: No crash, no blank screen, graceful degradation (lower-res images OK, but data must show)
 ```
 
-### Phone Driver performance commands
+### Maestro performance assertions
 
-Phone driver can't measure FPS directly, but it CAN detect:
-- **ANR dialogs**: "Verify no 'App isn't responding' dialog appears"
-- **Visible jank**: "Scroll the list rapidly and check if content appears smoothly"
-- **Load completion**: "Wait for {element} to appear — if it takes more than 5 seconds, report as slow"
-- **Crash/blank screen**: "Verify the screen shows data, not a blank or error state"
+Maestro can detect:
+- **ANR dialogs**: `assertNotVisible: "isn't responding"`
+- **Load completion**: `extendedWaitUntil: { visible: { id: "content_element" }, timeout: 5000 }` — if it times out, flag as slow
+- **Crash/blank screen**: `assertVisible: { id: "main_content" }` after navigation
 
-For precise metrics, generate a separate section in the report recommending:
+For precise metrics, generate a section in the report recommending:
 ```
 Manual performance verification needed:
 - Run with Android Studio Profiler attached
@@ -263,26 +262,34 @@ Generate this checklist automatically by scanning the diff:
 | `withContext(Dispatchers.IO)` added/removed | Main thread blocking check |
 | `GlobalScope` / missing cancellation | Memory leak test (navigate away and back) |
 
-## Generating Phone Driver Instructions
+## Generating Maestro YAML
 
-For each test case, translate steps into phone-driver-compatible natural language:
+For each test case, produce a `.yaml` file. Follow `maestro-android-testing` for the full structure and selector rules.
 
-**Good (actionable, specific):**
-```
-"Open the app, go to Order Entry, type '0' in the quantity field, tap 'Place Order' button, verify an error toast or message appears saying quantity must be positive"
+**File placement:**
+- Smoke/golden path → `.maestro/flows/{journey-name}.yaml`
+- Branch-specific edge case → `.maestro/edge-cases/{branch}/TC-{ID}-{slug}.yaml`
+
+**Good YAML step (specific, ID-based):**
+```yaml
+- tapOn:
+    id: "punch"
+- assertVisible:
+    id: "order_toast"
 ```
 
-**Bad (vague, unverifiable):**
-```
-"Test that order entry works with zero"
+**Bad (vague, text-based):**
+```yaml
+- tapOn: "Place Order"
+- assertVisible: "Order placed"
 ```
 
-**Rules for phone-driver instructions:**
-1. Always start with how to reach the screen (launch app, navigate)
-2. Use exact element text visible on screen (not code identifiers)
-3. End with a VERIFIABLE expected result (text visible, screen changed, element present)
-4. Include necessary wait/delays for animations or API calls
-5. Specify cleanup if needed (back out, clear data)
+**Rules for YAML generation:**
+1. Always start with `extendedWaitUntil` for the first screen element — never assume instant load
+2. Use `id:` selectors from testTag/semanticsTag — grep the codebase first (STEP 1 in maestro-android-testing)
+3. End every flow with an `assertVisible` on an element that proves the expected state was reached
+4. Use `runFlow` with `when:` for conditional steps (system dialogs, optional screens)
+5. Add `# No testTag` comment on the rare text-selector exception — do not leave it unexplained
 
 ## Priority Assignment Matrix
 
