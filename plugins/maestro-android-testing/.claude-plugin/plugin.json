@@ -1,0 +1,24 @@
+{
+  "name": "maestro-android-testing",
+  "version": "1.0.0",
+  "description": "Maestro UI testing for Android apps built with Jetpack Compose. Enforces accessibility-ID-first selectors (never coordinates, never ambiguous text), mandatory MCP check before any test authoring, and structured flow headers so AI agents understand context without reading the full file. Includes fingerprint/biometric bridge for emulator testing.",
+  "author": {
+    "name": "PunchHQ",
+    "email": "manish@market-pulse.in"
+  },
+  "category": "android",
+  "keywords": [
+    "maestro",
+    "android",
+    "ui-testing",
+    "compose",
+    "jetpack-compose",
+    "qa",
+    "e2e",
+    "biometric",
+    "fingerprint",
+    "accessibility",
+    "testTag",
+    "manual-qa"
+  ]
+}
