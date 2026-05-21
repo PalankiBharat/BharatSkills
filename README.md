@@ -7,7 +7,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | Plugin | Version | Description |
 |---|---|---|
 | `feature-analyzer` | 2.2.0 | Pre-dev story interrogation — team-lead orchestrator walks code + Figma flows, honours project memory, strips out-of-platform sections, emits a centred dark-mode HTML doc with the original story pinned alongside option-pill questions across PM / Backend / Android / Design / QA / Compliance / DevOps roles |
-| `qa-autopilot` | 1.0.0 | Automated QA — analyzes git changes, generates test cases, executes on Android devices |
+| `qa-autopilot` | 1.1.0 | Automated QA — analyzes git changes, generates Maestro YAML flows (smoke + edge-case dirs), produces pass/fail QA report |
 | `skill-feedback` | 1.2.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
 | `clean-code` | 1.2.7 | Clean Code principles (Uncle Bob) with auto-loading prehook — naming, functions, classes, error handling, testing |
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
