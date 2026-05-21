@@ -1,6 +1,6 @@
 ---
 name: maestro-android-testing
-description: Use when writing Maestro UI tests for Android, running QA on any screen or flow, or when the user says "maestro test", "manual QA", "run QA", "write a test", "test this screen", or "UI test". Also triggers when asked to verify any Android screen behavior end-to-end.
+description: Use when writing or executing Maestro YAML UI tests for Android, or when the user says "maestro test", "write a test", "test this screen", "UI test", or "test this flow". Also triggers when qa-autopilot or any skill needs to generate Maestro YAML for an Android app.
 ---
 
 # Maestro Android Testing

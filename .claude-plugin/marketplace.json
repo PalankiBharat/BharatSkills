@@ -5,8 +5,8 @@
     "email": "manish@punchhq.com"
   },
   "metadata": {
-    "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",
-    "version": "1.6.0",
+    "description": "Claude Code skills for Android development workflows \u2014 feature analysis, QA automation, and more.",
+    "version": "1.6.1",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -443,7 +443,7 @@
       "name": "maestro-android-testing",
       "source": "./plugins/maestro-android-testing",
       "description": "Maestro UI testing for Android Jetpack Compose apps. Enforces accessibility-ID-first selectors (never coordinates, never ambiguous stock data text), mandatory MCP check before any test authoring, and structured flow headers so AI agents understand context without reading the full YAML. Includes ADB fingerprint bridge for biometric emulator testing.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "category": "android",
       "tags": [
         "maestro",
