@@ -1,7 +1,7 @@
 {
   "name": "sniper-ops",
-  "version": "1.1.0",
-  "description": "Day-to-day operational shortcuts for the sniper-v2-android repo — fast paths for the everyday script chores that aren't worth typing out every time (share build to CircleCI, install debug builds to a device). Designed to grow as more repetitive ops show up.",
+  "version": "1.2.0",
+  "description": "Day-to-day operational shortcuts for the sniper-v2-android repo — fast paths for the everyday script chores that aren't worth typing out every time (share build to CircleCI, install debug builds to a device, capture pairs of heap dumps for leak hunting). Designed to grow as more repetitive ops show up.",
   "author": {
     "name": "PunchHQ",
     "email": "manish@punchhq.com"
@@ -13,6 +13,9 @@
     "share-build",
     "circleci",
     "install",
+    "heap-dump",
+    "hprof",
+    "memory-snapshot",
     "shortcuts"
   ]
 }
