@@ -48,6 +48,7 @@ Based on Phase 0 manifest + locked lib-swap decisions, fire live searches:
 - *"KMM migration `<file-type>` patterns 2026"* per file-type category in scope.
 - *"Kotlin `<library>` KMM antipatterns"* per non-trivial dep surfaced.
 - *"SKIE `<pattern>`"* for Swift-consumption concerns relevant to scope.
+- **iOS Swift interop axis (mandatory, per file-type in scope).** Fire three coordinated searches per file-type category present in the manifest: *"KMM `<file-type>` iOS Swift interop patterns 2026"*, *"SKIE `<file-type>` consumption examples"*, *"KMM `<idiom>` iOS pitfalls"* where `<idiom>` is the dominant idiom of that file-type (e.g., for UseCase: suspend / Flow / sealed return / callback param; for Repository: Flow / Result wrapper; for ViewModel: StateFlow / SharedFlow). Same parallel-Sonnet dispatch, same `.kmm/searches/<topic-hash>.md` cache, same 30-day TTL. **This axis is not optional and not deferrable to Phase F** — Phase F verifies what these searches inform at A. The skill cites these results; it does not bake SKIE patterns into its references.
 - Context7 lookups for KMM-native library API signatures (current).
 
 Results cached in `.kmm/searches/<topic-hash>.md` — **subagents consume from cache** (per SKILL.md Subagent-mediated exploration; the cache exists for cross-session reuse, not main-context bloat). Future sessions don't re-search.
@@ -78,7 +79,21 @@ Per in-scope file:
   - **`migrate`** — every dep has a non-`Forces hold` seam strategy. File will be relocated `androidMain` → `commonMain` in Phase D this session.
   - **`hold`** — at least one dep forces hold. File stays in `androidMain` after Phase B (post-relocation). Promotion deferred to a future session.
 - **`expect`/`actual` sketch** if any (for Phase D foundation).
-- **File-specific risks** — behavioral-divergence, iOS API ergonomics, concurrency.
+- **File-specific risks** — behavioral-divergence, concurrency, other (iOS interop has its own field below — don't duplicate here).
+- **iOS Swift interop assessment** *(applies only to files with `Phase D plan: migrate`; `hold` files skip — they don't reach commonMain this session, so no Swift consumer exists yet).* Sourced from the cached iOS-axis search results (sub-phase 2), **never training recall**. Cite the specific `.kmm/searches/<hash>.md` row that motivates each finding.
+  - **Swift consumer view of public surface** — for each public method/property, the expected Swift call site shape (return type, async/await vs completion, optional vs non-optional, exhaustive-switch availability for sealed returns, etc.).
+  - **Interop verdict** — exactly one of `clean` / `blocked` / `degraded`:
+    - **`clean`** — Swift consumes naturally; no change needed.
+    - **`blocked`** — Swift cannot consume, or loses type safety / structured concurrency / type information at the boundary. File **cannot migrate this session without a surface change**.
+    - **`degraded`** — Swift consumes but with ergonomic loss (verbose unwrap, flattened companion access, etc.). **Not a blocker. No change made.**
+  - **Must-needed refactor** *(only if verdict = `blocked`)* — the minimal surgical signature change that unblocks Swift consumption. Cited to the search hit that motivates it. Refactor **shapes** that may be in scope: return-type shape change (e.g., callback param → sealed return), nullability tightening at the boundary, exception declaration (`@Throws`) for surfaces Swift will call. **Android adapts to the new shape mechanically** — same behavior, new signature. Caller-count grep mandatory (`git grep` / `rg -l` across the entire repo) before the refactor lands in plan.md — same protocol as helper-deletion plan in sub-phase 4. Out-of-scope callers route through the scope-creep options (defer / refactor-in-place / extend-scope / flip-to-hold). The refactor must be **traceable to a cited blocker**, not a designer's preference.
+  - **Rejected improvements** — list of iOS-flavored changes the per-file subagent considered and **rejected** because they're polish, not blockers (renames for casing alignment, `kotlin.Result<T>` wrappers for ergonomics, new abstractions introduced for "cleanliness", `@objc` adornments that affect only readability). One line each — proves the rubric was applied. Without this field, the skill drifts toward gold-plating.
+
+  **Must-vs-want rubric (apply strictly):**
+  > **iOS-MUST-NEEDED:** Swift compile failure; loss of type information across the boundary (e.g., generic erasure to opaque type); forced unsafe casts on the consumer; uncaught exception surfacing that crashes Swift; structured-concurrency violation at the suspend/Flow boundary; sealed hierarchy reaching Swift as a non-exhaustive opaque type.
+  > **NOT iOS-must-needed:** verbose-but-functional Swift call sites; naming preferences; cosmetic readability; ergonomic wrappers like `kotlin.Result<T>` when the function can just return its value or throw a declared exception; "while we're here, let's also..." restructuring.
+  > **When in doubt: `degraded` ≠ `blocked`.** Do not migrate by upgrading `degraded` to `blocked` to justify a refactor — the verdict drives the action, not the desired action driving the verdict.
+
 - **SUT test-classpath gaps** — if the SUT compiles against any dep that's `compileOnly` or platform-only (e.g., `retrofit2.HttpException`, `androidx.paging`), record the gap so Phase B's B.0 source-set bootstrap can preempt it (add `testImplementation` early, not retroactively when B.4 compile breaks).
 - **Migration-order signal** — what this depends on (informs Phase D ordering for `migrate`-plan files).
 
@@ -88,7 +103,7 @@ Per in-scope file:
 - **DI module plan** — Koin module structure for destination per profile's DI stance and `test-discipline/index.md` MockK-default rules. Covers both `commonMain` bindings (for migrated files) and `androidMain` bindings (for held files).
 - **Aggregated risk register** — dedup risks, group by category, each paired with the Phase B baseline test type that will catch it.
 - **Consolidated `expect`/`actual` interfaces** — merge where multiple `migrate`-plan files need the same abstraction (one `Clock`, one `NumberFormatter`, etc.). **≥2-consumer test enforced** — single-consumer abstractions get inlined.
-- **Phase D plan reassessment** — any file initially marked `migrate` that synthesis reveals is too risky / iOS-incomplete → flip to `hold` with rationale recorded. Scope itself doesn't change; only the per-file Phase D plan flips. User confirms each flip.
+- **Phase D plan reassessment** — any file initially marked `migrate` that synthesis reveals is too risky / iOS-incomplete → flip to `hold` with rationale recorded. Scope itself doesn't change; only the per-file Phase D plan flips. User confirms each flip. **Concrete iOS-blocker trigger:** if a file's iOS interop verdict is `blocked` and its must-needed refactor's caller-count grep surfaces out-of-scope consumers, route through the scope-creep options — **(a) defer** the refactor and flip the file to `hold` (iOS-blocker remains; not migrated this session), **(b) refactor-in-place** if the new shape is binary-compatible at call sites (rare), or **(c) extend-scope** to absorb the out-of-scope callers (user explicit confirmation). The default for unresolved iOS-blockers with out-of-scope ripple is **(a)** — migration that ships Swift-unconsumable code is worse than holding.
 - **Helper / foundation deletion plan — caller-count grep mandatory.** For any plan.md action of the form *"delete X helper"* or *"extract from X"* (typically a date-utility, formatter, extension function, or Android-specific helper being superseded by a commonMain abstraction), run `git grep -l '<helper-symbol>'` (or `rg -l`) across the **entire repo** before committing the deletion to plan.md. Count callers; list them by source set / module. If any caller is **outside the migration scope**, the action MUST be downgraded to one of:
   - **(a) Defer** — delete in a follow-up PR once callers migrate. Logged to `phase-d-followups.md` as `helper-deletion-deferred` with caller list. **This is the default.**
   - **(b) Refactor in place** — keep the helper symbol, change its implementation. No deletion this session.
@@ -135,7 +150,8 @@ Living document. Contains:
 - Header (status, tasks)
 - **Locked library substitutions** (from sub-phase 1) — table: source-lib → target-lib → file count → confirmed-by-user date.
 - Cached live-search results (patterns, antipatterns, KMM-native API references)
-- Per-file analysis (one entry per file with the fields above, including `Phase D plan: migrate / hold` and `lib-swap: path-a / path-b / none` with rationale)
+- Per-file analysis (one entry per file with the fields above, including `Phase D plan: migrate / hold`, `lib-swap: path-a / path-b / none`, and for `migrate` files the `iOS Swift interop assessment` block — verdict + Swift consumer view + must-needed refactor (if `blocked`) + rejected improvements — each with search-cache citations)
+- **Per-file iOS interop summary table** (only `migrate` files) — file → verdict (`clean`/`blocked`/`degraded`) → refactor (if any) → caller-count handling (n/a / defer / refactor-in-place / extend-scope / flip-to-hold). Cross-references the per-file entries.
 - **Per-file Phase D plan summary table** (file → `migrate` or `hold` → `lib-swap` → rationale) — feeds `coverage.md`'s Phase D plan column and the `phase-d-followups.md` deferred-baseline list.
 - **SUT test-classpath gaps** (aggregated) — deps that need `testImplementation` added at Phase B's B.0 source-set bootstrap. Surfaced here so B.0 preempts compile blockers.
 - **HTTP client parity tables** (only if an HTTP-client substitution is locked):
@@ -161,6 +177,7 @@ Beyond universals:
 - New interfaces meet the ≥2-consumer test or get inlined.
 - **No `TODO` / stub / deferred-work in the plan.** *"We'll figure this out in Phase D"* is not allowed — Phase A is where it's figured out. Quality of Phase A directly determines speed of Phase D.
 - `Phase D plan: hold` decisions surface to user explicitly with rationale; not silent.
+- **Every file with `Phase D plan: migrate` carries an iOS Swift interop assessment** with a verdict (`clean` / `blocked` / `degraded`) and a search-cache citation. `blocked` verdicts carry a must-needed refactor with caller-count evidence and route through the scope-creep options (defer / refactor-in-place / extend-scope / flip-to-hold). No silent migrations into `commonMain` without the iOS surface assessed; Phase F.2 verifies the design, it does not discover it.
 
 ## A note on Phase A quality vs Phase D speed
 
