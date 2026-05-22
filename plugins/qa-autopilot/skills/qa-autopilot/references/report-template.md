@@ -99,7 +99,7 @@ Place the report in the project root directory. If a report already exists for t
 - **Actual**: {actual result — filled after execution}
 - **Evidence**: {screenshot path or N/A}
 - **Notes**: {observations, if any}
-- **Phone Driver Command**: `{the exact command used}`
+- **Maestro Flow**: `.maestro/edge-cases/{branch}/TC-{ID}.yaml`
 
 ---
 
@@ -120,6 +120,8 @@ Place the report in the project root directory. If a report already exists for t
   ```
   /phone-driver "{exact command to reproduce}"
   ```
+- **Maestro Flow**: `.maestro/edge-cases/{branch}/TC-{ID}.yaml`
+- **Re-run**: `maestro test .maestro/edge-cases/{branch}/TC-{ID}.yaml`
 - **Probable Cause**: {analysis of what went wrong based on the diff}
 - **Recommendation**: {fix suggestion}
 
