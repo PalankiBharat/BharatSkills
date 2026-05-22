@@ -53,6 +53,8 @@ Held files (`androidMain`) skip the SKIE surface review — they're not exposed 
 - **Visual regression** (Paparazzi/Roborazzi) against pre-migration goldens if UI was indirectly touched.
 - **Telemetry parity scan** — analytics events preserved through migrated code paths (Sonnet scans for analytics-relevant changes).
 - **Crash-reporting hookup verified** for migrated namespaces (Crashlytics/Sentry still receives from new package paths).
+- **HTTP client timeout parity verification** (if Phase A's sub-phase 1.5 produced a per-service timeout table). Smoke a representative endpoint per service from the table; observe real `tookMs` and timeout behavior via network capture (per project's HTTP-inspection capability). Confirm each service's effective timeout matches plan.md. Empty timeout install or default values where higher was specified surface here, not in QA — these are P0-class failures. Failure → loop back to D.
+- **HTTP client server-registration verification** (if Phase A's sub-phase 1.5 produced a server-registration table). For each new/changed host in the table, fire the smoke endpoint and confirm the request actually reaches the intended backend (non-500, expected response shape). A missing host registration in the shared client config object surfaces as 500s or DNS resolution failures here. Failure → P0; loop back to D.
 - **Performance regression check** (if project has androidx-benchmark wiring): flag >10% regression on critical paths.
 - **Memory regression check** (if instrumentation available): flag baseline-level regressions, especially on iOS (Kotlin/Native memory model differs from JVM).
 
@@ -117,7 +119,12 @@ Any failure in F.1–F.6 → **Opus** categorizes:
 | Smoke failure | Phase D fix, or Phase D plan flip to `hold` via D.3 |
 | QA-found behavior anomaly | Investigate, Phase D fix or migration-exception (if intentional) |
 
-After fix → **return to F.1, re-validate fully**. No partial re-validation.
+**Re-validation scope after fix — depends on fix surface area:**
+
+- **Surgical fix (≤5 LOC, single file, no new types / methods / public-API signatures):** re-run F.3 (build + tests) + F.5/F.6 smoke + the heatmap row(s) that exercise the fix's surface. **Skip** F.1 (goal/doc consistency unchanged), F.2 (code quality, single-file is trivially reviewable), F.4 (pre-merge integration — only if the merge target moved since the last F.4). Example: changing a single timeout literal, fixing one off-by-one, swapping one constant.
+- **Non-surgical fix (≥6 LOC, multiple files, new identifiers introduced, or behavioral diff beyond the immediate fix):** return to F.1, re-validate fully. No partial re-validation.
+
+Skill announces which scope it's using before re-running, with one-line justification (e.g., *"Surgical: 1-line socket timeout swap, re-running F.3 + F.6 only"*). User can override with `re-run fully` or `re-run targeted`. **The threshold is mechanical, derivable from the diff** — not a judgment call to be made under fatigue.
 
 When all F passes → user explicit "migration complete" confirmation → `validation.md` status complete.
 

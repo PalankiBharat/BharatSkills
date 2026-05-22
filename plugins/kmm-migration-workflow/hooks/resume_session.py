@@ -101,6 +101,14 @@ def parse_phase_file(path: Path) -> dict | None:
     done = re.findall(r"^-\s*\[x\]\s*(.+?)\s*$", text, re.MULTILINE | re.IGNORECASE)
     pending = re.findall(r"^-\s*\[ \]\s*(.+?)\s*$", text, re.MULTILINE)
 
+    # Stale-duplicate detection: tasks appearing as BOTH [x] and [ ] in the same
+    # file. Living documents accumulate these when phases are amended and the
+    # old unchecked line wasn't removed. The checked instance is authoritative;
+    # the unchecked one is stale and would mislead "next pending task" picking.
+    done_norm = {t.strip().casefold() for t in done}
+    stale_duplicates = [p for p in pending if p.strip().casefold() in done_norm]
+    effective_pending = [p for p in pending if p.strip().casefold() not in done_norm]
+
     # Decisions log: capture the chronological bullets after `## Decisions log`.
     decisions: list[str] = []
     dlog = re.search(
@@ -117,8 +125,9 @@ def parse_phase_file(path: Path) -> dict | None:
         "status": status,
         "last_updated": last_updated,
         "done_count": len(done),
-        "pending_count": len(pending),
-        "next_pending": pending[0] if pending else None,
+        "pending_count": len(effective_pending),
+        "next_pending": effective_pending[0] if effective_pending else None,
+        "stale_duplicates": stale_duplicates,
         "recent_decisions": decisions[-3:],
     }
 
@@ -184,6 +193,27 @@ def format_report(branch: str, folder: Path, states: dict[str, dict | None]) -> 
                 f"| {phase_id} | `{filename}` | {s['status']} | {ratio} | {updated} |"
             )
     lines.append("")
+
+    # Stale-duplicate warnings — emitted only when any phase file has them.
+    stale_warnings: list[tuple[str, list[str]]] = []
+    for phase_id, _filename, _name in PHASES:
+        s = states.get(phase_id)
+        if s and s.get("stale_duplicates"):
+            stale_warnings.append((phase_id, s["stale_duplicates"]))
+    if stale_warnings:
+        lines.append("### ⚠️ Stale task duplicates detected")
+        lines.append("")
+        lines.append(
+            "One or more phase files have tasks that appear as both `[x]` and "
+            "`[ ]`. The checked instance is treated as authoritative; the "
+            "unchecked one was silently skipped when picking the next "
+            "pending task. Deduplicate the affected phase files when convenient:"
+        )
+        lines.append("")
+        for phase_id, dupes in stale_warnings:
+            for d in dupes:
+                lines.append(f"- Phase {phase_id}: `{d}` — appears checked AND unchecked")
+        lines.append("")
 
     # Active phase detail
     active = active_phase(states)

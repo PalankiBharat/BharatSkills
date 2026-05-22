@@ -8,6 +8,29 @@ Files with `Phase D plan: hold` are not touched in Phase D — they stay in `<de
 
 ---
 
+## Phase-D deep-brief on resume (mandatory mid-phase)
+
+When resuming Phase D mid-execution (especially mid-batch), the `resume_session.py` hook's state report is insufficient on its own — Phase D's per-batch context depends on plan.md decisions, dep order, locked substitutions, open followups, and risk areas that the lightweight hook can't synthesize.
+
+**Mechanism.** Before entering the next batch, dispatch ONE general-purpose subagent (Sonnet) that reads in parallel: `plan.md` (decisions log + risk register + Phase D migration order), `audit.md` (last status flips + B.7 baseline output), `coverage.md` (per-file current status), `phase-d-followups.md` (open Phase D entry-point checklist), and any cached searches in `.kmm/searches/` relevant to upcoming batches. The subagent returns a structured brief — NOT raw file contents — covering:
+
+```
+## Phase D resume brief
+1. Scope summary (file count, in-scope types, destination module).
+2. Resolved decisions (locked library substitutions, paging version, foundation interfaces drafted at D.0).
+3. Per-batch status (Batch 1: complete @SHA; Batch 2: in progress, files X/Y done; ...).
+4. Next batch (files, layer, dependency direction, any cross-batch deps to watch).
+5. Open phase-d-followups.md entries relevant to the next batch.
+6. Risk areas from plan.md likely to surface in the next batch.
+7. Cached searches available (topic → path) — to consult before deciding, not bulk-loaded.
+```
+
+**Why this matters.** Without this brief, the model improvises a recovery pattern each resume (the 400-line ad-hoc recap seen in prior sessions). Codifying the template means the brief is repeatable across users / model versions and predictable in cost (one subagent dispatch, bounded output).
+
+This brief loads ONCE per Phase D resume; subsequent batches within the same resumed session don't re-fetch. The next phase's resume (E) does its own thing.
+
+---
+
 ## Sub-phases
 
 ### D.0 — Foundation setup + followups review (one-time per session)
@@ -45,7 +68,7 @@ For each layer-batch — files committed individually within the batch:
 
 5. **Self-review** on any new code (Sonnet) per principle #2. Cruft check, KISS, DRY. Notes captured in decisions log.
 
-6. **Targeted baselines** via `--tests` filter for batch files only (Haiku). Run in `<dest>/androidUnitTest`. Must be green.
+6. **Targeted baselines** via `--tests` filter for batch files only (Haiku). Run in `<dest>/androidUnitTest`. Must be green. **The final baseline run for each batch uses `--rerun-tasks`** — gradle's UP-TO-DATE caching can produce false-greens on pure-rename batches and source-set moves (a 4-second "BUILD SUCCESSFUL" with everything UP-TO-DATE on a `git mv` batch is the symptom). Intermediate compile-fix iterations omit it (paying cache cost per iteration wastes time); the final verification gets the flag. Pair with `--no-parallel` if `project.md` lists KSP-stability invariants.
 
    **Migration-exception flow if baseline fails on intentional divergence** (library-substitution semantics, timezone math, JSON ordering, etc.):
    - **Opus** confirms divergence is intentional per plan.md risk register.

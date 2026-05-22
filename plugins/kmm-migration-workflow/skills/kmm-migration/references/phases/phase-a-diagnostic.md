@@ -17,8 +17,29 @@ Before any bulk search, lock the library substitution direction for every Androi
 - Skill enumerates candidate library substitutions from Phase 0 scope (Retrofit, Joda, Gson, Paging <3.5, etc.).
 - For each, present as a **discrete user decision**: *"Found Retrofit usage in 7 files. Plan to substitute with Ktor (commonMain-compatible). Confirm direction?"*
 - User confirms / pushes back / picks a different target lib.
+- **Transitive-consumer scan (mandatory, before locking).** For each confirmed substitution target, dispatch a Haiku subagent to enumerate transitive consumers — libraries in the gradle classpath that *depend on* the substituted library and may break under the new version. Use `./gradlew :<dest>:dependencyInsight --dependency <lib>` (or `./gradlew dependencies | grep <lib>`). Flag any version constraint mismatch or binary-compat risk discovered. Each flagged transitive consumer becomes a row in `plan.md`'s risk register with proposed handling: (a) tolerate (compatible across versions), (b) bump together (in-scope addition), (c) defer (declare out-of-scope, accept the implication). User decides per row. **Out-of-scope file rewrites caused by transitive bumps are part of the migration's blast radius — make them visible at planning time, not at Batch N when a build fails.**
 - Confirmed substitutions land in `plan.md` decisions log AND feed the per-file `lib-swap` classifier in sub-phase 2 (Path A — contract baseline / Path B — defer to Phase D / `none` — no swap).
 - **No bulk search until every lib-swap direction is locked.** This protocol is the cause-of-truth for subagent prompts in sub-phase 2.
+
+### 1.5. HTTP client parity audits (when an HTTP-client substitution is locked)
+
+Triggered if sub-phase 1 confirmed any HTTP-client substitution (Retrofit→Ktor, OkHttp→Ktor, OkHttp engine swap, etc.). Two audits, both mandatory; both produce plan.md tables Phase D applies literally and Phase F.3 verifies via runtime network capture.
+
+**Per-service timeout parity audit (F1).**
+- For each HTTP client interface in scope, enumerate the per-service timeout config (connect / read / write / call) from the existing builder, interceptor stack, or service-key-keyed dispatch.
+- Map to the new client's timeout config. plan.md lists, per service:
+  ```
+  <service-key>: connectTimeoutMillis=<X>, requestTimeoutMillis=<Y>, socketTimeoutMillis=<Z>
+  ```
+- Values sourced **verbatim** from pre-migration code — not invented. Cite source path + line.
+- **Empty timeout install on the new client is a P0 risk.** Defaults vary by underlying engine (OkHttp's 10s socket-read default has caused user-visible 500s on slow endpoints in prior migrations); the migration must preserve the pre-migration values or document a deliberate deviation under a migration-exception.
+
+**Server-registration parity audit (F2).**
+- For each new RemoteStore introduced (or any RemoteStore whose target host shifts), identify the project's shared HTTP client config object. Consult `project.md` `networking.shared_client_config.object_name` if captured at Phase 0; otherwise grep for `*Configuration` / `*Client` factory and capture the name in project.md (diff-confirm).
+- Confirm: (a) the target host is registered in that config object, (b) per-flavor build-time host constants exist for the host (per `project.md` `networking.shared_client_config.host_constant_convention`).
+- plan.md lists each new/changed host with its config-object entry name and the build-time constant name(s). Missing registration = a P0 risk in the register.
+
+Both audits feed `plan.md`'s risk register and become mandatory checkpoints in Phase F.3.
 
 ### 2. Bulk pattern search (orchestrator)
 
@@ -68,6 +89,13 @@ Per in-scope file:
 - **Aggregated risk register** — dedup risks, group by category, each paired with the Phase B baseline test type that will catch it.
 - **Consolidated `expect`/`actual` interfaces** — merge where multiple `migrate`-plan files need the same abstraction (one `Clock`, one `NumberFormatter`, etc.). **≥2-consumer test enforced** — single-consumer abstractions get inlined.
 - **Phase D plan reassessment** — any file initially marked `migrate` that synthesis reveals is too risky / iOS-incomplete → flip to `hold` with rationale recorded. Scope itself doesn't change; only the per-file Phase D plan flips. User confirms each flip.
+- **Helper / foundation deletion plan — caller-count grep mandatory.** For any plan.md action of the form *"delete X helper"* or *"extract from X"* (typically a date-utility, formatter, extension function, or Android-specific helper being superseded by a commonMain abstraction), run `git grep -l '<helper-symbol>'` (or `rg -l`) across the **entire repo** before committing the deletion to plan.md. Count callers; list them by source set / module. If any caller is **outside the migration scope**, the action MUST be downgraded to one of:
+  - **(a) Defer** — delete in a follow-up PR once callers migrate. Logged to `phase-d-followups.md` as `helper-deletion-deferred` with caller list. **This is the default.**
+  - **(b) Refactor in place** — keep the helper symbol, change its implementation. No deletion this session.
+  - **(c) Extend scope** — add the out-of-scope callers to scope.md and re-run Phase 0's dep-walk for them. User explicit confirmation.
+  
+  No silent "we'll just delete it" — Phase D's scope-creep gate will halt at D.0 if this is skipped. Cheap to verify here; expensive there.
+- **Batch dep-direction verifier (D8).** After drafting the Phase D migration ordering, dispatch a Haiku verifier. For each consecutive batch pair `(N, N+1)`, the verifier confirms that no file in batch N references a type defined in batch N+1. Output: either `order verified` (proceed) or a list of cross-batch reverse-direction dep violations with file:line citations (re-order or merge the implicated batches before locking). Cheap pass; catches the class of error where the planner's mental topo-sort drifts from the actual type dependency graph.
 
 ### 5. Self-review (skill principle #2 — clean code)
 
@@ -110,6 +138,12 @@ Living document. Contains:
 - Per-file analysis (one entry per file with the fields above, including `Phase D plan: migrate / hold` and `lib-swap: path-a / path-b / none` with rationale)
 - **Per-file Phase D plan summary table** (file → `migrate` or `hold` → `lib-swap` → rationale) — feeds `coverage.md`'s Phase D plan column and the `phase-d-followups.md` deferred-baseline list.
 - **SUT test-classpath gaps** (aggregated) — deps that need `testImplementation` added at Phase B's B.0 source-set bootstrap. Surfaced here so B.0 preempts compile blockers.
+- **HTTP client parity tables** (only if an HTTP-client substitution is locked):
+  - **Per-service timeout parity** — `<service-key>: connectTimeoutMillis, requestTimeoutMillis, socketTimeoutMillis` for every service, sourced verbatim from pre-migration code.
+  - **Server-registration parity** — each new/changed host with its shared-config-object entry name + build-time constant name(s).
+- **Transitive-consumer risk register** (from sub-phase 1) — for each locked substitution, the list of transitive consumers + chosen handling (tolerate / bump-together / defer).
+- **Helper/foundation deletion plan** — each deletion action with caller-count and chosen handling (defer / refactor-in-place / extend-scope).
+- **Batch dep-direction verification result** — `order verified` or the violation list that triggered a re-order.
 - Cross-file synthesis (Phase D migration order for `migrate`-plan files, DI plan, risk register)
 - Foundation `expect`/`actual` plan (consolidated interfaces with their ≥2 consumers)
 - Self-review notes

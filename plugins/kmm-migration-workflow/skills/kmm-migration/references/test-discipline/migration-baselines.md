@@ -286,15 +286,25 @@ process. Make the process the path of least resistance.
 
 For each behavior change requiring a baseline edit:
 
-1. Open `migration-exception/<YYYY-MM-DD>-<short-id>.md` in the same
+1. Open `.kmm/exceptions/<YYYY-MM-DD>-<short-id>.md` in the same
    PR as the baseline edit. Required fields:
    - **What changed**: the observable difference.
    - **Why**: rooted in the migration plan (link to spec).
    - **Risk**: who could be affected, how it would surface in prod.
    - **Sign-off**: tech lead approval (file mention or link).
+   - **Authorizes**: explicit scope of what this exception unblocks. Three sub-lists, each required (use `none` if nothing applies):
+     - `behavior-change`: short prose describing the observable behavior shift this exception sanctions.
+     - `baseline-edit`: list of test file paths whose assertions need adjustment under this exception, or `none`. **The `frozen_baseline_guard` hook keys off this list** — only files listed here may be edited despite being `frozen` / `migrated` / `promoted`.
+     - `frozen-source-edit`: list of production file paths that need touch-up despite being frozen, or `none`. Hook keys off this list for source-file edits.
+   - **Amendments** (append-only history; populated only when the exception is later extended):
+     ```
+     - <YYYY-MM-DD>: Extended `Authorizes.baseline-edit` to also cover <file list>. Reason: <rationale>. Sign-off: <user>.
+     ```
 2. The baseline edit references the exception file in its commit
    message: `[migration-exception 2026-05-12-tz-dst]`.
-3. The skill itself refuses to edit frozen baselines without the exception file present — that's the primary mechanical check. PR reviewer verifies the exception file exists and the commit message tag matches before approving.
+3. The skill itself refuses to edit frozen baselines without the exception file present **and the target file listed under `Authorizes.baseline-edit`** — that's the primary mechanical check (enforced by the `frozen_baseline_guard` hook). PR reviewer verifies the exception file exists, the commit message tag matches, and the edit scope matches `Authorizes` before approving.
+
+**Extending an existing exception.** When the same phase's exception needs to cover additional files (e.g., E.0b portability scope grew during E.4), append to the existing exception's `Authorizes.baseline-edit` list and add an entry to the `Amendments` section above. Extensions are user-curated: they pass through the same `.kmm/project.md`-style diff-confirm gate (skill drafts the append, user accepts/edits/rejects). Append-only history preserves the audit trail in a single file per phase concern, rather than fragmenting into N exception files for what is really one expanding scope.
 
 ### Pre / during / post checklist
 

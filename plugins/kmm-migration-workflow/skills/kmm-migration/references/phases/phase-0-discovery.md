@@ -17,6 +17,15 @@ Scan repo against profile claims (modules in `settings.gradle`, plugins applied,
 ### 3. Determine which profile facts this migration needs
 Driven by seed type and depth. Gap-fill missing facts: **auto-detect → confirm with user** where possible, ask user otherwise. Lazy growth — profile expands per session, not via one-shot interview.
 
+### 3.5. Build-config access scope probe
+Per `project.md` canonical field `networking.build_config_scope` (see SKILL.md). For each generated build-time config object (BuildKonfig, BuildConfig, or generated-constants equivalent) referenced by the seed graph:
+- Determine access scope: `internal` / `module-private` / `public`. Inspect declaration site.
+- If `internal` (or otherwise inaccessible from the app layer where DI providers are wired), enumerate the public constant aliases the app layer must use instead — typically grouped in a DNS-style constants file at the module's androidMain or commonMain boundary.
+- Record under `networking.build_config_scope` per the canonical schema. Diff-confirm the addition.
+- Skipped silently if `networking.build_config_scope` already covers all objects encountered.
+
+This is a one-time per repo capture for objects the migration touches. Prevents the compile-error iteration of wiring DI providers against an inaccessible config object — Phase D consults the field when drafting providers.
+
 ### 4. Branch + worktree setup (if needed)
 If user is on `main` or any non-`kmm/` branch:
 - Capture feature + depth from user.
@@ -71,6 +80,7 @@ Each shared dep gets a **per-occurrence decision** (include in this session / ho
 - Else: scan `settings.gradle*` for KMM-enabled modules (`kotlin("multiplatform")` plugin, conventional names like `:shared`, `:*-shared`, `:sniper`).
 - Present found modules to user with brief descriptions; user picks. No hardcoded defaults — user always confirms.
 - **Sanity-check chosen module's source sets.** Must have at minimum: `commonMain`, `commonTest`, `androidMain`, `androidUnitTest`. Phase B targets `androidMain` + `androidUnitTest` uniformly; Phase D / E target `commonMain` + `commonTest` for files migrating this session (per Phase A's plan). If any of the four is missing, flag as out-of-skill setup and ask user to configure the module first before this session continues.
+- **Enumerate legacy / non-target test source sets.** List every test source set under `<dest>` (e.g., `src/test/`, `src/androidTest/`, `src/sharedTest/`, plus any double-nested patterns specific to this repo's layout). For each one NOT in the migration target set (`androidUnitTest`, `commonTest`), record in `scope.md` as `legacy test dir — exempt from Phase C detekt enforcement` with its path. Phase C.2 reads this list to pre-fill the detekt rule's exclude paths. No assumptions — enumeration is mechanical (`find <dest>/src -type d -name 'test' -o -name '*Test'`), and every entry not in the target set is treated as legacy by default unless the user marks it as in-scope.
 - *"Create new"* → flagged as out-of-skill setup task; skill stops and points user at it.
 - Record choice in scope.md and (if first time) in project.md.
 
@@ -108,6 +118,7 @@ Living document, written progressively. Contains:
 - Per-file deselections made during manifest review
 - Platform deps encountered
 - **Pre-existing test-compile state in `<dest>/androidUnitTest`** (clean / N broken; action: @Ignore in Phase B per `test-discipline/migration-baselines.md` (Quarantine section))
+- **Legacy / non-target test source sets** (paths exempt from Phase C detekt enforcement; consumed by phase-c-freeze.md C.2 drafter)
 - Tasks (checklist)
 - Decisions log (chronological)
 - Status
