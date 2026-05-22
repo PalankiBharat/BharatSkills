@@ -96,30 +96,102 @@ def status_for_file(target: Path, coverage_files: list[Path]) -> str | None:
     return None
 
 
-def exception_references(target: Path, coverage_files: list[Path]) -> bool:
-    """Check whether any .kmm/exceptions/*.md references this baseline.
+def _kmm_root_from_coverage(coverage_path: Path) -> Path:
+    """Resolve `.kmm/` root from a coverage.md path.
 
-    SKILL.md mandates: "Exception file at .kmm/exceptions/<YYYY-MM-DD>-<id>.md
-    with: what changed, why, risk, user sign-off." A real exception file
-    SHOULD name the baseline it covers. We match on the file's basename
-    appearing in any exception file.
+    Layout: <repo>/.kmm/migrations/kmm/<feature>-<depth>/coverage.md
+    Walk up until a directory named `.kmm` is found, NOT a fixed parent
+    chain — historic chains undercounted by one and pointed at
+    `.kmm/migrations/` instead of `.kmm/`.
+    """
+    for ancestor in coverage_path.parents:
+        if ancestor.name == ".kmm":
+            return ancestor
+    # Fallback: best-effort fixed walk
+    return coverage_path.parent.parent.parent.parent
+
+
+def _parse_authorizes_baseline_edit(exc_text: str) -> list[str] | None:
+    """Parse the `Authorizes.baseline-edit` list from an exception file.
+
+    Schema (per test-discipline/migration-baselines.md):
+        - **Authorizes**:
+          ...
+          - `baseline-edit`: <list of file paths, or "none">
+
+    Returns the list of paths if found, [] if `none`, or None if the field
+    isn't present (legacy exception schema — fall back to plain-text match).
+    """
+    # Find the Authorizes block — accept various Markdown styles.
+    m = re.search(
+        r"\*?\*?Authorizes\*?\*?\s*:?(.*?)(?=\n\s*-\s*\*\*[A-Z]|\Z)",
+        exc_text, re.DOTALL,
+    )
+    if not m:
+        return None
+    block = m.group(1)
+    be = re.search(
+        r"baseline[-_]?edit\s*[:`]+\s*(.+?)(?=\n\s*-|\Z)",
+        block, re.DOTALL | re.IGNORECASE,
+    )
+    if not be:
+        return None
+    content = be.group(1).strip().strip("`").strip()
+    if content.lower() in {"none", "[]", "[ ]"}:
+        return []
+    # Split list items: support bullet-list, comma-separated, or inline list.
+    items: list[str] = []
+    for line in content.splitlines():
+        stripped = line.strip().lstrip("-*").strip().strip("`").strip()
+        if not stripped:
+            continue
+        # Comma-separated on one line
+        for piece in stripped.split(","):
+            piece = piece.strip().strip("`").strip()
+            if piece and piece.lower() not in {"none"}:
+                items.append(piece)
+    return items if items else None
+
+
+def exception_references(target: Path, coverage_files: list[Path]) -> tuple[bool, str | None]:
+    """Check whether any .kmm/exceptions/*.md authorizes editing this baseline.
+
+    Returns (authorized, exception_id) — the exception_id is the filename
+    stem of the matching exception, surfaced to the user via the green-light
+    stderr line.
+
+    Matching:
+      1. Prefer the structured `Authorizes.baseline-edit` list (per
+         migration-baselines.md schema). Match by filename basename
+         appearing in the list OR by full-path suffix match.
+      2. Legacy fallback: plain-text basename search in the exception body
+         (covers pre-schema exception files).
     """
     if not coverage_files:
-        return False
-    # exceptions live at .kmm/exceptions/ — same .kmm root as coverage
-    kmm_root = coverage_files[0].parent.parent.parent  # coverage.md → session/ → migrations/ → .kmm/
+        return (False, None)
+    kmm_root = _kmm_root_from_coverage(coverage_files[0])
     exc_dir = kmm_root / "exceptions"
     if not exc_dir.is_dir():
-        return False
-    needle = target.name
+        return (False, None)
+    target_name = target.name
+    target_str = str(target)
     for exc in exc_dir.glob("*.md"):
         try:
             text = exc.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        if needle in text or str(target) in text:
-            return True
-    return False
+        # Structured-schema check first.
+        authorized_list = _parse_authorizes_baseline_edit(text)
+        if authorized_list is not None:
+            for entry in authorized_list:
+                if entry == target_name or target_str.endswith(entry) or entry.endswith(target_name):
+                    return (True, exc.stem)
+            # Structured schema present and target not listed → skip this file.
+            continue
+        # Legacy fallback: plain-text basename match.
+        if target_name in text or target_str in text:
+            return (True, exc.stem)
+    return (False, None)
 
 
 def main() -> int:
@@ -159,26 +231,28 @@ def main() -> int:
     if status not in FROZEN_STATUSES:
         return 0  # pre-freeze, or unknown (e.g., feature-surface test not in coverage)
 
-    if exception_references(path, coverage_files):
-        # Exception present — allow, but make it visible.
+    authorized, exc_id = exception_references(path, coverage_files)
+    if authorized:
+        # Green-light feedback — make it impossible to wonder whether the hook fired.
         print(
-            f"[frozen_baseline_guard] write to FROZEN baseline {path.name} "
-            f"allowed: matching .kmm/exceptions/*.md found.",
+            f"[frozen_baseline_guard] ✓ Edit to FROZEN baseline {path.name} "
+            f"authorized by exception {exc_id}.md (status was `{status}`).",
             file=sys.stderr,
         )
         return 0
 
     # Block
     msg = (
-        f"\n[frozen_baseline_guard] BLOCKED: {path}\n\n"
+        f"\n[frozen_baseline_guard] ✗ BLOCKED: {path}\n\n"
         f"This baseline test is in status `{status}` per coverage.md. "
         f"Edits to frozen baselines require a corresponding "
-        f".kmm/exceptions/<YYYY-MM-DD>-<short-id>.md file that references "
-        f"this baseline by name and documents: what changed, why, risk, "
-        f"user sign-off.\n\n"
+        f".kmm/exceptions/<YYYY-MM-DD>-<short-id>.md file with this "
+        f"baseline listed under `Authorizes.baseline-edit`, plus what "
+        f"changed, why, risk, and user sign-off.\n\n"
         f"Options:\n"
         f"  1. If divergence is intentional → create the exception file "
-        f"first, then retry the edit.\n"
+        f"first (or extend an existing one via the Amendments section), "
+        f"then retry the edit.\n"
         f"  2. If the baseline is genuinely wrong → invoke the "
         f"migration-exception process (Opus confirms intent, user signs "
         f"off, then proceed).\n"

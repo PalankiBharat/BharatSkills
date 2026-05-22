@@ -104,6 +104,7 @@ Reflex defaults that govern tool choice. These are not preferences — they shap
 - **Regular `import` first; `import ... as Alias` only on collision.** Bring symbols in via normal import. When two imports collide on short name, alias one. Never inline the FQN at the call site — it's noisy and hides the dependency from the import list.
 - **`git restore <path>` over reverse-edits.** For any tracked-file undo, use git's restore. Manually reverting via str_replace is error-prone and skips git's history checks.
 - **No code comments unless WHY is non-obvious — and then, only a one-liner.** Comments explaining WHAT the code does are noise; the code is the source of truth. Comments explaining WHY (constraint, business rule, non-obvious gotcha) are allowed but must be a single line. No block comments, no multi-line explanations.
+- **Gradle output via `tee` or `> file; ec=$?`, never `| tail`.** A `cmd | tail -N` invocation reports `tail`'s exit code (always 0), masking gradle failures. Use either `cmd 2>&1 | tee /tmp/gradle.log; ec=${PIPESTATUS[0]}` (preserves stream-through-tail while capturing real exit code) or `cmd > /tmp/gradle.log 2>&1; ec=$?; echo --exit:$ec--` (silent until done, then echo status). `set -o pipefail` at the top of a script also works but isn't portable to one-shot Bash tool invocations.
 
 ### Non-trivial decision protocol (principle #4)
 
@@ -232,6 +233,10 @@ Invoking the skill authorizes the workflow's commit cadence. Default rhythm per 
 
 If a sub-phase produces only one kind of change, the cadence collapses to one commit. The rule is "up to two", not "exactly two".
 
+**Never use `git commit -am` or `git add -A` in the two-commit cadence.** Both bypass file selection: `-am` stages every tracked change, `-A` adds all (including new) files. Use `git add <explicit paths>` between the code commit and the audit commit so commit 2 receives only `audit.md` / `coverage.md` / `phase-d-followups.md` and nothing else. The Sonnet commit-message subagent's command template uses explicit-path adds; never aggregating flags.
+
+**Phase C exception — three commits on first-time detekt bootstrap.** The freeze SHA recorded in `freeze.md` + `coverage.md` is the SHA of the freeze commit itself; that SHA can't be self-referenced inside its own commit. When C.2 (bootstrap) runs, the cadence is three commits: (1) bootstrap commit (detekt config + custom rules) → (2) freeze marker commit (baseline tests; SHA becomes the frozen-at marker) → (3) audit commit (`freeze.md` + `coverage.md` with the SHA from commit 2 baked in). On repeat Phase C runs (no bootstrap), the standard two-commit cadence applies. See `phase-c-freeze.md`.
+
 **Opt-out**: user passes `commit-cadence: manual` in Phase 0. Skill switches to proposing commands instead of running them. Default is autopilot.
 
 ### Universal hard gates (every phase)
@@ -273,6 +278,25 @@ Phase-specific gates are listed in each phase's reference file.
 **Git tracking** — `project.md`, `searches/`, `exceptions/` are checked into the repo (they're reusable across sessions and across contributors). `migrations/` is gitignored via a top-level `.gitignore` entry (`.kmm/migrations/`) — session working state is local to whoever ran the migration. Phase 0 proposes this entry on first run in a repo if it's missing.
 
 **project.md scope** — reusable KMM knowledge for this repo: modules + source-set hierarchy, DI framework + coexistence stance, persistence tech + schema locations, networking config (baseUrl, BuildKonfig), UI strategy (native vs CMP timeline), SKIE config, iOS consumption / distribution flow, manual QA workflow, test-infra wiring, conventions, hard-won gotchas. **Excludes:** migration state (lives in session folders), generic KMM how-tos (runtime lookup).
+
+**project.md canonical fields** (populated as Phase 0 / Phase C / discovery surfaces them — schema defined by the skill, values are per-repo):
+
+- `enforcement_setup` — Phase C detekt bootstrap state.
+  - `detekt_bootstrapped`: `<bool>`
+  - `detekt_config_path`: `<path>`
+  - `custom_rules_jar_path`: `<path or null>`
+  - `scope`: `project-wide | module-list`
+  - `custom_rules_rebuild`: `<one of: module-permanently-included | one-shot-script | other; describe>` — how this repo produces the custom-rule jar (note: detekt 1.23+ does not cascade parent `active: true` to child rules; every rule entry must carry its own `active: true`).
+- `networking.build_config_scope` — for each generated build-time config object (BuildKonfig / BuildConfig / equivalent):
+  - `object_name`: `<name>`
+  - `access`: `internal | module-private | public`
+  - `app_layer_aliases`: `<list of public constant names + paths to consult when wiring DI providers in the app layer>`
+- `networking.shared_client_config` — shared HTTP client config:
+  - `object_name`: `<name of the shared client/config factory>`
+  - `host_constant_convention`: `<e.g., per-flavor BuildKonfig fields named *_API / *_DNS / *_BASE_PATH>`
+- `git.base_branch` (optional) — the repo's PR base branch (`master` / `main` / `develop`). Detected at runtime if absent via `git symbolic-ref refs/remotes/origin/HEAD`.
+
+The skill defines what slots exist; each repo's `project.md` fills them in. The skill itself contains no per-repo identifiers.
 
 **coverage.md (per session) columns:** File, Type, Phase D plan (`migrate` / `hold`, decided Phase A), Baseline path (initial — always `<dest>/androidUnitTest/...`), Trust score, Status (`relocated` → `audited` → `frozen` → `migrated` → `promoted`), Frozen-at SHA, Final code path (`<dest>/commonMain/...` if migrated, `<dest>/androidMain/...` if held), Final baseline path (`<dest>/commonTest/...` if promoted, else initial).
 
@@ -335,12 +359,24 @@ Retro fires at the **end of each phase** (Phase 0 through Phase G). It is **pure
 1. **Phase recap** (1–2 lines) — what was accomplished this phase (e.g., scope count, key library substitutions chosen, baselines green, files migrated). Lets a future skill-improvement session understand context without re-reading the migration session.
 2. **What went smoothly** — workflow steps that landed cleanly, subagent dispatches that paid off, decisions that compounded.
 3. **What got stuck** — gates that didn't fit, repeated clarifications, deps surfaced late, classpath gaps, subagent context drops.
-4. **What could improve the skill** — concrete refinements (e.g., "auto-inject resolved decisions into per-file subagent prompts", "Phase 0 should scan SUT classpaths upfront"). One line per item. No verdicts, no `[skill/drop]` — just signal.
+4. **What could improve the skill** — concrete refinements (e.g., "auto-inject resolved decisions into per-file subagent prompts", "Phase 0 should scan SUT classpaths upfront"). One line per item. **Each bullet is prefixed with a destination tag:** `[skill]` (general workflow lesson, promotes to the skill in a later iteration session), `[project.md]` (per-repo fact specific to this codebase; e.g., a module name, host constant, build-config access scope), `[both]` (pattern that needs a per-repo slot — skill gets the pattern, project.md gets the value). Model proposes the tag at write-time; user overrides at retro accept. Litmus test: if the bullet contains proper nouns specific to this repo → at minimum `[both]`, more often `[project.md]`; if pure pattern with no proper nouns → `[skill]`.
 5. **User steering log** — every moment in the phase where the user manually corrected, redirected, or guided the model. Highest-signal section — these are exactly where the skill failed to anticipate. One line per entry: `<verbatim or close paraphrase of user steering> — context: <what model was doing>`. The skill self-tags these during the phase (mental note: "user just steered me here, log at retro") so retro-time scan doesn't have to recover them from full context. Examples to capture: "no", "don't", "stop", "actually", "wait", "do X instead", or any non-trivial direction change the user introduced.
 
 **Format discipline:** Bullets, not essays. Concise but self-contained — a separate session reading retro.md (without the original migration conversation) should understand what happened and what could improve. No drama. Pure signal.
 
 User can skip with `skip retro` — skill writes one "skipped" line for that phase and moves on.
+
+### Session close-out (after Phase G retro)
+
+Once the final phase retro is captured, the skill runs a one-shot consolidation step that prevents the skill from accumulating per-repo facts:
+
+1. **Scan `retro.md`** for every `[project.md]` and `[both]`-tagged bullet under "What could improve the skill" across all phases.
+2. **Draft proposed `project.md` additions** — one block per bullet, slotting into the appropriate canonical field (see §project.md canonical fields). For `[both]` bullets, draft only the per-repo value portion (the pattern side belongs in a separate skill-iteration session, not here).
+3. **Diff-confirm gate** — present the proposed additions via the standard `.kmm/project.md` diff-confirm prompt (apply / edit / reject). User decides per block.
+4. On accept, write to `project.md` and commit as a final two-commit cadence (`project.md` update + retro consolidation marker in `retro.md`).
+5. `[skill]` and `[both]` bullets remain in `retro.md` for the separate skill-iteration planning session to consume — they are NOT extracted into the skill from inside a migration session.
+
+This step is **silent for sessions that produced no `[project.md]` or `[both]` bullets** (the common case after the skill stabilizes). It runs automatically; user can skip with `skip consolidate`.
 
 ---
 

@@ -10,10 +10,16 @@
 
 ## Sub-phases
 
-### E.0 — Skip check + pre-promotion commonTest health (Haiku)
+### E.0 — Skip check + pre-promotion smokes (Haiku, parallel)
 
-- **Skip check.** Read `coverage.md`: if no row has status `migrated`, Phase E is skipped. Skill records "Phase E skipped — no files reached commonMain this session" in `move.md` and proceeds to Phase F.
-- **Pre-promotion commonTest health check** (if Phase E proceeds). Quick compile check on `<dest>/commonTest`. Report: clean / N broken (file list). Broken pre-existing tests are **quarantined via `@Ignore`** (same pattern as Phase B step B.2; per `test-discipline/migration-baselines.md` (Quarantine section)), not fixed here. If quarantine applied, commit separately before E.1.
+- **E.0.1 — Skip check.** Read `coverage.md`: if no row has status `migrated`, Phase E is skipped. Skill records "Phase E skipped — no files reached commonMain this session" in `move.md` and proceeds to Phase F.
+
+- **E.0.2 — Pre-existing commonTest K/N compile health (E6).** Run `./gradlew :<dest>:compileTestKotlinIosSimulatorArm64` (or equivalent K/N target per project setup) against the **current** `<dest>/commonTest` source set — BEFORE any baselines are moved. The K/N compile (vs the looser JVM compile) catches reflection-based test patterns, K/N-illegal idioms, and singleton-reset reflection in pre-existing tests that would cascade as invisible failure layers post-mv. Report: clean / list of broken files with compile output. Broken pre-existing tests get `@Ignore` quarantine (same Phase B.2 pattern; per `test-discipline/migration-baselines.md` (Quarantine section)). If quarantine applied, commit separately before E.1.
+
+- **E.0.3 — Pre-mv K/N portability smoke for files being promoted (E1, E2).** For each baseline test file slated for promotion (every file whose corresponding production file is `migrated`):
+  - **E.0.3a — Scratch-dir K/N compile (Haiku, parallel per file).** Copy the file content to a scratch location compiled by `compileTestKotlinIosSimulatorArm64` AS-IF it were already in commonTest (without performing the git mv). Compile. Failures surface K/N-illegal patterns — backtick-quoted test names with certain chars, JVM-only imports, reflection that doesn't survive K/N — **while the file is still at `androidUnitTest` status `migrated`** (NOT `frozen`). Edits here are normal, no migration-exception required.
+  - **E.0.3b — Verifier subagent (Sonnet) for any BLOCKED files.** First-pass K/N compile output can over-flag (e.g., flagging imports that are actually fine once the file is in commonTest because the source-set transitively closes the import). For every file the scratch compile flagged as BLOCKED, dispatch a Sonnet verifier that re-examines the failure mode against the file's current content + the actual compile output. The verifier confirms or denies the block. Only verifier-confirmed BLOCKED files are demoted or fixed; scanner-only-flagged files proceed to E.1 normally.
+  - **For verifier-confirmed blockers:** fix in `androidUnitTest` under normal edit (status is `migrated`, NOT `frozen`, so no exception needed). Commit fixes BEFORE E.1's mv. Result: E.1's promotion commit stays pure `git mv` — no surprise content edits, no portability migration-exception required.
 
 ### E.1 — Move via `git mv` (Haiku, parallel)
 
