@@ -1,0 +1,43 @@
+{
+  "skill_name": "heap-dump-compare",
+  "evals": [
+    {
+      "id": 1,
+      "name": "ab-compare-two-pair-dirs",
+      "prompt": "I have two pairs of Android heap dumps. Pair A is in ~/dev/heap-dumps/sniper-master-latest/ and pair B is in ~/dev/heap-dumps/sniper-kmm-latest/. Each pair has a t0 and t5 .hprof. Compare them and show me a table of what's different between A and B.",
+      "expected_output": "A side-by-side comparison table covering totals (heap bytes / object count per dump) and top-N classes by delta between A's 5-min growth and B's 5-min growth. No interpretation, no root-cause claims, no fix recommendations — just the data.",
+      "expectations": [
+        "Output presents a totals overview table with concrete byte counts and object counts for both A and B",
+        "Output presents a per-class delta table with at least 10 rows, each showing class name and concrete numbers from both A and B",
+        "Output uses the heap-dump-compare skill's compare-heap-dumps.sh script rather than re-implementing the parser",
+        "Output does NOT claim a root cause, label findings as bugs, or recommend specific fixes (the skill's contract is to present data and stop)"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "single-build-growth-pair",
+      "prompt": "I captured a t0/t5 heap dump pair, both files are in ~/dev/heap-dumps/sniper-master-latest-2/. Show me what grew during the 5-minute window.",
+      "expected_output": "A single-build growth table: total heap delta and top-N classes by shallow-byte growth between t0 and t5. Data only, no diagnosis.",
+      "expectations": [
+        "Output reports total heap delta (t5 minus t0) with concrete bytes/MB",
+        "Output presents a table with at least 10 specific class names and per-class deltas (objects, bytes)",
+        "Output uses the heap-dump-compare skill's compare-heap-dumps.sh script rather than re-implementing the parser",
+        "Output does NOT claim a root cause or recommend a fix"
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "ambiguous-input-asks-via-interview",
+      "prompt": "Compare the heap dumps in ~/dev/heap-dumps/sniper-master-latest-2/ — there's a t0 and t5 in there.",
+      "expected_output": "Because only one pair-dir is given with no stated goal, the skill should either: (a) run single-build growth mode by default and present the table, OR (b) ask via AskUserQuestion whether to run growth mode or to compare against a second pair the user hasn't named yet. Either is acceptable; assuming and asking are both better than running the wrong analysis.",
+      "expectations": [
+        "Output is either a single-build growth table OR the agent used AskUserQuestion to clarify intent before running",
+        "If a table was produced, it includes total heap delta and a per-class delta list",
+        "Output uses the heap-dump-compare skill's compare-heap-dumps.sh script rather than re-implementing the parser"
+      ],
+      "files": []
+    }
+  ]
+}

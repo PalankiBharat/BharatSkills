@@ -1,0 +1,66 @@
+{
+  "Ktor engine — CIO": [
+    "io.ktor.client.engine.cio.",
+    "io.ktor.network."
+  ],
+  "Ktor engine — OkHttp": [
+    "io.ktor.client.engine.okhttp."
+  ],
+  "Ktor client core": [
+    "io.ktor.client.HttpClient",
+    "io.ktor.client.plugins.",
+    "io.ktor.utils.io."
+  ],
+  "Ktor WebSocket": [
+    "io.ktor.websocket.",
+    "io.ktor.client.plugins.websocket."
+  ],
+  "TLS / crypto": [
+    "javax.crypto.",
+    "java.security.",
+    "com.google.android.gms.org.conscrypt."
+  ],
+  "Native allocation registration (Cleaner)": [
+    "sun.misc.Cleaner",
+    "libcore.util.NativeAllocationRegistry",
+    "java.lang.ref.FinalizerReference"
+  ],
+  "Coroutine scheduler / dispatcher churn": [
+    "kotlinx.coroutines.scheduling.",
+    "kotlinx.coroutines.internal.LimitedDispatcher",
+    "kotlinx.coroutines.CancellableContinuationImpl",
+    "kotlinx.coroutines.DispatchedContinuation",
+    "kotlinx.coroutines.ChildContinuation",
+    "kotlinx.coroutines.ChildHandleNode"
+  ],
+  "Flow operators (map/combine/transformLatest churn)": [
+    "kotlinx.coroutines.flow.internal.",
+    "kotlinx.coroutines.flow.FlowKt__",
+    "kotlinx.coroutines.flow.DistinctFlowImpl"
+  ],
+  "Compose snapshot / recomposition": [
+    "androidx.compose.runtime.snapshots.",
+    "androidx.compose.runtime.RecomposeScope",
+    "androidx.compose.runtime.IntStack",
+    "androidx.compose.runtime.collection."
+  ],
+  "Compose UI layout / measure": [
+    "androidx.compose.ui.node.",
+    "androidx.compose.ui.layout.",
+    "androidx.compose.foundation.layout."
+  ],
+  "Text rendering (Android)": [
+    "android.text.",
+    "android.graphics.Paint",
+    "android.graphics.text."
+  ],
+  "Image loading (Coil)": [
+    "coil."
+  ],
+  "ObjectBox (cached domain data)": [
+    "io.objectbox."
+  ],
+  "SciChart": [
+    "com.scichart."
+  ]
+}

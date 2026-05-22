@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",
-    "version": "1.9.0",
+    "version": "1.10.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -414,8 +414,8 @@
     {
       "name": "sniper-ops",
       "source": "./plugins/sniper-ops",
-      "description": "Day-to-day operational shortcuts for the sniper-v2-android repo. Currently bundles share-prod / share-staging (commit + push + release-notes pre-flight then trigger CircleCI build), install-prod / install-staging (local install to a connected Android device — auto-launches the app and tails a crash-only logcat in the background on success), and heap-dump-pair (option-driven interview to capture a baseline + t+5min .hprof pair for diffing in Android Studio Profiler). Designed to grow as more repetitive ops chores show up.",
-      "version": "1.2.0",
+      "description": "Day-to-day operational shortcuts for the sniper-v2-android repo. Currently bundles share-prod / share-staging (commit + push + release-notes pre-flight then trigger CircleCI build), install-prod / install-staging (local install to a connected Android device — auto-launches the app and tails a crash-only logcat in the background on success), heap-dump-pair (option-driven interview to capture a baseline + t+5min .hprof pair), and heap-dump-compare (diff two Android .hprof files and present a side-by-side comparison table — data only, no diagnosis). Designed to grow as more repetitive ops chores show up.",
+      "version": "1.3.0",
       "category": "developer-tools",
       "tags": [
         "sniper",
@@ -443,6 +443,9 @@
         "hprof",
         "memory snapshot",
         "leak check",
+        "compare heap dumps",
+        "diff hprof",
+        "heap diff",
         "sniper"
       ]
     },
