@@ -1,0 +1,26 @@
+{
+  "skill_name": "heap-dump-pair",
+  "evals": [
+    {
+      "id": 0,
+      "name": "casual-sniper-request",
+      "prompt": "i have adb connected can you take heap dump of sniper one now and one in 5 min",
+      "expected_output": "Skill should: (1) list adb devices, (2) ask via AskUserQuestion which device if multiple, (3) resolve 'sniper' to com.marketpulse.sniper.vte and confirm via options, (4) ask via AskUserQuestion for save location with sensible presets, (5) capture baseline dump, (6) schedule second dump in background for exactly +5min, (7) report file paths/sizes/delta when both land. No free-text input asks. No second dump <5min after first.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "explicit-package-and-location",
+      "prompt": "take a 5-minute heap dump pair of com.marketpulse.sniper.vte and save them to ~/Desktop/sniper-leak-check/",
+      "expected_output": "User pre-supplied the package and a custom save dir. Skill should: (1) still check device count, (2) skip the package-picker since pkg is fully qualified (just verify installed + running), (3) skip the save-location AskUserQuestion since user supplied a path (or at most confirm), (4) capture baseline + t+5min into ~/Desktop/sniper-leak-check/, (5) report both files. Should NOT ask redundant option questions when answers are already in the prompt.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "no-app-name-given",
+      "prompt": "memory snapshot before and after — 5 min apart — on my phone",
+      "expected_output": "User gave neither package nor location. Skill should: (1) ask device via options, (2) list running third-party packages on that device and present top candidates as options for the user to pick the app, (3) ask save location via options, (4) capture pair, (5) report. Tests that the skill handles the fully-cold-start case without dumping a random system process or refusing.",
+      "files": []
+    }
+  ]
+}
