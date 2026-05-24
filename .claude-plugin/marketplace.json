@@ -452,8 +452,8 @@
     {
       "name": "maestro-android-testing",
       "source": "./plugins/maestro-android-testing",
-      "description": "Maestro UI testing for Android Jetpack Compose apps. Enforces accessibility-ID-first selectors (never coordinates, never ambiguous stock data text), mandatory MCP check before any test authoring, and structured flow headers so AI agents understand context without reading the full YAML. Includes ADB fingerprint bridge for biometric emulator testing.",
-      "version": "1.0.1",
+      "description": "Maestro UI testing for Android Jetpack Compose apps. Enforces accessibility-ID-first selectors (never coordinates, never ambiguous stock data text), mandatory MCP check, existing-flow inspection (STEP 0b), and screen-level testTags before any test authoring. Documents the `when: visible:` plain-text-only constraint to prevent runtime parse errors and silent wrong-screen matches. Includes ADB fingerprint bridge for biometric emulator testing.",
+      "version": "1.1.0",
       "category": "android",
       "tags": [
         "maestro",
@@ -471,9 +471,17 @@
         "write a test",
         "test this screen",
         "UI test",
+        "test",
+        "test manually",
+        "verify",
+        "run the flow",
+        "QA this",
+        "check the screen",
         "compose testing",
         "fingerprint",
         "testTag",
+        "screen_testTag",
+        "when visible collision",
         "accessibility id"
       ]
     }
