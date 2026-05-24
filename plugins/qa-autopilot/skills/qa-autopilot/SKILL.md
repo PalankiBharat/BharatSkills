@@ -1,13 +1,21 @@
 ---
 name: qa-autopilot
-description: Use when the user says "test my changes", "run QA", "qa autopilot", "test my branch", "generate test cases", "QA my PR", "regression test", "test the diff", or wants to verify a feature branch before merging. Also triggers on requests to check for regressions or generate a QA report for Android changes.
+description: Use when the user says "test my changes", "run QA", "qa autopilot", "test my branch", "generate test cases", "QA my PR", "regression test", "test the diff", "test", "test manually", "verify", "verify feature", "QA this", "run the flow", "does this work", "check the screen", or wants to verify a feature branch before merging. Also triggers on requests to check for regressions or generate a QA report for Android changes.
 ---
 
 # QA Autopilot — Change Analysis → Maestro Test Generation → Report
 
 You are a senior QA engineer. You think in **user journeys**, not code paths. Your job is to figure out which user workflows are at risk from what changed, then generate Maestro YAML flows that prove those workflows still work.
 
-**REQUIRED SUB-SKILL:** `maestro-android-testing` — invoke it before generating any YAML. It governs the MCP check, selector rules, tag discovery, and flow structure.
+**REQUIRED SUB-SKILL (BLOCKING):** `maestro-android-testing` — invoke it BEFORE writing any YAML. Confirm its **STEP 0 (Maestro CLI install check)** and **STEP 1 (tag discovery)** are both complete. Do not proceed until both steps are done. If you skip this, you will hit the `when: visible:` collisions and missing screen-tag bugs documented in that skill.
+
+## Auto-Trigger Keywords
+
+This skill auto-invokes on any of:
+
+`test`, `test manually`, `verify`, `verify feature`, `QA this`, `QA my PR`, `run the flow`, `does this work`, `check the screen`, `test my changes`, `test my branch`, `test the diff`, `regression test`, `generate test cases`, `run QA`.
+
+If you find yourself doing ad-hoc manual taps on an Android Compose build without going through Phase 0 first, STOP — you are in scope for this skill.
 
 ## The QA Mindset
 
@@ -40,9 +48,49 @@ For every changed area, ask:
 
 ## Phase 0: Environment Check
 
-Follow the `maestro-android-testing` sub-skill's **STEP 0 — MCP CHECK** exactly. Do not write a single line of YAML until the MCP check is done.
+### 0a. BLOCKING — Invoke `maestro-android-testing` first
 
-Then extract the git changes:
+Before any YAML, invoke `/maestro-android-testing` and complete:
+- **STEP 0** — Maestro CLI install check (`command -v maestro` → install via `curl -Ls "https://get.maestro.mobile.dev" | bash` if missing) + reachable Android device
+- **STEP 0b** — Read every existing `maestro/` flow in full; catalogue every `when: visible:` value already used
+- **STEP 1** — Tag discovery (grep for `testTag` / `semanticsTag`)
+
+**Do not proceed to Phase 1 until all three steps are complete.** Skipping STEP 0b causes `when: visible:` collisions; skipping STEP 1 causes text-selector bugs.
+
+### 0b. Test Execution Decision Tree
+
+```dot
+digraph qa_execution_choice {
+    "User asks to test X" [shape=box];
+    "Does maestro/flows/ contain a flow for X?" [shape=diamond];
+    "Does X have a clear user journey (2+ steps)?" [shape=diamond];
+    "Run the existing flow via Maestro CLI" [shape=box];
+    "Write a Maestro flow first, then run it" [shape=box];
+    "Edge case only — Android CLI / phone-driver one-off check" [shape=box];
+
+    "User asks to test X" -> "Does maestro/flows/ contain a flow for X?";
+    "Does maestro/flows/ contain a flow for X?" -> "Run the existing flow via Maestro CLI" [label="yes"];
+    "Does maestro/flows/ contain a flow for X?" -> "Does X have a clear user journey (2+ steps)?" [label="no"];
+    "Does X have a clear user journey (2+ steps)?" -> "Write a Maestro flow first, then run it" [label="yes"];
+    "Does X have a clear user journey (2+ steps)?" -> "Edge case only — Android CLI / phone-driver one-off check" [label="no"];
+}
+```
+
+**Rules:**
+- If a Maestro flow for the journey already exists → run it. Do NOT test manually.
+- If no flow exists but the feature has a real journey → write the flow first, then run.
+- Manual tapping (Android CLI, phone-driver skill) is reserved for trivial edge cases with no describable journey.
+
+### 0c. Safety Check — Limited-Attempt Credentials
+
+Before running any auth / OTP / payment flow, ask explicitly:
+- Does this flow consume a limited-attempt credential (OTP, SMS, 2FA, payment OTP)?
+- How many attempts remain on the test account?
+- Can the test start from a mid-flow state (e.g., post-OTP using a saved session) to avoid consuming the budget?
+
+If the budget is small (≤ 3 attempts), prefer a mid-flow entry point or ask the user to confirm before the first run. Burning the only remaining OTP on a flaky test is a self-inflicted P1.
+
+### 0d. Extract the git changes
 
 ```bash
 git diff master...HEAD --name-status
@@ -120,15 +168,15 @@ Read `references/report-template.md`.
 
 Save to project root: `qa-report-{branch-name}-{YYYY-MM-DD}.md`
 
-Each test case entry includes the path to its `.yaml` file. If Maestro MCP was available, include execution results. If not, mark tests PENDING and note the YAML files are ready to run manually.
+Each test case entry includes the path to its `.yaml` file and execution result from `maestro test`.
 
 Verdict: 🟢 SAFE TO MERGE | 🟡 MERGE WITH CAUTION | 🔴 DO NOT MERGE
 
 ## Modes of Operation
 
-**Full Auto** (Maestro MCP available + device connected): Generate YAML → Execute via MCP → Report with pass/fail  
-**Generate Only** (no MCP): Generate YAML files → Report with all PENDING, note files are ready  
-**Re-run Failures**: Read existing report, re-run only ❌ and ⚠️ tests
+**Full Auto** (Maestro CLI installed + device connected): Generate YAML → Execute via `maestro test` → Report with pass/fail  
+**Generate Only** (no device reachable): Generate YAML files → Report with all PENDING, note files are ready to run with `maestro test <path>`  
+**Re-run Failures**: Read existing report, re-run only ❌ and ⚠️ tests via `maestro test <yaml>`
 
 ## Common Mistakes
 
@@ -138,8 +186,12 @@ Verdict: 🟢 SAFE TO MERGE | 🟡 MERGE WITH CAUTION | 🔴 DO NOT MERGE
 | Dumping all tests into one large YAML file | One `.yaml` file per test case — easier to re-run and read failures |
 | Putting edge cases into `.maestro/flows/` | Smoke flows only in `flows/` — branch-specific tests go in `edge-cases/{branch}/` |
 | Using `text:` selectors for stock app elements | Prices, symbols, % appear 4+ times per screen — always use `id:` |
-| Marking tests PASS without running them | If Maestro MCP is unavailable, mark PENDING — never claim PASS without execution evidence |
+| Marking tests PASS without running them | Run `maestro test <yaml>` and capture the result. Never claim PASS without execution evidence. |
 | Writing tests before checking if tags exist | Always grep for testTag/semanticsTag first (maestro-android-testing STEP 1) |
+| Skipping the sub-skill invocation | `maestro-android-testing` STEP 0/0b/1 are BLOCKING gates — they prevent the collision and tag bugs |
+| Manual tap-by-tap testing when a Maestro flow exists | Run the flow via `maestro test maestro/flows/<file>.yaml` instead |
+| Running OTP/auth flow without checking the attempt budget | Phase 0c safety check — burning the last OTP on a flaky test is self-inflicted |
+| "MCP is not configured, I can't test" | CLI works without MCP. `command -v maestro` → install if missing. |
 
 ## Key Principles
 
