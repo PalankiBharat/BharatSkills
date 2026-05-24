@@ -1,6 +1,6 @@
 ---
 name: maestro-android-testing
-description: Use when writing or executing Maestro YAML UI tests for Android, or when the user says "maestro test", "write a test", "test this screen", "UI test", or "test this flow". Also triggers when qa-autopilot or any skill needs to generate Maestro YAML for an Android app.
+description: Use when writing or executing Maestro YAML UI tests for Android, or when the user says "maestro test", "write a test", "test this screen", "UI test", "test this flow", "test", "test manually", "verify", "run the flow", "QA this", or "check the screen". Also triggers when qa-autopilot or any skill needs to generate Maestro YAML for an Android app.
 ---
 
 # Maestro Android Testing
@@ -11,16 +11,78 @@ Maestro tests interact with composables via accessibility IDs — never coordina
 
 ---
 
-## STEP 0 — MCP CHECK (MANDATORY, BLOCKING)
+## Trigger Keywords
+
+This skill MUST auto-invoke when the user mentions any of:
+
+`test`, `test manually`, `verify`, `run the flow`, `QA this`, `check the screen`, `maestro test`, `write a test`, `test this screen`, `UI test`, `test this flow`.
+
+Do not proceed with ad-hoc manual testing on an Android Compose feature without applying Maestro discipline first.
+
+---
+
+## STEP 0 — MAESTRO CLI CHECK (MANDATORY, BLOCKING)
 
 **Do this before any test authoring:**
 
-1. Check if Maestro MCP tools are available in this session (look for `maestro_*` tools)
-2. If NOT available — **STOP. Do not write tests.** Ask:
-   > "Maestro MCP is not configured in this session. Please share your Maestro API key or run `/oh-my-claudecode:mcp-setup` to wire it up first."
-3. Only continue after MCP tools are confirmed.
+The CLI is the primary execution path. MCP is treated as an optional convenience layer on top — never as a hard requirement.
 
-**No workarounds.** "I'll write the YAML and you run it" is not acceptable.
+1. Check if the Maestro CLI is installed:
+   ```bash
+   command -v maestro >/dev/null && maestro --version
+   ```
+2. If NOT installed, install it inline as a prerequisite (one-time, ~10 seconds):
+   ```bash
+   curl -Ls "https://get.maestro.mobile.dev" | bash
+   export PATH="$HOME/.maestro/bin:$PATH"
+   maestro --version   # verify
+   ```
+   Tell the user: "Installing Maestro CLI — one-time prerequisite. Add `~/.maestro/bin` to your shell PATH if it isn't already."
+3. Confirm an Android device or emulator is reachable:
+   ```bash
+   adb devices
+   ```
+   If empty, ask the user to boot an emulator before proceeding. Do not write tests against a phantom device.
+4. (Optional) If `maestro_*` MCP tools are also available in this session, prefer them for ergonomic device selection and screen inspection — but never block on MCP being configured. The CLI is enough.
+
+**No workarounds.** "I'll write the YAML and you run it later" is not acceptable — installing the CLI takes seconds and lets you run flows immediately.
+
+### Running flows via CLI
+
+```bash
+# Single flow
+maestro test maestro/flows/login.yaml
+
+# Whole folder, smoke tag only
+maestro test maestro/flows/ --include-tags=smoke
+
+# With env vars (use env: in YAML to consume)
+maestro test maestro/flows/login.yaml -e PHONE=9876543210
+```
+
+---
+
+## STEP 0b — READ EXISTING FLOWS FIRST (MANDATORY, BLOCKING)
+
+**Before writing a single line of YAML, you MUST inspect existing flows.** Skipping this step causes duplicate logic, `runFlow` collisions, and `when: visible:` text matches firing on the wrong screen.
+
+Run these in order:
+
+```bash
+# 1. List every existing flow
+find maestro/ -name "*.yaml" | sort
+
+# 2. Read every related flow file in full (do NOT skim)
+#    Pay attention to subflows referenced by runFlow.
+
+# 3. Catalogue every `when: visible:` value already used in the flow tree
+grep -rn "when:" -A 2 maestro/ | grep -E "visible:" | sort -u
+```
+
+**Decision rules after inspection:**
+- If an existing subflow already covers a step → reuse it via `runFlow`. Do not re-implement.
+- Every new `when: visible: "<text>"` you plan to add MUST be cross-checked against the catalogue above. If the same text could appear on another screen in the flow tree, it is a collision — pick a unique anchor (a screen-level `testTag`, see STEP 2) instead.
+- If you cannot prove the `visible:` anchor is unique across all screens the parent flow may be on, you do NOT have permission to use it.
 
 ---
 
@@ -117,6 +179,41 @@ Dashboard
 | ⚠️ Last | `text: "..."` | System dialogs ONLY: "Allow", "Deny", "OK", "Cancel" |
 | ❌ Never | `point: "x%, y%"` | Banned — breaks on every device size |
 
+### ⚠️ `when: visible:` ONLY accepts plain text strings
+
+```yaml
+# ❌ WRONG — runtime parse error in Maestro
+- runFlow:
+    when:
+      visible:
+        id: "biometric_continue"
+    file: ./04_biometric.yaml
+
+# ✅ CORRECT — plain text only
+- runFlow:
+    when:
+      visible: "Enable fingerprint ID"   # must be a string UNIQUE across all flows in the tree
+    file: ./04_biometric.yaml
+```
+
+**Why:** `when: visible:` does NOT accept an object form (`{id: "..."}` / `{text: "..."}`). Passing one fails at parse time, not at runtime — your whole flow refuses to start.
+
+**For id-based presence checks**, do the check INSIDE the subflow using `extendedWaitUntil` or `assertVisible`, which DO accept `{id: "..."}`:
+
+```yaml
+# Inside the subflow file
+- extendedWaitUntil:
+    visible:
+      id: "biometric_continue"
+    timeout: 8000
+- assertVisible:
+    id: "biometric_continue"
+```
+
+**Text collisions are silent and dangerous.** `when: visible: "CONTINUE"` will match the FIRST screen in the flow tree that shows the word "CONTINUE" — biometric, risk disclosure, OTP, anywhere. Always pick a text anchor unique to ONE screen (see Screen-Level Tags below), or use a screen-level `testTag` via `extendedWaitUntil` inside the conditional subflow.
+
+---
+
 ### The Stock App Text Trap
 
 Stock symbols (NIFTY, BANKNIFTY, etc.) appear in chart candles, price labels, order book, and header **simultaneously**. Text selectors will match the wrong element.
@@ -133,6 +230,30 @@ Stock symbols (NIFTY, BANKNIFTY, etc.) appear in chart candles, price labels, or
 ---
 
 ## Sniper Tag Reference
+
+### Screens — MANDATORY top-level testTags
+
+Every screen's top-level Composable MUST carry `Modifier.testTag("screen_<name>")`. This is the only collision-free anchor for `when:` conditions and for cross-flow assertions — text labels like "CONTINUE" or "OK" reappear across screens and produce silent wrong-screen matches.
+
+| Screen | Tag ID |
+|--------|--------|
+| Biometric authorization | `screen_biometric` |
+| Risk disclosure | `screen_risk_disclosure` |
+| Mobile verification | `screen_mobile_verification` |
+| OTP verification | `screen_otp` |
+| Dashboard | `screen_dashboard` |
+| Intro / story slides | `screen_intro` |
+| Trial plan | `screen_trial` |
+| PIN entry | `screen_pin` |
+
+```kotlin
+@Composable
+fun BiometricAuthorizationContent(modifier: Modifier = Modifier, ...) {
+    Column(modifier = modifier.testTag("screen_biometric")) { ... }
+}
+```
+
+**If a screen is missing its tag, add it before writing the flow.** Do not work around the gap with text selectors.
 
 ### Registration / Auth
 
@@ -603,6 +724,24 @@ Naming: `screen_component_element` in `snake_case`
 - ✅ `chart_header_interval_selector`, `login_phone_field`
 - ❌ `button1`, `chartBtn`, `myView`
 
+### Screen-Level Tags — MANDATORY
+
+Every screen's top-level Composable MUST have `Modifier.testTag("screen_<name>")`. Without it, `when: visible:` and `assertVisible` cannot distinguish screens from each other when buttons share labels (CONTINUE, OK, NEXT) — the test will silently fire on the wrong screen.
+
+```kotlin
+@Composable
+fun BiometricAuthorizationContent(modifier: Modifier = Modifier, ...) {
+    Column(modifier = modifier.testTag("screen_biometric")) { ... }
+}
+
+@Composable
+fun RiskDisclosureContent(modifier: Modifier = Modifier, ...) {
+    Column(modifier = modifier.testTag("screen_risk_disclosure")) { ... }
+}
+```
+
+See the **Screens — MANDATORY top-level testTags** table above for the canonical tag IDs.
+
 ---
 
 ## Common Mistakes
@@ -614,7 +753,11 @@ Naming: `screen_component_element` in `snake_case`
 | No header comment on YAML | Always add the full header block |
 | `assertVisible: "BUY"` | `assertVisible: {id: "call"}` |
 | Writing test before checking tags | Grep STEP 1 first |
-| Skipping MCP check | Step 0 is non-negotiable |
+| Writing YAML before reading existing flows | STEP 0b — `find maestro/ -name "*.yaml"` and read them all first |
+| `when: visible: {id: "tag"}` | Parse error — use plain text only; use `extendedWaitUntil` + `id:` inside the subflow |
+| `when: visible: "CONTINUE"` (reused word) | Pick a text unique to ONE screen, or add a `screen_<name>` testTag |
+| Screen has no top-level `testTag` | Add `Modifier.testTag("screen_<name>")` before writing the flow |
+| Skipping CLI install check | Step 0 is non-negotiable — `command -v maestro` first, install if absent |
 | Using biometric on CI/cloud | Use OTP fallback path instead |
 
 ---
@@ -624,8 +767,13 @@ Naming: `screen_component_element` in `snake_case`
 | Thought | Reality |
 |---------|---------|
 | "This text is unique on screen" | Stock symbols appear 4+ times per screen |
+| "CONTINUE is fine for `when: visible:`" | Same word appears on 3+ screens — collision is guaranteed |
+| "I'll skim the existing flows quickly" | STEP 0b — read them in full, catalogue every `when: visible:` value |
+| "I'll use `when: visible: {id: ...}`" | Parse error. `when: visible:` accepts plain text only. |
+| "I don't need a screen testTag, the buttons have tags" | Without `screen_<name>`, you cannot disambiguate screens in `when:` conditions |
 | "Coordinates are faster" | Breaks on every device size |
-| "I'll write YAML, user can run it" | Step 0 required — get MCP key |
+| "I'll write YAML, user can run it" | Step 0 — install Maestro CLI (one-line `curl` command) and run it yourself |
+| "MCP isn't configured, I can't test" | CLI works without MCP. `maestro test path/to/flow.yaml`. |
 | "The tag probably exists" | Grep first. Never assume. |
 | "I'll add the tag after" | Tag code first, then write YAML |
 | "I can simulate fingerprint natively" | Maestro has no biometric command — use ADB bridge or OTP fallback |
