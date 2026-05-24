@@ -43,21 +43,31 @@
     {
       "name": "qa-autopilot",
       "source": "./plugins/qa-autopilot",
-      "description": "Automated QA testing — analyzes git branch changes, generates Maestro YAML test flows (smoke + edge-case directories), and produces a QA report with pass/fail results.",
-      "version": "1.1.0",
+      "description": "Automated QA testing — analyzes git branch changes, runs an existing Maestro flow when one exists (Maestro CLI, auto-installed if missing), generates new YAML otherwise (smoke + edge-case directories), and produces a QA report with pass/fail results. Hard-gated on the maestro-android-testing sub-skill so flow inspection and screen-tag discipline are enforced.",
+      "version": "1.2.0",
       "category": "testing",
       "tags": [
         "android",
         "qa",
         "testing",
         "automation",
-        "adb"
+        "adb",
+        "maestro"
       ],
       "keywords": [
         "qa",
         "test",
+        "test manually",
+        "verify",
+        "verify feature",
+        "QA this",
+        "QA my PR",
+        "run the flow",
+        "does this work",
+        "check the screen",
         "autopilot",
         "regression",
+        "maestro cli",
         "performance"
       ]
     },
