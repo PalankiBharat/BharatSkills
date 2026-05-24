@@ -21,16 +21,44 @@ Do not proceed with ad-hoc manual testing on an Android Compose feature without 
 
 ---
 
-## STEP 0 — MCP CHECK (MANDATORY, BLOCKING)
+## STEP 0 — MAESTRO CLI CHECK (MANDATORY, BLOCKING)
 
 **Do this before any test authoring:**
 
-1. Check if Maestro MCP tools are available in this session (look for `maestro_*` tools)
-2. If NOT available — **STOP. Do not write tests.** Ask:
-   > "Maestro MCP is not configured in this session. Please share your Maestro API key or run `/oh-my-claudecode:mcp-setup` to wire it up first."
-3. Only continue after MCP tools are confirmed.
+The CLI is the primary execution path. MCP is treated as an optional convenience layer on top — never as a hard requirement.
 
-**No workarounds.** "I'll write the YAML and you run it" is not acceptable.
+1. Check if the Maestro CLI is installed:
+   ```bash
+   command -v maestro >/dev/null && maestro --version
+   ```
+2. If NOT installed, install it inline as a prerequisite (one-time, ~10 seconds):
+   ```bash
+   curl -Ls "https://get.maestro.mobile.dev" | bash
+   export PATH="$HOME/.maestro/bin:$PATH"
+   maestro --version   # verify
+   ```
+   Tell the user: "Installing Maestro CLI — one-time prerequisite. Add `~/.maestro/bin` to your shell PATH if it isn't already."
+3. Confirm an Android device or emulator is reachable:
+   ```bash
+   adb devices
+   ```
+   If empty, ask the user to boot an emulator before proceeding. Do not write tests against a phantom device.
+4. (Optional) If `maestro_*` MCP tools are also available in this session, prefer them for ergonomic device selection and screen inspection — but never block on MCP being configured. The CLI is enough.
+
+**No workarounds.** "I'll write the YAML and you run it later" is not acceptable — installing the CLI takes seconds and lets you run flows immediately.
+
+### Running flows via CLI
+
+```bash
+# Single flow
+maestro test maestro/flows/login.yaml
+
+# Whole folder, smoke tag only
+maestro test maestro/flows/ --include-tags=smoke
+
+# With env vars (use env: in YAML to consume)
+maestro test maestro/flows/login.yaml -e PHONE=9876543210
+```
 
 ---
 
@@ -729,7 +757,7 @@ See the **Screens — MANDATORY top-level testTags** table above for the canonic
 | `when: visible: {id: "tag"}` | Parse error — use plain text only; use `extendedWaitUntil` + `id:` inside the subflow |
 | `when: visible: "CONTINUE"` (reused word) | Pick a text unique to ONE screen, or add a `screen_<name>` testTag |
 | Screen has no top-level `testTag` | Add `Modifier.testTag("screen_<name>")` before writing the flow |
-| Skipping MCP check | Step 0 is non-negotiable |
+| Skipping CLI install check | Step 0 is non-negotiable — `command -v maestro` first, install if absent |
 | Using biometric on CI/cloud | Use OTP fallback path instead |
 
 ---
@@ -744,7 +772,8 @@ See the **Screens — MANDATORY top-level testTags** table above for the canonic
 | "I'll use `when: visible: {id: ...}`" | Parse error. `when: visible:` accepts plain text only. |
 | "I don't need a screen testTag, the buttons have tags" | Without `screen_<name>`, you cannot disambiguate screens in `when:` conditions |
 | "Coordinates are faster" | Breaks on every device size |
-| "I'll write YAML, user can run it" | Step 0 required — get MCP key |
+| "I'll write YAML, user can run it" | Step 0 — install Maestro CLI (one-line `curl` command) and run it yourself |
+| "MCP isn't configured, I can't test" | CLI works without MCP. `maestro test path/to/flow.yaml`. |
 | "The tag probably exists" | Grep first. Never assume. |
 | "I'll add the tag after" | Tag code first, then write YAML |
 | "I can simulate fingerprint natively" | Maestro has no biometric command — use ADB bridge or OTP fallback |
