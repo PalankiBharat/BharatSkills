@@ -8,7 +8,7 @@
 
 ## Sub-phases
 
-### G.1 — PR body composition (Sonnet)
+### G.1 — PR body composition (Sonnet subagent)
 
 **Exception provenance check (mandatory pre-step).** Before listing any migration exceptions in the body, the G.1 subagent runs `git log <base-branch>..HEAD --grep '<exception-id>' --oneline` for every candidate exception under `.kmm/exceptions/`. The base branch is read from `project.md.git.base_branch` if present; else detected via `git symbolic-ref refs/remotes/origin/HEAD`. If a candidate exception has **zero** referencing commits in the range, it belongs to a prior PR and is **excluded** from this body — listing it would mislead the reviewer. Subagent returns a structured table `id | provenance commits | include? (Y/N)` for the main thread to review before composing.
 
@@ -37,7 +37,7 @@ G.4 invokes `gh pr create --body-file .kmm/migrations/<branch>/pr-body.md`. **Ne
 - Trust scores, decisions logs, audit details.
 - Bloat.
 
-### G.2 — Self-review (Sonnet)
+### G.2 — Self-review (Sonnet subagent)
 
 Re-read the draft:
 - Process bleed? Trim.

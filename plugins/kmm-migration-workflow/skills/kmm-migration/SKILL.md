@@ -47,15 +47,29 @@ User accepts (`a`), edits (`e`), or rejects (`r`). On accept, the write happens.
 
 Skill source files (the plugin's own `.md` files under `skills/kmm-migration/`) are **never edited from within a migration session**. Skill improvements happen in dedicated planning sessions that consume retro.md (see §Special actions → Per-phase retro).
 
-### Smart subagent routing
+### Smart subagent routing — NON-NEGOTIABLE
 
-| Category | Model | When |
+The orchestrator and the subagents have **disjoint** responsibilities. The orchestrator decides, dispatches, and synthesizes; subagents read, write, and edit. **The orchestrator does not author or edit code itself**, ever — every Write / Edit / NotebookEdit / mutating Bash invocation that touches a file under version control goes through a dispatched subagent. This rule is what keeps Opus-time spent on judgment and parallelism free to compound.
+
+**Orchestrator role (Opus, main thread).** Reads the active phase reference + active phase output file + project.md. Makes decisions. Synthesizes across files. Dispatches subagents (in parallel when work units are independent). Relays verdicts to the user. **Never** writes/edits code; **never** runs a mutating shell command when a subagent can.
+
+**Subagent role (dispatched, never the main thread).** Every Write / Edit / multi-file scan / test authoring / migration step / `git mv` / package update / commit-message draft / compile-fix iteration / mutation + revert / structured-field fill.
+
+| Category | Subagent model | When |
 |---|---|---|
-| Mechanical | Haiku | File reads, denylist scans, filetype heuristics, gradle output parsing, template fills, log parsing, git mv operations |
-| Bounded judgment | Sonnet | Checklist scoring, routine test writing, breakage mutations, self-review, verdict prose, per-file analysis, routine compile-error fixes |
-| High-stakes / irreversible | Opus orchestrator | Feature-surface baselines, complex-file tests (concurrency-heavy Interactors, multi-source Repos with cache, state-machine Presenters), cross-file synthesis, hold-back decisions, non-trivial decision planning |
+| Mechanical | Haiku subagent | File reads, denylist scans, filetype heuristics, gradle output parsing, template fills, log parsing, `git mv` operations, structured-field fills, single-line edits the orchestrator could "obviously" do itself but must not |
+| Bounded judgment | **Sonnet subagent — default for all code writes/edits** | Checklist scoring, baseline test writing, breakage mutations, self-review, verdict prose, per-file analysis, routine compile-error fixes, commit-message composition, package updates, foundation actual impls per platform |
+| High-stakes code authoring | Opus subagent (escalation) | Feature-surface baselines, concurrency-heavy Interactor tests, multi-source-cache Repository tests, state-machine Presenter tests, consolidated `expect`/`actual` interface declarations, drafter for first-time detekt bootstrap, complex Phase D substitutions where live-search is needed |
+| Cross-file synthesis + final decisions | Opus orchestrator (main thread) | Phase A cross-file synthesis, Phase D migration ordering, DI plan synthesis, risk-register dedup, Phase D plan flips (`migrate` → `hold`), `expect`/`actual` ≥2-consumer enforcement, blocker-loop categorisation, Opus review of detekt-rule draft. **Decision output only — any resulting code lands via a subagent.** |
 
-Discipline: **Opus only when cost-of-being-wrong is high.** Default-everything-Sonnet wastes Opus depth on routine work; default-everything-Opus burns time and tokens on mechanical tasks.
+**The four non-negotiables:**
+
+1. **No code from the orchestrator.** Every Write / Edit / NotebookEdit lands via a subagent. If the orchestrator needs a one-line edit, it still dispatches a Haiku subagent. The orchestrator's tool budget on the main thread is read-only + dispatch + decision-recording into the active phase's own output file (which is allowed to be edited directly per the read-many exceptions).
+2. **Parallel by default.** Independent units of work — per-file baselines in a batch, per-platform `actual` impls, per-host parity audits, per-file consumer-import updates — are dispatched in a **single message with multiple subagent tool calls**. Sequential dispatch is reserved for work that genuinely depends on prior subagent output (compile-fix loops where iteration N+1 needs iteration N's build state, dep-graph walks where layer N+1 depends on layer N).
+3. **Subagent failure ⇒ another subagent.** When a dispatched subagent dies, times out, returns garbled output, hits a permission denial, or refuses, the orchestrator **dispatches another subagent** (same model retry, or escalate the model). The orchestrator NEVER continues the failed subagent's work in the main thread. This is the silent-degradation mode that has historically turned a Sonnet-grade parallel batch into Opus-doing-labor-sequentially.
+4. **Parallel-not-worth-it is still subagent-mediated.** When parallelism wouldn't pay back the dispatch cost (single-file fix, sequential dependency, a unit too small), the orchestrator still dispatches **one** subagent — it does not pick up the work itself. The choice is "parallel subagents vs one subagent", never "subagent vs orchestrator."
+
+Discipline anchor: **Opus only when cost-of-being-wrong is high, AND only as a subagent for code authoring.** Default-everything-Sonnet wastes Opus depth on routine work; default-everything-Opus burns time and tokens on mechanical tasks; Opus-orchestrator-doing-code-itself burns BOTH while serializing what should have been parallel.
 
 ### Subagent-mediated exploration (read-many = subagent)
 
@@ -76,6 +90,27 @@ Discipline: **Opus only when cost-of-being-wrong is high.** Default-everything-S
 - The active phase's own output file (`scope.md`, `plan.md`, etc.) — the skill writes these progressively and must see their current state.
 
 **Why this matters.** Context degrades performance. A 5–9h session that reads every phase file into main and every cached search result into main fills the window with stale or low-relevance content, crowding out the current decision. The infinite-exploration failure mode — *"investigate X"* → read 50 files → context full → quality drops — is real. Subagent-mediated reads cap each exploration at its summary cost.
+
+### Subagent-mediated execution (write-many = subagent, parallel by default) — NON-NEGOTIABLE
+
+Symmetric to the read-many rule: **the main thread does not write code.** Every Write / Edit / NotebookEdit that touches a version-controlled file under the migration's scope goes through a dispatched subagent (per the Smart subagent routing table). Independent writes go out in a **single message with multiple subagent dispatches** — parallel is the default, sequential is the exception that must be justified by a dependency.
+
+**Triggers (always dispatch — never main thread):**
+- Batch of file writes (per-file baselines, foundation interfaces, per-platform `actual` impls, package-rename across consumers).
+- Each iteration of a compile-fix loop (one fix = one subagent dispatch; the loop is sequential by build dependency but the work inside each iteration is not orchestrator work).
+- Commit-message composition (Sonnet subagent per commit; the orchestrator decides *when* to commit, the subagent composes *what* the message says).
+- Mutation + revert proofs (Phase B.5 red-on-breakage): one subagent per file, parallel across files.
+- `git mv` runs (Haiku subagent, parallel per file).
+- Detekt-rule drafting (Sonnet subagent), detekt-config edits, build.gradle source-set tweaks (Haiku/Sonnet subagent depending on judgment surface).
+- Any prose write that's longer than a paragraph and lands in a phase file's per-file entry (audit verdicts, migration log entries, decision-log rationales). Short timestamped one-liners into the active phase's *own* output file are exempt (see below).
+
+**Exceptions (orchestrator may write directly):**
+- The active phase's own output file (`scope.md`, `plan.md`, `audit.md`, `migration.md`, etc.) for **short structured updates** — status flips, task-checkbox ticks, one-line decision-log entries. Long per-file entries and audit-prose blocks still go to a subagent.
+- `.kmm/project.md` is governed by its diff-confirm protocol — orchestrator drafts the diff, user accepts, write happens. No subagent needed (the gate is the user).
+
+**Failure → another subagent.** Same rule as the routing non-negotiables. If a write-subagent dies / refuses / returns broken output, the orchestrator dispatches another (same or escalated model). It does NOT pick up the half-finished write itself — that silent degradation is the failure mode this rule exists to prevent.
+
+**Why this matters.** Parallel subagent dispatch is what lets a multi-file batch land in one orchestrator turn instead of N. Orchestrator-does-it-itself collapses the batch into sequential work AND burns the most expensive model on Sonnet-grade labor. The routing table tells you *which* subagent; this rule tells you that *some* subagent always handles the write.
 
 ### Output economy
 
