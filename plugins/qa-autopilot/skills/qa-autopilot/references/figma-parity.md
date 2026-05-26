@@ -32,10 +32,12 @@ The red overlay and `diff_pct` are **hints for where to look, never the verdict.
   {screen}-app.png          ← live app screenshot (Maestro)
   {screen}-regions.json     ← element boxes you choose (aligned-image coords)
   diff-{screen}/
-    design-aligned.png      ← the exact design pixels being compared
-    app-aligned.png         ← the exact app pixels being compared
+    design-aligned.png      ← full-res design pixels being compared
+    app-aligned.png         ← full-res app pixels being compared
+    design-view.png         ← downscaled copy — OPEN THIS for the visual pass
+    app-view.png            ← downscaled copy — OPEN THIS for the visual pass
     diff-overlay.png        ← red-tinted differences (HINT only)
-    diff-report.json        ← global hint + per-region colour numbers
+    diff-report.json        ← blank-screen check + global hint + per-region colour
 ```
 
 ## Workflow
@@ -69,6 +71,8 @@ name: parity-{screen}
 
 `takeScreenshot: <path>` writes `<path>.png`. Run: `maestro test .maestro/parity-{screen}.yaml`.
 
+**Keyguard / system screens screenshot black.** Device-credential, keyguard, and full-screen system prompts return a near-black image even though the view hierarchy is intact. You cannot pixel-parity these — the script flags them (`blank_screen_check`), and you inspect the hierarchy instead (`maestro hierarchy` / inspect). See `references/maestro-android-testing.md`.
+
 ### 3. First pass — align and crop the chrome
 
 Open `{screen}-app.png` and read off the pixel heights of the Android **status bar** (top) and **nav bar** (bottom) — they are not in the design and must be cropped, or they dominate the comparison. Then:
@@ -81,26 +85,30 @@ python3 scripts/compare-images.py \
     --crop-top {status_bar_px} --crop-bottom {nav_bar_px}
 ```
 
-This writes `design-aligned.png` and `app-aligned.png` at the same dimensions, plus the hint overlay.
+This writes `design-aligned.png` / `app-aligned.png` (full-res), `design-view.png` / `app-view.png` (downscaled), and the hint overlay.
+
+**Check `blank_screen_check` in the report first.** If `app_screenshot_blank` is true, the screen is a keyguard/system screen — STOP the pixel pass and switch to the view hierarchy.
 
 ### 4. AI comparison — look, judge, choose regions
 
-**Open `design-aligned.png` AND `app-aligned.png` and compare them visually.** This is the holistic pass only you can do:
+**Open `design-view.png` AND `app-view.png`** (the downscaled copies — full-res renders blow the session image cap and get rejected). Open them as **one or two side-by-side pairs; do NOT bulk-open a dozen region crops** — you'll hit the image-count cap. This is the holistic pass only you can do:
 
 - Layout & order: are elements in the same place and order?
 - Spacing & padding: gaps, margins, alignment — anything shifted?
 - Stroke thickness: borders, dividers, underlines too thick/thin?
+- **Inner content, not just the container** (this is the #1 miss): for every component, check the thing *inside* it — the colour swatch's inner fill (solid vs dashed vs gradient), a preview bar's actual height, an icon's shape, a chart line's style. A container that matches tells you NOTHING about its contents.
 - Presence: anything missing, extra, or cut off?
-- Colour (first read): anything obviously off — to confirm with numbers next.
+- Colour (first read): anything obviously off — confirm with numbers next.
 
 Use `diff-overlay.png` only as a "where to look" hint.
 
-Then **write `{screen}-regions.json`** (via the Write tool) listing the element rectangles you want exact colour numbers for. Coordinates are **aligned-image pixels** (the post-crop, post-resize space you're viewing — NOT original Figma or original screenshot dimensions):
+Then **write `{screen}-regions.json`** (via the Write tool). **For every component, add TWO regions — the container AND its inner content** — so colour is checked on what's actually rendered inside, not just the frame. Coordinates are **aligned-image pixels** (post-crop, post-resize — NOT original Figma or raw-screenshot dimensions):
 
 ```json
 [
-  {"name": "primary_button", "x": 120, "y": 1800, "w": 840, "h": 210},
-  {"name": "header_bar",     "x": 0,   "y": 0,    "w": 1080, "h": 240}
+  {"name": "swatch_container",  "x": 120, "y": 1800, "w": 840, "h": 210},
+  {"name": "swatch_inner_fill", "x": 150, "y": 1840, "w": 780, "h": 130},
+  {"name": "preview_bar_inner", "x": 150, "y": 2000, "w": 780, "h": 40}
 ]
 ```
 
@@ -140,12 +148,24 @@ Write the report (`references/report-template.md` structure), combining **your v
 | 3–5 | or any clear spatial drift | 🟡 CAUTION |
 | > 5 | or missing/wrong elements | 🔴 OFF-DESIGN |
 
+## Running as a subagent
+
+Parity runs dispatched as a subagent died in the field (login mid-step, API rate-limits mid-task, partial edits left on disk). Rules:
+
+- **Do login/auth in the main context, never inside the subagent.** Hand the subagent an already-authenticated device on the target screen. (Maestro navigation itself is reliable once login is done up front.)
+- **Checkpoint to disk as you go.** The design ref, screenshot, `regions.json`, and report are all files — a rate-limited or restarted run resumes from whatever is already on disk. Don't hold results only in memory.
+- **Orchestrator must verify on-disk output, not the "done" message.** A subagent that reports success may have written only partial edits. Confirm the expected files exist and the report has the regions before trusting it.
+- **Never `Read` `figma-to-compose`'s `screen.json` / `figma-out/` whole.** Parity works from the rendered PNG only. Those exports run to 1MB+ and blow the file-read cap; if you find them beside your inputs, ignore them (or `jq`/`grep`/python a slice — never a full Read).
+
 ## Red Flags — STOP if you think:
 
 | Thought | Reality |
 |---------|---------|
 | "diff_pct is 14%, so it's off" | `diff_pct` and the overlay are alignment-noise HINTS, never the verdict. Judge by per-region ΔE + your eyes. |
-| "I'll skip the visual pass and just read the JSON" | The script measures colour only. Layout/spacing/thickness are YOUR job — open the aligned images. |
+| "I'll skip the visual pass and just read the JSON" | The script measures colour only. Layout/spacing/thickness are YOUR job — open the view images. |
+| "The container matches, so the swatch matches" | Container ΔE close + no inner region sampled = sign-off INVALID. Always check the inner fill/pattern/height separately. |
+| "I'll open the full-res aligned images" | They blow the image cap and get rejected. Open the downscaled `*-view.png` copies; view a couple of pairs, not many. |
+| "The screenshot is black, parity fails" | A black screenshot is a keyguard/system screen (`blank_screen_check`), not a design failure. Use the view hierarchy instead. |
 | "I'll eyeball the colours too" | You can't see a ΔE of 2 by eye. Put a region on it and read `delta_e_2000`. |
 | "I'll put region coords from the Figma frame" | Coords are ALIGNED-image space (post-crop, post-resize), or they sample the wrong pixels. |
 | "The status bar is fine, I won't crop" | Uncropped chrome shifts the whole grid and poisons alignment. Always set `--crop-top`/`--crop-bottom`. |
@@ -157,7 +177,10 @@ Write the report (`references/report-template.md` structure), combining **your v
 | Mistake | Correct approach |
 |---------|------------------|
 | Reading `diff_pct` / the red overlay as the verdict | They are hints. The verdict is per-region ΔE + your visual read |
-| Skipping the visual comparison of the aligned images | That pass catches layout/spacing/thickness — the script can't |
+| Skipping the visual comparison of the view images | That pass catches layout/spacing/thickness — the script can't |
+| Checking only the container, not its inner content | Sample container AND inner fill/pattern/height — the inner content is where parity actually breaks |
+| Opening full-res images / bulk-opening many crops | Open the `*-view.png` copies, a couple of pairs at a time (image cap) |
+| Trying to pixel-parity a keyguard/system screen | Black screenshot → use the view hierarchy (`maestro hierarchy`/inspect), not a screenshot |
 | Not cropping the status/nav bars | Set `--crop-top`/`--crop-bottom` so design and app share the same frame |
 | Region coords in Figma or raw-screenshot space | Use aligned-image pixels (post-crop, post-resize) |
 | App screenshot in a different state than the design | Match data/theme/variant before `takeScreenshot` |
