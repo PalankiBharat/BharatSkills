@@ -44,7 +44,7 @@ detekt_version: <version-string-or-null>
 
 Plus: **scope.md's "Legacy / non-target test source sets" list** (populated at Phase 0 step 10) is read and passed forward as proposed exclude paths for the new rule.
 
-#### C.2.2 — Draft the detekt rule extension (Sonnet)
+#### C.2.2 — Draft the detekt rule extension (Sonnet subagent)
 
 Drafts per `test-discipline/migration-baselines.md` denylist:
 - Fail on imports: `io.mockk.*` (MockK — baselines use hand-rolled fakes), `org.mockito.*`, `com.google.common.truth.*`, `org.junit.runner.*`, `org.junit.Rule`, `org.junit.Before`, `org.junit.After`, `androidx.test.*`, `androidx.compose.ui.test.*`, `org.robolectric.*`, `java.time.*`, `java.util.Date`.

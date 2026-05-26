@@ -62,8 +62,8 @@ For files whose baselines stayed in androidUnitTest (held files, or feature-surf
 
 ### E.6 — Write move.md
 
-- **Haiku** fills structured sections (file moves table, test counts, commit SHA, quarantine summary if E.0 applied).
-- **Sonnet** writes prose: any commonTest issues encountered, iOS test results, feature-surface baseline promotion decisions.
+- **Haiku subagent** fills structured sections (file moves table, test counts, commit SHA, quarantine summary if E.0 applied).
+- **Sonnet subagent** writes prose: any commonTest issues encountered, iOS test results, feature-surface baseline promotion decisions.
 - Living document, finalized at E.6 with status complete.
 - Final commit follows two-commit cadence (SKILL.md): code commit (the `git mv`) + audit commit (`move.md` + `coverage.md`). Autopilot.
 

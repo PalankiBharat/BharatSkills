@@ -71,7 +71,7 @@ Recorded per file in `audit.md`.
 
 ### B.4 — Write missing baselines
 
-**Parallelism:** Sonnet for routine files; Opus for complex files.
+**Parallelism (per SKILL.md Smart subagent routing — NON-NEGOTIABLE):** parallel **Sonnet subagents**, one per file in the current batch, dispatched in a single orchestrator turn. Complex files in the shortlist below go to **Opus subagents** (still parallel across independent files; never the orchestrator). The orchestrator never authors a baseline test itself — subagent failure triggers another subagent, not a main-thread fallback.
 
 **Defer-to-Phase-D shortlist (no Phase B baseline):**
 - Files classified `lib-swap: path-b` in `plan.md` (SUT public surface unavoidably exposes lib-specific types).
@@ -82,8 +82,8 @@ For each deferred file: write a `## Followup: <file>` entry to `phase-d-followup
 
 For files with audit verdict `Augment` / `Rewrite` or no existing test (and not on the defer shortlist):
 
-- **Routine (Sonnet):** UseCase, Mapper, Model, RemoteStore (Path A), simple Repository, simple Presenter.
-- **Complex (Opus):** concurrency-heavy Interactor, multi-source cache Repository, state-machine Presenter, anything plan.md flagged high-stakes.
+- **Routine (Sonnet subagent, parallel per batch):** UseCase, Mapper, Model, RemoteStore (Path A), simple Repository, simple Presenter.
+- **Complex (Opus subagent, parallel where independent):** concurrency-heavy Interactor, multi-source cache Repository, state-machine Presenter, anything plan.md flagged high-stakes.
 
 Per file:
 - Identify file type → load `test-discipline/<type>.md` (checklist + template + KMM-portable stack).
@@ -120,7 +120,9 @@ For each new or rewritten test:
 
 Reviewer can reproduce by re-applying the standard mutation. No vibes.
 
-### B.6 — Feature-surface baselines (Opus, sequential)
+### B.6 — Feature-surface baselines (Opus subagent; parallel across independent feature surfaces)
+
+Dispatched as **Opus subagents**, never the orchestrator. When the scope has multiple feature surfaces that don't share fixture state (the common case in a multi-file migration), dispatch one Opus subagent per feature in a single orchestrator turn — parallel by default per SKILL.md Smart subagent routing. Only fall back to sequential dispatch when surfaces share a single fixture builder whose construction would race between subagents. Subagent failure → another Opus subagent, never the orchestrator picking up the pen.
 
 Beyond per-file unit tests, write higher-level tests exercising the **public feature surface** (per `test-discipline/migration-baselines.md` "black-box at the feature surface").
 

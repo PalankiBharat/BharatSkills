@@ -69,13 +69,13 @@ If conflicts surface: user resolves; skill assists with diff-confirm.
 
 ### F.5 — Smoke test + heatmap generation (in parallel)
 
-**Smoke test (Sonnet):**
+**Smoke test (Sonnet subagent):**
 - Build APK + install on running emulator (via ADB).
 - Walk the captured navigation flow from `scope.md`.
 - Verify: no crashes, no obvious behavior changes vs pre-migration.
 - Output: screenshots / logs for user verification.
 
-**Heatmap generation (Opus, in parallel with smoke test):**
+**Heatmap generation (Opus subagent, in parallel with smoke test):**
 
 Drafted as a **pre-QA checklist**, not a post-QA summary. Result column starts empty; user fills it during F.6.
 

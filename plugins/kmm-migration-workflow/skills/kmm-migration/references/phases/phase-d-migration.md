@@ -39,12 +39,13 @@ First action: **read `phase-d-followups.md`** (populated by Phase B). This is Ph
 
 Then proceed with per plan.md's `expect`/`actual` and DI plans. Consult `references/expect-actual-boundaries.md` for the seam-pattern rubric (semantic common APIs, thin actuals, interface-over-`expect class` when tests/DI/lifecycle matter, Compose leaf rule).
 
-- **Opus** finalizes consolidated `expect`/`actual` interfaces in destination `commonMain`. ≥2-consumer check enforced.
-- **Sonnet** writes interface declarations + **working `actual` impls** in `androidMain` AND `iosMain` — no `NotImplementedError` stubs. Done-means-done applies to foundation too.
-- **Sonnet** sets up or extends destination Koin module per plan.md DI plan. Covers both `commonMain` bindings (for files about to migrate) and `androidMain` bindings (for held files that stay platform-specific).
+- **Opus orchestrator** finalizes the consolidation *decision* — which interfaces are shared, which collapse into one, which earn their ≥2-consumer slot. Cross-file synthesis stays on the main thread.
+- **Opus subagent (one per consolidated interface)** authors the interface declaration in `commonMain`. High-stakes — every downstream consumer is shaped by this signature, so it's an Opus authoring job, never an orchestrator one. Multiple consolidated interfaces dispatch as **parallel Opus subagents** in one orchestrator turn.
+- **Parallel Sonnet subagents** write the `androidMain` and `iosMain` **working `actual` impls** — two platforms = two subagents dispatched in the same turn (independent files, parallel is free). No `NotImplementedError` stubs; done-means-done applies to foundation too.
+- **Sonnet subagent** sets up or extends the destination Koin module per plan.md DI plan. Covers both `commonMain` bindings (for files about to migrate) and `androidMain` bindings (for held files that stay platform-specific).
 - **Pre-flight: destination module builds clean** with all Phase B relocations + the new commonMain foundation. Catches infra issues (missing Koin dep, wrong source-set wiring, BuildKonfig misconfigured) before they compound across files. ~30s investment; saves 10+ min of debugging compounded issues mid-batch.
-- **Haiku** runs gradle build; **Sonnet** addresses any compile errors with Context7 / web-search citations (per SKILL.md Tooling discipline).
-- Baselines green after foundation (Haiku runs full `<dest>/androidUnitTest` suite).
+- **Haiku subagent** runs gradle build; **Sonnet subagent** addresses any compile errors with Context7 / web-search citations (per SKILL.md Tooling discipline). Subagent failure → another subagent, never the orchestrator picking up the fix.
+- Baselines green after foundation (**Haiku subagent** runs full `<dest>/androidUnitTest` suite).
 - Commit foundation as a separate atomic change. SHA logged in `migration.md`.
 
 ### D.1 — Per-batch KMM-ification + commonMain promotion
@@ -60,13 +61,13 @@ For each layer-batch — files committed individually within the batch:
 3. **Apply known plan.md substitutions before first build** (Sonnet). Predetermined fixes (`Locale.US` → injected `NumberFormatter` interface, `Instant.now()` → `Clock.System.now()`, Moshi adapter → `kotlinx.serialization`, Android-specific imports → commonMain-portable equivalents) applied as part of the move — **eliminates ~half the compile-fix iterations** because predetermined fixes aren't rediscovered via compile errors.
 
 4. **Build → fix compile errors loop.**
-   - Haiku runs gradle, parses errors.
-   - Sonnet selects routine fixes; Opus handles complex substitutions where live-search is needed.
+   - **Haiku subagent** runs gradle, parses errors.
+   - **Sonnet subagent** selects routine fixes; **Opus subagent** (not the orchestrator) handles complex substitutions where live-search is needed. The loop is sequential by build dependency, but **each iteration's edit is a dispatched subagent** — the orchestrator never edits the file directly. Subagent failure → another subagent, per SKILL.md NON-NEGOTIABLE.
    - Minimal edit — only what compiler flagged. **Never read-and-rewrite the file** — surgical edits only.
    - Each substitution logged in `migration.md` with citation (Context7 result, web-search result, or plan.md reference per SKILL.md Tooling discipline).
    - Repeat until destination compiles.
 
-5. **Self-review** on any new code (Sonnet) per principle #2. Cruft check, KISS, DRY. Notes captured in decisions log.
+5. **Self-review** on any new code (**Sonnet subagent**) per principle #2. Cruft check, KISS, DRY. Notes captured in decisions log.
 
 6. **Targeted baselines** via `--tests` filter for batch files only (Haiku). Run in `<dest>/androidUnitTest`. Must be green. **The final baseline run for each batch uses `--rerun-tasks`** — gradle's UP-TO-DATE caching can produce false-greens on pure-rename batches and source-set moves (a 4-second "BUILD SUCCESSFUL" with everything UP-TO-DATE on a `git mv` batch is the symptom). Intermediate compile-fix iterations omit it (paying cache cost per iteration wastes time); the final verification gets the flag. Pair with `--no-parallel` if `project.md` lists KSP-stability invariants.
 
