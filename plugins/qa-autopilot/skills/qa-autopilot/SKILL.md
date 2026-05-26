@@ -195,10 +195,12 @@ For UI stories where the built screen must match a design, read `references/figm
 
 1. **Get the design** — `python3 scripts/figma-screenshot.py "<figma-node-url>" .maestro/figma-refs/{screen}.png`. If it exits non-zero (no `FIGMA_TOKEN`, no node id, no access), ask the user to provide the screenshot and save it to the same path.
 2. **Screenshot the live screen** — drive the app to the same state with Maestro and `takeScreenshot: .maestro/figma-refs/{screen}-app`.
-3. **Align** — run `compare-images.py` with `--crop-top`/`--crop-bottom` (read the status/nav bar heights off the screenshot) to produce `design-aligned.png` + `app-aligned.png`.
-4. **AI comparison** — open both aligned images and judge layout, spacing, stroke thickness, and missing/extra elements yourself. The red overlay/`diff_pct` are HINTS, not the verdict.
-5. **Exact colour** — write a `regions.json` of element boxes (aligned-image coords) and re-run with `--regions`; read per-region `delta_e_2000` (CIEDE2000) + hex.
+3. **Align** — run `compare-images.py` with `--crop-top`/`--crop-bottom` (status/nav bar heights). Check `blank_screen_check` first: a black screenshot = keyguard/system screen → use the view hierarchy, not pixels.
+4. **AI comparison** — open the downscaled `design-view.png` + `app-view.png` (full-res blows the image cap) and judge layout, spacing, stroke thickness, and **inner content, not just containers** (the swatch's inner fill, a bar's height — where parity actually breaks). Overlay/`diff_pct` are HINTS, not the verdict.
+5. **Exact colour** — write `regions.json` with **two boxes per component (container + inner content)** in aligned-image coords; re-run with `--regions`; read per-region `delta_e_2000` (CIEDE2000) + hex.
 6. **Report** — combine your visual findings with the colour numbers. Verdict by ΔE: <1 🟢 MATCHES · 1–3 🟡 MINOR DRIFT · 3–5 🟡 CAUTION · >5 🔴 OFF-DESIGN.
+
+Dispatched as a subagent: do login in the main context, checkpoint artifacts to disk, and never `Read` `figma-to-compose`'s `screen.json`/`figma-out/` whole (parity uses the PNG only). See `references/figma-parity.md`.
 
 ## Execution Modes (Maestro run)
 

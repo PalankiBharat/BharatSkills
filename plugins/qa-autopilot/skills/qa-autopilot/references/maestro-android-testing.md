@@ -746,6 +746,7 @@ See the **Screens — MANDATORY top-level testTags** table above for the canonic
 | Screen has no top-level `testTag` | Add `Modifier.testTag("screen_<name>")` before writing the flow |
 | Skipping CLI install check | Step 0 is non-negotiable — `command -v maestro` first, install if absent |
 | Using biometric on CI/cloud | Use OTP fallback path instead |
+| `takeScreenshot` on a keyguard/system screen | Device-credential, keyguard, and full-screen system prompts capture as a black image — assert against the view hierarchy (`maestro hierarchy` / inspect) instead |
 
 ---
 
@@ -764,3 +765,4 @@ See the **Screens — MANDATORY top-level testTags** table above for the canonic
 | "The tag probably exists" | Grep first. Never assume. |
 | "I'll add the tag after" | Tag code first, then write YAML |
 | "I can simulate fingerprint natively" | Maestro has no biometric command — use ADB bridge or OTP fallback |
+| "The screenshot came back black, the screen is broken" | Keyguard/system screens screenshot black but the hierarchy is intact — use `maestro hierarchy`/inspect, don't assert on the image |

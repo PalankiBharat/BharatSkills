@@ -215,6 +215,31 @@ def write_overlay(app_arr, diff_mask, path):
     Image.fromarray(canvas).save(path)
 
 
+def blank_screen_check(app_arr):
+    """Keyguard / system-credential screens screenshot as near-black. Detect so
+    the skill refuses a parity verdict and falls back to the view hierarchy."""
+    luminance = app_arr.mean(axis=2)
+    mean, std = float(luminance.mean()), float(luminance.std())
+    blank = mean < 8 and std < 3
+    return {
+        "mean_luminance": round(mean, 2),
+        "luminance_std": round(std, 2),
+        "app_screenshot_blank": blank,
+        "note": ("Screenshot is near-black (keyguard / system-credential / full-screen "
+                 "system prompt). Pixel parity is INVALID here — inspect the view hierarchy "
+                 "(maestro hierarchy / inspect) instead.") if blank else "",
+    }
+
+
+def write_view_copy(image, path, view_width):
+    """Downscaled copy for the model to open — full-res renders blow the image cap."""
+    width, height = image.size
+    if width <= view_width:
+        image.save(path)
+        return
+    image.resize((view_width, round(height * view_width / width)), Image.LANCZOS).save(path)
+
+
 def load_regions(path):
     if not path:
         return []
@@ -232,6 +257,7 @@ def parse_args():
     parser.add_argument("--regions", help="JSON file of boxes in aligned-image coords")
     parser.add_argument("--inset", type=float, default=0.15, help="fraction to shrink each region before sampling")
     parser.add_argument("--threshold", type=float, default=24.0, help="RGB distance for the global hint overlay")
+    parser.add_argument("--view-width", type=int, default=900, help="width of the downscaled *-view.png copies the model opens")
     return parser.parse_args()
 
 
@@ -243,14 +269,19 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
     design_img.save(os.path.join(args.out_dir, "design-aligned.png"))
     app_img.save(os.path.join(args.out_dir, "app-aligned.png"))
+    write_view_copy(design_img, os.path.join(args.out_dir, "design-view.png"), args.view_width)
+    write_view_copy(app_img, os.path.join(args.out_dir, "app-view.png"), args.view_width)
 
     design_arr, app_arr = np.asarray(design_img), np.asarray(app_img)
     diff_mask, hint = global_hint(design_arr, app_arr, args.threshold)
     write_overlay(app_arr, diff_mask, os.path.join(args.out_dir, "diff-overlay.png"))
 
+    blank = blank_screen_check(app_arr)
     report = {
         "aligned_size": [design_arr.shape[1], design_arr.shape[0]],
         "crop": {"top": args.crop_top, "bottom": args.crop_bottom},
+        "blank_screen_check": blank,
+        "view_images": ["design-view.png", "app-view.png"],
         "global_hint": hint,
         "delta_e_reference": {"imperceptible": "<1", "close": "1-3", "noticeable": "3-5", "clearly_off": ">5"},
         "regions": [sample_region(r, design_arr, app_arr, args.inset) for r in load_regions(args.regions)],
@@ -258,6 +289,8 @@ def main():
     report_path = os.path.join(args.out_dir, "diff-report.json")
     with open(report_path, "w") as report_file:
         json.dump(report, report_file, indent=2)
+    if blank["app_screenshot_blank"]:
+        print(f"WARNING: {blank['note']}", file=sys.stderr)
     print(report_path)
 
 
