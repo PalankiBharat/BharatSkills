@@ -264,7 +264,7 @@ Generate this checklist automatically by scanning the diff:
 
 ## Generating Maestro YAML
 
-For each test case, produce a `.yaml` file. Follow `maestro-android-testing` for the full structure and selector rules.
+For each test case, produce a `.yaml` file. Follow `references/maestro-android-testing.md` for the full structure and selector rules.
 
 **File placement:**
 - Smoke/golden path → `.maestro/flows/{journey-name}.yaml`
@@ -286,7 +286,7 @@ For each test case, produce a `.yaml` file. Follow `maestro-android-testing` for
 
 **Rules for YAML generation:**
 1. Always start with `extendedWaitUntil` for the first screen element — never assume instant load
-2. Use `id:` selectors from testTag/semanticsTag — grep the codebase first (STEP 1 in maestro-android-testing)
+2. Use `id:` selectors from testTag/semanticsTag — grep the codebase first (STEP 1 in `references/maestro-android-testing.md`)
 3. End every flow with an `assertVisible` on an element that proves the expected state was reached
 4. Use `runFlow` with `when:` for conditional steps (system dialogs, optional screens)
 5. Add `# No testTag` comment on the rare text-selector exception — do not leave it unexplained
