@@ -191,12 +191,14 @@ Verdict: 🟢 SAFE TO MERGE | 🟡 MERGE WITH CAUTION | 🔴 DO NOT MERGE
 
 ## Figma Parity Mode
 
-For UI stories where the built screen must match a design, read `references/figma-parity.md` and follow it. The loop:
+For UI stories where the built screen must match a design, read `references/figma-parity.md` and follow it. Work is split: **the script measures colour, you judge layout.** The loop:
 
 1. **Get the design** — `python3 scripts/figma-screenshot.py "<figma-node-url>" .maestro/figma-refs/{screen}.png`. If it exits non-zero (no `FIGMA_TOKEN`, no node id, no access), ask the user to provide the screenshot and save it to the same path.
 2. **Screenshot the live screen** — drive the app to the same state with Maestro and `takeScreenshot: .maestro/figma-refs/{screen}-app`.
-3. **Diff** — `python3 scripts/compare-images.py .maestro/figma-refs/{screen}.png .maestro/figma-refs/{screen}-app.png .maestro/figma-refs/diff-{screen}/`.
-4. **Report** — read `diff-overlay.png` AND `diff-report.json`; report every mismatch with hex/px numbers. Never judge parity by eye. Verdict: 🟢 MATCHES | 🟡 MINOR DRIFT | 🔴 OFF-DESIGN.
+3. **Align** — run `compare-images.py` with `--crop-top`/`--crop-bottom` (read the status/nav bar heights off the screenshot) to produce `design-aligned.png` + `app-aligned.png`.
+4. **AI comparison** — open both aligned images and judge layout, spacing, stroke thickness, and missing/extra elements yourself. The red overlay/`diff_pct` are HINTS, not the verdict.
+5. **Exact colour** — write a `regions.json` of element boxes (aligned-image coords) and re-run with `--regions`; read per-region `delta_e_2000` (CIEDE2000) + hex.
+6. **Report** — combine your visual findings with the colour numbers. Verdict by ΔE: <1 🟢 MATCHES · 1–3 🟡 MINOR DRIFT · 3–5 🟡 CAUTION · >5 🔴 OFF-DESIGN.
 
 ## Execution Modes (Maestro run)
 
@@ -217,7 +219,7 @@ How far a run gets depends on the environment — orthogonal to the three modes 
 | Marking tests PASS without running them | Run `maestro test <yaml>` and capture the result. Never claim PASS without execution evidence. |
 | Writing tests before checking if tags exist | Always grep for testTag/semanticsTag first (`references/maestro-android-testing.md` STEP 1) |
 | Skipping the Maestro reference | `references/maestro-android-testing.md` STEP 0/0b/1/2 are BLOCKING gates — they prevent the collision and tag bugs |
-| Eyeballing Figma vs the app instead of measuring | Figma-parity mode runs `compare-images.py` — see `references/figma-parity.md`. Never judge pixel parity by eye |
+| Reading `diff_pct`/the red overlay as the Figma-parity verdict | They're alignment-noise hints. Colour = per-region `delta_e_2000` from `compare-images.py`; layout/spacing/thickness = your visual read of the aligned images. See `references/figma-parity.md` |
 | Running the whole branch pipeline for a one-shot "test this screen" | Use Single-flow mode: read Maestro ref → check code → write flow → run |
 | Manual tap-by-tap testing when a Maestro flow exists | Run the flow via `maestro test maestro/flows/<file>.yaml` instead |
 | Running OTP/auth flow without checking the attempt budget | Phase 0c safety check — burning the last OTP on a flaky test is self-inflicted |
