@@ -7,7 +7,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | Plugin | Version | Description |
 |---|---|---|
 | `feature-analyzer` | 2.2.0 | Pre-dev story interrogation — team-lead orchestrator walks code + Figma flows, honours project memory, strips out-of-platform sections, emits a centred dark-mode HTML doc with the original story pinned alongside option-pill questions across PM / Backend / Android / Design / QA / Compliance / DevOps roles |
-| `qa-autopilot` | 1.1.0 | Automated QA — analyzes git changes, generates Maestro YAML flows (smoke + edge-case dirs), produces pass/fail QA report |
+| `qa-autopilot` | 1.3.0 | Android UI QA in three modes — branch QA (git diff → journey-risk → generate/run Maestro flows → report), single-flow Maestro authoring, and Figma visual parity (fetch design → screenshot the live screen → pixel-diff colour / thickness / spacing). Maestro discipline (accessibility-ID selectors, screen-tag enforcement) and the ADB fingerprint bridge are built in |
 | `skill-feedback` | 1.2.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
 | `clean-code` | 1.2.7 | Clean Code principles (Uncle Bob) with auto-loading prehook — naming, functions, classes, error handling, testing |
 | `skill-tester` | 1.0.0 | Automated QA loop for skills — 3-pane tmux workflow to test, validate, and fix skills until production-ready |
@@ -23,7 +23,6 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `kmm-pr-review` | 1.1.1 | PR review for KMP repos — spawns specialist subagents per file (correctness, idiom, master-grounded) against canonical docs, every finding cites a source or gets dropped, P0–P3 with PR-induced vs pre-existing attribution, iOS-readiness auto-promotes to P0 on migration PRs |
 | `kmm-debugger` | 1.1.0 | Deep-investigation workflow for post-migration KMM regressions — hard-gated A/B subagent pair dispatch per topic before any plan or fix, bias guard against defending existing implementation, "is this even our bug?" as first question (catches upstream contract violations), Doctrine 3 (always prefer clean long-term solutions over hotfixes / iterative patches), auto-firing retro after each push/PR/publish |
 | `sniper-ops` | 1.3.0 | Ops shortcuts for the sniper-v2-android repo — `share-prod` / `share-staging` (commit + push + release-notes pre-flight then trigger CircleCI build), `install-prod` / `install-staging` (local install to a connected device, then auto-launch the app and tail a crash-only logcat `*:E` scoped to the app's PID in the background), `heap-dump-pair` (option-driven interview to capture a baseline + t+5min `.hprof` pair so you can diff retained objects in Android Studio Profiler), and `heap-dump-compare` (diff two Android `.hprof` files and present a side-by-side comparison table — data only, no diagnosis) |
-| `maestro-android-testing` | 1.0.1 | Maestro UI testing for Android Jetpack Compose apps — accessibility-ID-first selectors (testTag/semanticsTag via `id:`), MCP check before any test authoring, mandatory YAML flow headers for AI agent context, nav map + 30+ real tag reference, 5 concrete flow templates (auth, chart, order placement), ADB fingerprint bridge for biometric emulator testing |
 
 ## Installation
 

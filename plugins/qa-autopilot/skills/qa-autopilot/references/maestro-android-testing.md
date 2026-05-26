@@ -1,23 +1,10 @@
----
-name: maestro-android-testing
-description: Use when writing or executing Maestro YAML UI tests for Android, or when the user says "maestro test", "write a test", "test this screen", "UI test", "test this flow", "test", "test manually", "verify", "run the flow", "QA this", or "check the screen". Also triggers when qa-autopilot or any skill needs to generate Maestro YAML for an Android app.
----
+# Maestro Android Testing — Reference
 
-# Maestro Android Testing
+qa-autopilot's internal reference for writing and executing Maestro YAML UI tests on Android Jetpack Compose apps. qa-autopilot reads this before generating any flow — it is not a standalone skill.
 
 ## Overview
 
-Maestro tests interact with composables via accessibility IDs — never coordinates, never ambiguous domain text. Always verify Maestro MCP is live before writing a single line of YAML.
-
----
-
-## Trigger Keywords
-
-This skill MUST auto-invoke when the user mentions any of:
-
-`test`, `test manually`, `verify`, `run the flow`, `QA this`, `check the screen`, `maestro test`, `write a test`, `test this screen`, `UI test`, `test this flow`.
-
-Do not proceed with ad-hoc manual testing on an Android Compose feature without applying Maestro discipline first.
+Maestro tests interact with composables via accessibility IDs — never coordinates, never ambiguous domain text. Verify the Maestro CLI is installed and an Android device is reachable (STEP 0) before writing a single line of YAML.
 
 ---
 

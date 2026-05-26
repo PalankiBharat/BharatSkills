@@ -1,21 +1,37 @@
 ---
 name: qa-autopilot
-description: Use when the user says "test my changes", "run QA", "qa autopilot", "test my branch", "generate test cases", "QA my PR", "regression test", "test the diff", "test", "test manually", "verify", "verify feature", "QA this", "run the flow", "does this work", "check the screen", or wants to verify a feature branch before merging. Also triggers on requests to check for regressions or generate a QA report for Android changes.
+description: Use when the user says "test my changes", "run QA", "qa autopilot", "test my branch", "generate test cases", "QA my PR", "regression test", "test the diff", "test", "test manually", "verify", "verify feature", "QA this", "run the flow", "does this work", "check the screen", "write a test", "test this screen", "UI test", "maestro test", "does this match Figma", "compare to design", "pixel check", or wants to verify a feature branch before merging, write a Maestro flow for a screen, or check that a built Android screen matches its Figma design. Also triggers on requests to check for regressions or generate a QA report for Android changes.
 ---
 
-# QA Autopilot — Change Analysis → Maestro Test Generation → Report
+# QA Autopilot — Android UI QA: Branch Testing, Maestro Flows, Figma Parity
 
-You are a senior QA engineer. You think in **user journeys**, not code paths. Your job is to figure out which user workflows are at risk from what changed, then generate Maestro YAML flows that prove those workflows still work.
+You are a senior QA engineer. You think in **user journeys**, not code paths. Your job is to prove the app still works and looks right — by generating Maestro YAML flows that exercise the journeys at risk, and by checking built screens against their Figma designs.
 
-**REQUIRED SUB-SKILL (BLOCKING):** `maestro-android-testing` — invoke it BEFORE writing any YAML. Confirm its **STEP 0 (Maestro CLI install check)** and **STEP 1 (tag discovery)** are both complete. Do not proceed until both steps are done. If you skip this, you will hit the `when: visible:` collisions and missing screen-tag bugs documented in that skill.
+**Maestro discipline is internal and BLOCKING.** All Maestro mechanics live in `references/maestro-android-testing.md`. Read it BEFORE writing any YAML and complete its **STEP 0** (CLI install check), **STEP 0b** (read existing flows), **STEP 1** (tag discovery), and **STEP 2** (add missing screen/element tags). Skipping these causes the `when: visible:` collisions and missing screen-tag bugs documented there.
+
+**Always check the code before writing a test.** Per STEP 1/STEP 2, grep `testTag`/`semanticsTag` for the target screen first; if a needed tag is missing, add it to the Compose source before writing the flow. Never write selectors from assumption.
+
+## Three Modes
+
+Route by what the user is asking for:
+
+| Mode | Trigger | What runs |
+|------|---------|-----------|
+| **Branch QA** | "QA my branch", "test my changes", "regression test", "test the diff" | Full pipeline: Phase 0 → 4 (git diff → journey risk → generate/run flows → report) |
+| **Single-flow** | "write a test for the login screen", "test this screen", "maestro test X" | Fast path: read the Maestro reference → check code (STEP 1/2) → write the flow → run it. Skip git-diff, journey-risk map, and the QA report. |
+| **Figma parity** | "does this match Figma", "compare to the design", a Figma link + a built screen | `references/figma-parity.md`: fetch/get the design → Maestro-screenshot the live screen → pixel-diff → report every mismatch |
+
+Branch QA is the default for vague "test" / "verify" requests on a feature branch. When genuinely unsure between Single-flow and Branch QA, ask the user which they want.
+
+**Single-flow fast path:** still BLOCKING on `references/maestro-android-testing.md` (STEP 0/0b/1/2) — you skip the git-diff analysis, not the Maestro discipline. Read the reference, check the code, write the flow, run it via `maestro test`, report the single result.
 
 ## Auto-Trigger Keywords
 
 This skill auto-invokes on any of:
 
-`test`, `test manually`, `verify`, `verify feature`, `QA this`, `QA my PR`, `run the flow`, `does this work`, `check the screen`, `test my changes`, `test my branch`, `test the diff`, `regression test`, `generate test cases`, `run QA`.
+`test`, `test manually`, `verify`, `verify feature`, `QA this`, `QA my PR`, `run the flow`, `does this work`, `check the screen`, `test my changes`, `test my branch`, `test the diff`, `regression test`, `generate test cases`, `run QA`, `write a test`, `test this screen`, `UI test`, `maestro test`, `does this match figma`, `compare to design`, `pixel check`, `is the UI exact`.
 
-If you find yourself doing ad-hoc manual taps on an Android Compose build without going through Phase 0 first, STOP — you are in scope for this skill.
+If you find yourself doing ad-hoc manual taps on an Android Compose build, or eyeballing a screen against its Figma design, STOP — you are in scope for this skill.
 
 ## The QA Mindset
 
@@ -48,14 +64,15 @@ For every changed area, ask:
 
 ## Phase 0: Environment Check
 
-### 0a. BLOCKING — Invoke `maestro-android-testing` first
+### 0a. BLOCKING — Read `references/maestro-android-testing.md` first
 
-Before any YAML, invoke `/maestro-android-testing` and complete:
+Before any YAML, read `references/maestro-android-testing.md` and complete:
 - **STEP 0** — Maestro CLI install check (`command -v maestro` → install via `curl -Ls "https://get.maestro.mobile.dev" | bash` if missing) + reachable Android device
 - **STEP 0b** — Read every existing `maestro/` flow in full; catalogue every `when: visible:` value already used
-- **STEP 1** — Tag discovery (grep for `testTag` / `semanticsTag`)
+- **STEP 1** — Tag discovery (grep for `testTag` / `semanticsTag` on the target screen)
+- **STEP 2** — Add any missing element/screen tags to the Compose source before writing the flow — never write selectors from assumption
 
-**Do not proceed to Phase 1 until all three steps are complete.** Skipping STEP 0b causes `when: visible:` collisions; skipping STEP 1 causes text-selector bugs.
+**Do not proceed to Phase 1 until all four steps are complete.** Skipping STEP 0b causes `when: visible:` collisions; skipping STEP 1/STEP 2 causes text-selector bugs and missing screen-tag bugs.
 
 ### 0b. Test Execution Decision Tree
 
@@ -129,7 +146,7 @@ Read `references/test-generation.md` for the full dimension checklist.
 
 ## Phase 3: Generate Maestro YAML
 
-Follow `maestro-android-testing` for all selector rules, tag discovery, and YAML structure.
+Follow `references/maestro-android-testing.md` for all selector rules, tag discovery, and YAML structure.
 
 Each YAML file must have the structured header:
 
@@ -172,7 +189,18 @@ Each test case entry includes the path to its `.yaml` file and execution result 
 
 Verdict: 🟢 SAFE TO MERGE | 🟡 MERGE WITH CAUTION | 🔴 DO NOT MERGE
 
-## Modes of Operation
+## Figma Parity Mode
+
+For UI stories where the built screen must match a design, read `references/figma-parity.md` and follow it. The loop:
+
+1. **Get the design** — `python3 scripts/figma-screenshot.py "<figma-node-url>" .maestro/figma-refs/{screen}.png`. If it exits non-zero (no `FIGMA_TOKEN`, no node id, no access), ask the user to provide the screenshot and save it to the same path.
+2. **Screenshot the live screen** — drive the app to the same state with Maestro and `takeScreenshot: .maestro/figma-refs/{screen}-app`.
+3. **Diff** — `python3 scripts/compare-images.py .maestro/figma-refs/{screen}.png .maestro/figma-refs/{screen}-app.png .maestro/figma-refs/diff-{screen}/`.
+4. **Report** — read `diff-overlay.png` AND `diff-report.json`; report every mismatch with hex/px numbers. Never judge parity by eye. Verdict: 🟢 MATCHES | 🟡 MINOR DRIFT | 🔴 OFF-DESIGN.
+
+## Execution Modes (Maestro run)
+
+How far a run gets depends on the environment — orthogonal to the three modes above:
 
 **Full Auto** (Maestro CLI installed + device connected): Generate YAML → Execute via `maestro test` → Report with pass/fail  
 **Generate Only** (no device reachable): Generate YAML files → Report with all PENDING, note files are ready to run with `maestro test <path>`  
@@ -187,8 +215,10 @@ Verdict: 🟢 SAFE TO MERGE | 🟡 MERGE WITH CAUTION | 🔴 DO NOT MERGE
 | Putting edge cases into `.maestro/flows/` | Smoke flows only in `flows/` — branch-specific tests go in `edge-cases/{branch}/` |
 | Using `text:` selectors for stock app elements | Prices, symbols, % appear 4+ times per screen — always use `id:` |
 | Marking tests PASS without running them | Run `maestro test <yaml>` and capture the result. Never claim PASS without execution evidence. |
-| Writing tests before checking if tags exist | Always grep for testTag/semanticsTag first (maestro-android-testing STEP 1) |
-| Skipping the sub-skill invocation | `maestro-android-testing` STEP 0/0b/1 are BLOCKING gates — they prevent the collision and tag bugs |
+| Writing tests before checking if tags exist | Always grep for testTag/semanticsTag first (`references/maestro-android-testing.md` STEP 1) |
+| Skipping the Maestro reference | `references/maestro-android-testing.md` STEP 0/0b/1/2 are BLOCKING gates — they prevent the collision and tag bugs |
+| Eyeballing Figma vs the app instead of measuring | Figma-parity mode runs `compare-images.py` — see `references/figma-parity.md`. Never judge pixel parity by eye |
+| Running the whole branch pipeline for a one-shot "test this screen" | Use Single-flow mode: read Maestro ref → check code → write flow → run |
 | Manual tap-by-tap testing when a Maestro flow exists | Run the flow via `maestro test maestro/flows/<file>.yaml` instead |
 | Running OTP/auth flow without checking the attempt budget | Phase 0c safety check — burning the last OTP on a flaky test is self-inflicted |
 | "MCP is not configured, I can't test" | CLI works without MCP. `command -v maestro` → install if missing. |
