@@ -67,7 +67,7 @@ For every changed area, ask:
 ### 0a. BLOCKING — Read `references/maestro-android-testing.md` first
 
 Before any YAML, read `references/maestro-android-testing.md` and complete:
-- **STEP 0** — Maestro CLI install check (`command -v maestro` → install via `curl -Ls "https://get.maestro.mobile.dev" | bash` if missing) + reachable Android device
+- **STEP 0** — Maestro CLI install check (`command -v maestro` → install via `curl -Ls "https://get.maestro.mobile.dev" | bash` if missing); then **STEP 0a** — `bash scripts/ensure-emulator.sh` to get a single **visible**, `hw.keyboard`-enabled emulator and lock to it (`.maestro/.emulator-lock`). Never boot headless, never kill another emulator, scope every `adb`/`maestro` call with `-s "$(cat .maestro/.emulator-lock)"`.
 - **STEP 0b** — Read every existing `maestro/` flow in full; catalogue every `when: visible:` value already used
 - **STEP 1** — Tag discovery (grep for `testTag` / `semanticsTag` on the target screen)
 - **STEP 2** — Add any missing element/screen tags to the Compose source before writing the flow — never write selectors from assumption

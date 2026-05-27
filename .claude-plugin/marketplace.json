@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",
-    "version": "1.13.1",
+    "version": "1.13.2",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -44,7 +44,7 @@
       "name": "qa-autopilot",
       "source": "./plugins/qa-autopilot",
       "description": "Android UI QA in three modes: branch QA (git diff to journey-risk to generate/run Maestro flows to pass/fail report), single-flow Maestro test authoring, and Figma visual parity (fetch the design, screenshot the live screen with Maestro, pixel-diff colour/thickness/spacing). Maestro discipline — accessibility-ID selectors, existing-flow inspection, screen-tag enforcement — and an ADB fingerprint bridge are built in.",
-      "version": "1.3.1",
+      "version": "1.3.2",
       "category": "testing",
       "tags": [
         "android",
