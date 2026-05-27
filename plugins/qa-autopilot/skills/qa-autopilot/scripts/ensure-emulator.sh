@@ -35,7 +35,9 @@ running_serials() {
 write_lock() {
   mkdir -p "$(dirname "$LOCK_FILE")"
   printf '%s' "$1" > "$LOCK_FILE"
-  echo "Locked qa-autopilot to $1  (scope every adb/maestro call with -s \"\$(cat $LOCK_FILE)\")"
+  echo "Locked qa-autopilot to $1"
+  echo "  scope adb:     adb -s \"\$(cat $LOCK_FILE)\" ..."
+  echo "  scope maestro: maestro test --device \"\$(cat $LOCK_FILE)\" <flow>"
 }
 
 enable_hw_keyboard() {
@@ -55,21 +57,23 @@ create_avd_if_missing() {
   enable_hw_keyboard "$1"
 }
 
-first_new_serial() {
-  before="$1"
+serial_for_avd() {
+  # Identify the emulator by the AVD it is running, not "first new serial" — so a
+  # different emulator booting concurrently is never grabbed (honours "never touch
+  # another emulator").
   for s in $(running_serials); do
-    case " $before " in *" $s "*) ;; *) echo "$s"; return 0 ;; esac
+    name="$("$ADB" -s "$s" emu avd name 2>/dev/null | head -1 | tr -d '\r')"
+    [ "$name" = "$1" ] && { echo "$s"; return 0; }
   done
 }
 
 boot_visible() {
-  before="$(running_serials | tr '\n' ' ')"
   # VISIBLE window only — never -no-window. -no-snapshot-load for a clean start.
   "$EMULATOR" -avd "$1" -no-snapshot-load >/dev/null 2>&1 &
   new=""
   i=0
   while [ "$i" -lt 60 ]; do
-    new="$(first_new_serial "$before")"
+    new="$(serial_for_avd "$1")"
     [ -n "$new" ] && break
     sleep 2
     i=$((i + 1))
