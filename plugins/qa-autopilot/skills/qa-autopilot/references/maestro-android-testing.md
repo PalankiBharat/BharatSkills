@@ -2,6 +2,21 @@
 
 qa-autopilot's internal reference for writing and executing Maestro YAML UI tests on Android Jetpack Compose apps. qa-autopilot reads this before generating any flow — it is not a standalone skill.
 
+## Contents
+
+- **STEP 0** — Maestro CLI check
+- **STEP 0a** — Emulator setup & locking (visible, `hw.keyboard`, single lock)
+- **STEP 0b** — Read existing flows first
+- **STEP 1** — Discover tags before writing
+- **Flow File Header** — mandatory YAML header block
+- **Selector Hierarchy** — id-first, the `when: visible:` plain-text rule, the stock-text trap
+- **Sniper App Navigation Map** + **Sniper Tag Reference** — *example app* (see the note there)
+- **Concrete Flow Templates**, **Biometric / Fingerprint**
+- **STEP 2** — Add missing tags
+- **Common Mistakes**, **Red Flags**
+
+> The blocking pre-YAML gate is **STEP 0 → 0a → 0b → 1 → 2**. STEP 2 is documented near the end (alongside the tag-naming detail) but is part of that same gate — don't skip it just because it appears later in the file.
+
 ## Overview
 
 Maestro tests interact with composables via accessibility IDs — never coordinates, never ambiguous domain text. Verify the Maestro CLI is installed and an Android device is reachable (STEP 0) before writing a single line of YAML.
@@ -42,13 +57,13 @@ Scope every run to the locked serial (see STEP 0a):
 LOCK="$(cat .maestro/.emulator-lock)"
 
 # Single flow
-maestro test --device "$LOCK" maestro/flows/login.yaml
+maestro test --device "$LOCK" .maestro/flows/login.yaml
 
 # Whole folder, smoke tag only
-maestro test --device "$LOCK" maestro/flows/ --include-tags=smoke
+maestro test --device "$LOCK" .maestro/flows/ --include-tags=smoke
 
 # With env vars (use env: in YAML to consume)
-maestro test --device "$LOCK" maestro/flows/login.yaml -e PHONE=9876543210
+maestro test --device "$LOCK" .maestro/flows/login.yaml -e PHONE=9876543210
 ```
 
 ---
@@ -76,13 +91,13 @@ Run these in order:
 
 ```bash
 # 1. List every existing flow
-find maestro/ -name "*.yaml" | sort
+find .maestro/ -name "*.yaml" | sort
 
 # 2. Read every related flow file in full (do NOT skim)
 #    Pay attention to subflows referenced by runFlow.
 
 # 3. Catalogue every `when: visible:` value already used in the flow tree
-grep -rn "when:" -A 2 maestro/ | grep -E "visible:" | sort -u
+grep -rn "when:" -A 2 .maestro/ | grep -E "visible:" | sort -u
 ```
 
 **Decision rules after inspection:**
@@ -147,6 +162,8 @@ tags:
 ---
 
 ## Sniper App — Navigation Map
+
+> **Example app.** This navigation map, the app IDs, and the Sniper Tag Reference below are the sniper app (`com.marketpulse.sniper.vte`) shown as a concrete worked example. On a different project, replace the appId and tag names with your own — the *rules* (id-first selectors, screen-level `testTag`s, the `when: visible:` plain-text constraint) are universal.
 
 ```
 App Launch
@@ -447,7 +464,10 @@ tags:
     visible: "Enter PIN"
     timeout: 20000
 
-# Enter 4-digit PIN (system PIN pad — no testTag, use text after each digit)
+# Enter 4-digit PIN — entry differs by screen, confirm against the real one:
+#  - in-app PIN TextField (hw.keyboard=yes, STEP 0a): a single `inputText` works
+#  - system lock-screen PIN pad: inputText usually does NOT register — tapOn each
+#    digit's id, or `pressKey` per digit
 - inputText: "1234"
 
 # Dashboard should load
@@ -648,7 +668,7 @@ tags:
     timeout: 15000
 
 # Simulate fingerprint via HTTP bridge
-- runScript: fingerprint-bridge-trigger.js
+- runScript: fingerprint-bridge-trigger.js   # copy this file next to the flow YAML — Maestro resolves runScript paths relative to the flow
 
 # Dashboard loads
 - extendedWaitUntil:
@@ -759,7 +779,7 @@ See the **Screens — MANDATORY top-level testTags** table above for the canonic
 | No header comment on YAML | Always add the full header block |
 | `assertVisible: "BUY"` | `assertVisible: {id: "call"}` |
 | Writing test before checking tags | Grep STEP 1 first |
-| Writing YAML before reading existing flows | STEP 0b — `find maestro/ -name "*.yaml"` and read them all first |
+| Writing YAML before reading existing flows | STEP 0b — `find .maestro/ -name "*.yaml"` and read them all first |
 | `when: visible: {id: "tag"}` | Parse error — use plain text only; use `extendedWaitUntil` + `id:` inside the subflow |
 | `when: visible: "CONTINUE"` (reused word) | Pick a text unique to ONE screen, or add a `screen_<name>` testTag |
 | Screen has no top-level `testTag` | Add `Modifier.testTag("screen_<name>")` before writing the flow |
