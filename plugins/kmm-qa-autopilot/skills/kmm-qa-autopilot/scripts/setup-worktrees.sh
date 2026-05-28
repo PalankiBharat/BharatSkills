@@ -15,7 +15,12 @@
 #   sniper-repo-root  defaults to `git rev-parse --show-toplevel` of CWD
 #   run-dir           defaults to $HOME/.kmm-parity/pr-<num>
 #
-# Writes <run-dir>/state.env with MASTER_WT, PR_WT, PR_BRANCH, PR_NUM, SNIPER_ROOT, RUN_DIR.
+# Baseline override (testing an ALREADY-MERGED PR): set BASELINE_REF to the master commit to
+# compare against (e.g. the merge commit's first parent, "<mergeSha>^1"). Default is the live
+# tip origin/master. Use this only when latest master already contains the migration (so the
+# normal master-vs-PR diff would be empty).
+#
+# Writes <run-dir>/state.env with MASTER_WT, PR_WT, MASTER_REF, PR_BRANCH, PR_NUM, SNIPER_ROOT, RUN_DIR.
 
 set -euo pipefail
 
@@ -34,8 +39,9 @@ esac
 command -v gh >/dev/null || { echo "GitHub CLI 'gh' is required (brew install gh; gh auth login)." >&2; exit 2; }
 
 # --- resolve the PR via gh (accepts a number or a full URL) ---
-PR_JSON="$(gh pr view "$PR_INPUT" --repo "$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)" \
-            --json number,headRefName,headRefOid,baseRefName 2>/dev/null || gh pr view "$PR_INPUT" --json number,headRefName,headRefOid,baseRefName)"
+# Run gh from inside the sniper repo so it infers the correct GitHub repo from origin,
+# regardless of the caller's current directory.
+PR_JSON="$(cd "$SNIPER_ROOT" && gh pr view "$PR_INPUT" --json number,headRefName,headRefOid,baseRefName)"
 PR_NUM="$(printf '%s' "$PR_JSON"  | python3 -c 'import json,sys;print(json.load(sys.stdin)["number"])')"
 PR_REF="$(printf '%s' "$PR_JSON"  | python3 -c 'import json,sys;print(json.load(sys.stdin)["headRefName"])')"
 PR_BASE="$(printf '%s' "$PR_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin)["baseRefName"])')"
@@ -47,9 +53,11 @@ MASTER_WT="$WT_BASE/master"
 PR_WT="$WT_BASE/pr"
 PR_LOCAL_BRANCH="kmm-parity-pr-$PR_NUM"
 
+MASTER_REF="${BASELINE_REF:-origin/master}"
 echo "PR #$PR_NUM  head=$PR_REF  base=$PR_BASE"
 echo "Run dir: $RUN_DIR"
-[ "$PR_BASE" = "master" ] || echo "Note: PR base is '$PR_BASE', but per design we always diff against LATEST origin/master."
+echo "Baseline (A) ref: $MASTER_REF"
+[ "$PR_BASE" = "master" ] || echo "Note: PR base is '$PR_BASE', but per design we diff against the baseline ref above."
 
 # --- clean any prior run's worktrees, then prune stale registrations ---
 for wt in "$MASTER_WT" "$PR_WT"; do
@@ -64,10 +72,13 @@ git -C "$SNIPER_ROOT" worktree prune
 echo "Fetching latest origin/master and PR head..."
 git -C "$SNIPER_ROOT" fetch --quiet origin master
 git -C "$SNIPER_ROOT" fetch --quiet --force origin "pull/$PR_NUM/head:$PR_LOCAL_BRANCH"
+# Baseline ref may be a sha not reachable from master's tip alone — widen the fetch if needed.
+git -C "$SNIPER_ROOT" rev-parse --verify --quiet "$MASTER_REF^{commit}" >/dev/null || \
+  git -C "$SNIPER_ROOT" fetch --quiet origin
 
-# --- create the worktrees (master detached at the fresh tip; PR at its head) ---
+# --- create the worktrees (master at the baseline ref; PR at its head) ---
 mkdir -p "$WT_BASE"
-git -C "$SNIPER_ROOT" worktree add --detach "$MASTER_WT" origin/master
+git -C "$SNIPER_ROOT" worktree add --detach "$MASTER_WT" "$MASTER_REF"
 git -C "$SNIPER_ROOT" worktree add --force "$PR_WT" "$PR_LOCAL_BRANCH"
 
 MASTER_SHA="$(git -C "$MASTER_WT" rev-parse --short HEAD)"
@@ -104,6 +115,7 @@ RUN_DIR="$RUN_DIR"
 PR_NUM="$PR_NUM"
 PR_BRANCH="$PR_REF"
 PR_LOCAL_BRANCH="$PR_LOCAL_BRANCH"
+MASTER_REF="$MASTER_REF"
 MASTER_WT="$MASTER_WT"
 PR_WT="$PR_WT"
 MASTER_SHA="$MASTER_SHA"
@@ -111,4 +123,4 @@ PR_SHA="$PR_SHA"
 EOF
 
 echo "State written to $RUN_DIR/state.env"
-echo "Diff for the heatmap:  git -C \"$MASTER_WT\" diff origin/master...$PR_LOCAL_BRANCH"
+echo "Diff for the heatmap:  git -C \"$MASTER_WT\" diff $MASTER_REF...$PR_LOCAL_BRANCH"

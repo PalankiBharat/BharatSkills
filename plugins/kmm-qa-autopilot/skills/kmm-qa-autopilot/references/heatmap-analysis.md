@@ -45,6 +45,21 @@ grep -rn "@Inject.*$SYM\|$SYM.*@Inject\|single\|factory.*$SYM" --include="*.kt" 
 Trace upward until each chain ends at a screen (a `*Screen.kt` / route the user can reach).
 List every directly- and transitively-affected screen → those are the journeys.
 
+**Then map each changed use-case to the INTERACTION that invokes it — not just the screen.** This
+is what makes the flow exercise the migrated logic instead of only its initial render. Ask "what
+does the user *do* to make this code run?"
+
+| Changed symbol (pattern) | Invoking interaction the flow must perform |
+|---|---|
+| `Get…` / list use-case / repository | change a date-range/filter/selector, switch tab, pull-to-refresh |
+| paging `*Source` / pager | scroll the list to the bottom |
+| mapper / `*ViewItem` | expand a row / open the detail that renders it |
+| `Download…` / `Submit…` use-case | trigger the action and read the resulting confirmation |
+
+A journey row in the heatmap should name its interactions, e.g. *"<list screen> — open, **change
+range/filter**, **scroll**, **submit/download**"* — so Phase 3 generates a flow that performs them
+all, and parity is checked after each, not just on the landing screen.
+
 ## 4. Risk levels (drive ordering, never exclusion)
 
 | Risk | Criteria |

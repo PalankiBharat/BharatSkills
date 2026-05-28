@@ -33,10 +33,40 @@ ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
 EMULATOR="$ANDROID_HOME/emulator/emulator"
 ADB="$ANDROID_HOME/platform-tools/adb"
 AVDMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
-SYSTEM_IMAGE="system-images;android-34;google_apis_playstore;arm64-v8a"
 DEVICE="pixel_4_xl"
 AVD_A="kmm_parity_a"
 AVD_B="kmm_parity_b"
+
+# Pick a system image to create AVDs from. Hardcoding one API level is brittle (it may not be
+# installed). Prefer an INSTALLED arm64-v8a image, favouring google_apis_playstore and a stable
+# (integer) API level. Override with KMM_PARITY_IMAGE=system-images;android-XX;variant;arm64-v8a.
+# Note: the scoring loop lives in its own function (NOT inside $(...)). macOS bash 3.2
+# mis-parses a `case` statement embedded in command substitution, so keep `case` out of it.
+_score_images() {
+  local base="$ANDROID_HOME/system-images" d rel api variant score
+  [ -d "$base" ] || return 0
+  for d in "$base"/*/*/arm64-v8a; do
+    [ -d "$d" ] || continue
+    rel="${d#"$base"/}"
+    api="${rel%%/*}"
+    variant="$(printf '%s' "$rel" | cut -d/ -f2)"
+    score=0
+    case "$variant" in *playstore*) : ;; *) score=$((score + 1)) ;; esac   # prefer playstore
+    case "$api" in *.*) score=$((score + 2)) ;; *) : ;; esac                # prefer integer API
+    printf '%d system-images;%s;%s;arm64-v8a\n' "$score" "$api" "$variant"
+  done
+}
+detect_system_image() {
+  local best
+  best="$(_score_images | sort -n | head -1)"
+  [ -n "$best" ] && printf '%s\n' "${best#* }"
+}
+SYSTEM_IMAGE="${KMM_PARITY_IMAGE:-$(detect_system_image || true)}"
+if [ -z "$SYSTEM_IMAGE" ]; then
+  echo "No installed arm64-v8a system image found. Install one (e.g. 'sdkmanager \"system-images;android-35;google_apis_playstore;arm64-v8a\"') or set KMM_PARITY_IMAGE." >&2
+  exit 2
+fi
+echo "Using system image: $SYSTEM_IMAGE"
 
 running_serials() { "$ADB" devices | awk '/^emulator-[0-9]+\tdevice$/ { print $1 }' | sort; }
 
@@ -56,31 +86,40 @@ create_avd_if_missing() {
   enable_hw_keyboard "$1"
 }
 
-serial_for_avd() {
-  # Identify by the AVD a serial is running, so a concurrently-booting emulator is never grabbed.
-  local s name
-  for s in $(running_serials); do
-    name="$("$ADB" -s "$s" emu avd name 2>/dev/null | head -1 | tr -d '\r')"
-    [ "$name" = "$1" ] && { echo "$s"; return 0; }
-  done
-}
+# Any emulator serial in any adb state (device/offline/booting) — used to detect a freshly
+# launched emulator as soon as it appears, even before it flips to "device".
+all_emulator_serials() { "$ADB" devices | awk '/^emulator-[0-9]+\t/ { print $1 }' | sort; }
 
 wait_booted() {
-  local s="$1"
+  local s="$1" i=0
   "$ADB" -s "$s" wait-for-device
-  while [ "$("$ADB" -s "$s" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" != "1" ]; do sleep 2; done
+  while [ "$("$ADB" -s "$s" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" != "1" ]; do
+    sleep 2; i=$((i + 1))
+    [ "$i" -lt 300 ] || { echo "Emulator $s did not finish booting after 600s" >&2; exit 1; }
+  done
 }
 
 boot_visible() {
-  # VISIBLE only. -no-snapshot-load for a clean start. Returns the serial once booted.
+  # VISIBLE only. -no-snapshot-load for a clean start. Returns the new serial once booted.
+  # Detect OUR serial by set-difference against serials present before launch — robust while
+  # `adb emu avd name` is still unresponsive during a cold boot. A fresh first boot can take
+  # several minutes, so allow up to 360s for the serial to appear.
+  # Separate declarations: a single `local a=$1 b=$a` expands $a before assigning it (and trips
+  # `set -u`), so assign avd first, then reference it.
   local avd="$1"
-  "$EMULATOR" -avd "$avd" -no-snapshot-load >/dev/null 2>&1 &
-  local s="" i=0
-  while [ "$i" -lt 90 ]; do
-    s="$(serial_for_avd "$avd")"; [ -n "$s" ] && break
+  local log="$LOCK_DIR/emulator-$avd.log"
+  local before cand s="" i=0
+  before=" $(all_emulator_serials | tr '\n' ' ') "
+  echo "Booting $avd (cold boot may take a few minutes; log: $log)..." >&2
+  "$EMULATOR" -avd "$avd" -no-snapshot-load >"$log" 2>&1 &
+  while [ "$i" -lt 180 ]; do
+    for cand in $(all_emulator_serials); do
+      case "$before" in *" $cand "*) ;; *) s="$cand"; break ;; esac
+    done
+    [ -n "$s" ] && break
     sleep 2; i=$((i + 1))
   done
-  [ -n "$s" ] || { echo "Emulator '$avd' did not appear after 180s" >&2; exit 1; }
+  [ -n "$s" ] || { echo "Emulator '$avd' did not register a serial after 360s (see $log)" >&2; exit 1; }
   wait_booted "$s"
   echo "$s"
 }

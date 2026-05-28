@@ -34,6 +34,7 @@ import json
 import re
 import sys
 import xml.etree.ElementTree as ET
+from collections import Counter
 
 # Seed patterns for known-volatile fields — belt-and-suspenders on top of auto-detection,
 # in case the market is closed (static) and a field that is normally live didn't tick.
@@ -113,8 +114,13 @@ def rid_index(nodes):
 
 
 def class_multiset(nodes):
-    from collections import Counter
     return Counter(n["cls"] for n in nodes if n["cls"])
+
+
+def text_multiset(nodes):
+    """Counter of visible non-empty text. The real signal on screens without testTags —
+    e.g. reports, where the on-screen amounts ARE the migrated logic's output."""
+    return Counter(n["text"] for n in nodes if n["text"])
 
 
 def volatile_rids(s0, s1):
@@ -191,6 +197,29 @@ def main():
     for rid in sorted((ids_a & ids_b) & vol):
         masked.append({"rid": rid, "reason": "volatile-value"})
 
+    # visible-text comparison — the hard signal on untagged screens (reports etc.). A text whose
+    # count changed between a device's own two samples is volatile (live) and is masked, exactly
+    # like tagged fields. Remaining text-count differences are real value divergences.
+    ta0, ta1 = text_multiset(a0n), text_multiset(a1n)
+    tb0, tb1 = text_multiset(b0n), text_multiset(b1n)
+    vol_text = {t for t in (set(ta0) | set(ta1)) if ta0.get(t, 0) != ta1.get(t, 0)}
+    vol_text |= {t for t in (set(tb0) | set(tb1)) if tb0.get(t, 0) != tb1.get(t, 0)}
+    for t in sorted((set(ta0) | set(tb0)) - vol_text):
+        ca_, cb_ = ta0.get(t, 0), tb0.get(t, 0)
+        if ca_ == cb_:
+            continue
+        if min(ca_, cb_) == 0:
+            # Present on exactly ONE build → a real value/row difference (a unique row key like a
+            # timestamp or amount appearing on one side only). This is the hard signal.
+            divergences.append({"type": "text", "text": t, "master_count": ca_, "pr_count": cb_})
+        else:
+            # Count delta on a label present on BOTH builds → a repeated generic label (status,
+            # "UPI", "Net Balance") whose visible count differs by a row at the scroll boundary.
+            # That's render/scroll-offset jitter, not a data difference — soft hint, confirm
+            # against the unique row values, never a hard 🔴 on its own.
+            hints.append({"type": "text-count", "text": t, "master_count": ca_, "pr_count": cb_})
+    masked_text = len(vol_text)
+
     # untagged structure: soft hint only
     ca, cb = class_multiset(a0n), class_multiset(b0n)
     for cls in sorted(set(ca) | set(cb)):
@@ -207,7 +236,7 @@ def main():
     result = {
         "checkpoint": args.checkpoint, "verdict": verdict, "emoji": emoji,
         "tagged_master": len(ids_a), "tagged_pr": len(ids_b),
-        "masked_volatile": len(vol),
+        "masked_volatile": len(vol), "masked_text": masked_text,
         "divergences": divergences, "masked": masked, "hints": hints,
     }
     emit(result, args.out)
@@ -216,8 +245,10 @@ def main():
 def emit(result, out_path):
     line = f"{result['emoji']} {result['verdict']} @ {result['checkpoint']}"
     if result["verdict"] == "DIVERGENCE":
-        line += f" — {len(result['divergences'])} divergence(s): " + \
-                ", ".join(d["rid"] for d in result["divergences"][:6])
+        labels = []
+        for d in result["divergences"][:6]:
+            labels.append(d.get("rid") or (("text:" + d.get("text", "?")[:24]) if d.get("type") == "text" else "?"))
+        line += f" — {len(result['divergences'])} divergence(s): " + ", ".join(labels)
     elif result["verdict"] == "DRIFT":
         line += f" — {len(result['hints'])} structure hint(s) (live/timing-explainable)"
     elif result["verdict"] == "EVICTION":

@@ -4,6 +4,10 @@ Parity reuses Maestro, but with a twist: **one flow file runs unchanged on both 
 only works because a business-logic migration leaves the UI byte-identical — same composables,
 same testTags, same screens. The flow is the shared probe; the two builds are what differ.
 
+> **MANDATORY:** the probe is a **Maestro YAML flow** run with `maestro test --device <serial>`.
+> Driving the UI with `adb shell input tap/swipe/text` is prohibited (see SKILL.md → "Maestro
+> drives the UI — ALWAYS"). adb is only for install/launch/`screencap`/`logcat`/`maestro hierarchy`.
+
 ## Capture model: numbered segments = checkpoints
 
 The repo's `maestro/` flows are already split into ordered segments (`kill_switch/01..06`,
@@ -27,7 +31,41 @@ for seg in $(ls maestro/<journey>/*.yaml | sort); do
     --checkpoint "<journey>/$name" --out "$RUN_DIR/artifacts/<journey>/$name/verdict.json"
 done
 ```
-(Put the `sleep 2` between the `.s0` and `.s1` captures.)
+(Put the `sleep 2` between the `.s0` and `.s1` captures. If a screen has proven static — its
+checkpoints report `masked_*` = 0 — you can single-sample it: capture once and reuse it as both
+s0 and s1, halving capture time. Keep double-sampling anywhere live data can appear.)
+
+## Checkpoints must follow INTERACTIONS, not just navigation
+
+The migrated logic runs when the user acts, so segments must *do* things and capture the result:
+
+- a segment that **changes a date-range/filter/FY** → capture the reloaded list (re-ran the `Get…` use-case);
+- a segment that **scrolls to the bottom** → capture each scroll step (exercises paging `*Source`);
+- a segment that **expands a row / switches a tab** → capture the new detail (mappers/view-items);
+- a segment that **submits/downloads** → capture the confirmation (the `Download…`/`Submit…` use-case end-to-end).
+
+A flow that only `launchApp` + navigates + asserts the landing screen is **not** a functional
+parity test — it checks initial render only. Drive the interactions the heatmap mapped.
+
+### Paging / scroll determinism
+
+Both emulators share one AVD profile/resolution, so an identical `adb shell input swipe` lands at
+the same offset. Use a **slow swipe** (e.g. `swipe 720 2200 720 800 700`) to suppress fling, or two
+devices can drift to different offsets and read as a false divergence. Compare after each scroll
+step; a paging bug shows as different rows below the fold.
+
+## Robust navigation — relaunch, never blind-Back
+
+Reset to a known screen by **relaunching the app** (`monkey -p <pkg> LAUNCHER 1`) then navigating
+*forward*, using bounded Back presses that stop the moment the app's home/dashboard screen-tag is
+visible. Blindly pressing Back N times overshoots and **exits the app to the launcher**, derailing
+the next checkpoint.
+
+## Selectors: match case-insensitively, and investigate misses
+
+Labels in the wild differ by case and exact wording. Match exact first, then fall back to
+case-insensitive. If a control still isn't found, **inspect the live hierarchy and try alternate
+labels/routes before declaring a gap** — never silently skip a touchpoint in a "no-exclusions" run.
 
 ## Flows must be login-agnostic
 

@@ -14,6 +14,26 @@ You are not testing one branch. You are running a **controlled A/B**: the same p
 Maestro flow), the same account, two builds — and the only thing that should differ is *nothing
 the user can perceive*. When something does differ, that's the finding.
 
+## Maestro drives the UI — ALWAYS (MANDATORY, BLOCKING)
+
+Every tap, type, scroll, and assertion MUST be performed by a **Maestro YAML flow** run with
+`maestro test --device <serial>`. This is non-negotiable — Maestro is the tool of record, it's
+portable and selector-based, and coordinate taps are fragile and silently wrong across states and
+screen sizes. The whole "same probe on both builds" guarantee depends on the probe being one
+Maestro flow, not improvised input.
+
+- **PROHIBITED for driving the UI:** `adb shell input tap|swipe|text|keyevent`, and never resolve
+  x/y coordinates from the hierarchy and tap them. If you catch yourself computing coordinates,
+  STOP — you are off-pattern.
+- **adb is allowed ONLY for non-UI plumbing:** build/install, app launch (`am start` / `monkey`),
+  `screencap`, `pm`, `logcat`, and `maestro hierarchy` (the parity snapshot).
+- **Untagged screens are not an excuse.** Use Maestro text/`id` selectors (`tapOn: "<label>"`,
+  `scrollUntilVisible`, `assertVisible`, `inputText`). If a needed selector is missing, add a
+  `testTag` to BOTH worktrees (see `references/maestro-parity.md`) — do not fall back to coordinates.
+- **Disclose any deviation immediately.** If for some reason a step cannot be done in Maestro, say
+  so explicitly and get the user's call — never silently substitute adb input and report it as a
+  Maestro run.
+
 ## The single input
 
 A **GitHub PR link** (or number). Everything else is derived. **Latest `origin/master` is always
@@ -80,18 +100,37 @@ to **user journeys**. Classify each journey **read-only vs state-mutating** (see
 section below). Then **present the heatmap table and STOP for approval** — the user approves,
 trims, or excludes mutating journeys before any flow runs.
 
-## Phase 3 — Flow coverage
+## Phase 3 — Flow coverage (EXERCISE the logic, don't just open the screen)
 
 Read `references/maestro-parity.md`. For each approved journey: reuse the existing `maestro/`
 flow if present; otherwise generate one (login-agnostic `clearState: false`, `id:` selectors,
 discovered from the **master** worktree). One flow per journey — the *same file* runs on both
 builds.
 
+**Render parity ≠ functional parity — this is the #1 trap.** A migration moves *business logic*
+that only runs when the user **does** something. Opening a screen and diffing its initial render
+barely exercises the migrated code. Each flow MUST drive the interactions that invoke the changed
+use-cases and compare the **result after each interaction**:
+
+- **Reload-on-input** — change a date range / filter / FY, switch a tab/segment, pull-to-refresh → re-runs the migrated `Get…`/repository logic for new inputs.
+- **Paging** — scroll lists to the bottom; compare at each scroll step (catches paging/`*Source` bugs that hide below the fold).
+- **Expansion / drill-in** — expand a row, open a detail → exercises mappers/view-item logic.
+- **Submit / download / send** — trigger the action that calls the changed use-case end-to-end; compare the resulting confirmation/state (gate real side-effects per the safety section).
+
+The heatmap (Phase 2) already mapped each changed use-case → the interaction that invokes it; the
+flow's job is to perform that interaction on both builds.
+
+**No exclusions = investigate, never skip.** If a control/label/screen isn't found, do NOT log
+"not found" and move on. Inspect the live hierarchy, try a **case-insensitive / alternate label**
+(labels differ by case and wording), try the other navigation route, and only record a **genuine
+gap** after a real attempt. A skipped touchpoint is a hole in "no exclusions."
+
 ## Phase 4 + 5 — Run both, compare each checkpoint
 
-Per journey, drive both devices through the flow's ordered segments in lockstep; at each
-checkpoint capture two samples per device and compare (full loop in
-`references/maestro-parity.md` → "Capture model"):
+Per journey, drive both devices through the flow's ordered segments **in lockstep** — and reset
+each device to a known state by **relaunching the app and navigating forward**, never by blind
+Back presses (too many Backs exit the app). At each checkpoint capture two samples per device and
+compare (full loop in `references/maestro-parity.md` → "Capture model"):
 
 ```bash
 maestro --device "$A" test "$seg"; maestro --device "$B" test "$seg"
@@ -103,6 +142,12 @@ python3 scripts/compare-parity.py --a0 .../a.s0.hierarchy.json --a1 .../a.s1.hie
   --b0 .../b.s0.hierarchy.json --b1 .../b.s1.hierarchy.json \
   --checkpoint "<j>/<cp>" --out "$RUN_DIR/artifacts/<j>/<cp>/verdict.json"
 ```
+The two samples per device exist only to auto-detect live fields. If a screen's checkpoints come
+back with `masked_volatile`/`masked_text` = 0 (proven static — common for historical/market-closed
+data), the second sample was redundant there; you may switch that screen to **single-sample**
+(capture once, reuse it as both s0/s1) to roughly halve capture time. Keep double-sampling wherever
+anything live could appear (dashboards, tickers, clocks).
+
 Read `references/parity-comparison.md` to interpret 🟢/🟡/🔴/⚠️ and to **confirm a 🔴 before
 reporting it** (re-check it isn't an unmasked live field, a step desync, or an eviction).
 
@@ -139,6 +184,8 @@ places/cancels **real orders / real money — doubled**. So:
 
 | Mistake | Correct approach |
 |---|---|
+| Driving the UI with `adb shell input tap/swipe/text` | PROHIBITED. All taps/scrolls/typing go through Maestro YAML (`maestro test --device`). adb is only for install/launch/`screencap`/`pm`/`logcat`/`maestro hierarchy`. Untagged screen → use text selectors or add a testTag to both trees, never coordinates. |
+| Silently substituting adb for Maestro and reporting it as a Maestro run | Disclose any deviation immediately and get the user's call. |
 | Pixel-diffing screenshots for the verdict | Live feed → constant false positives. Verdict = hierarchy structure + stable values; screenshots are evidence only. |
 | Diffing against the PR's GitHub base | Always `origin/master...PR` after `git fetch origin master` — master-latest is the source of truth. |
 | `clearState: true` in a flow | Wipes the session you manually logged into and burns OTPs. Always `clearState: false`. |
@@ -155,5 +202,6 @@ places/cancels **real orders / real money — doubled**. So:
 2. **Same probe, two builds.** One flow file on both devices; only the build differs.
 3. **Mask what moves on its own.** Live fields are noise; stable structure + computed values are the signal.
 4. **A wrong number is the headline.** A migrated mapper/usecase emitting a different stable value is exactly what parity exists to catch.
-5. **No exclusions, but name the gaps.** Test every affected journey you safely can; list every one you couldn't.
-6. **Real prod, real money.** Mutating journeys are gated. The cost of a wrong trade dwarfs the cost of asking.
+5. **Exercise the logic, not the screen.** Render parity ≠ functional parity. The migrated code runs on *interaction* — date-range/filter changes, paging, expansion, submit/download. Drive the interaction on both builds and compare the result; opening a screen barely tests the migration.
+6. **No exclusions — investigate, don't skip.** Attempt every affected touchpoint. If a control isn't found, inspect the live UI and try alternate / case-insensitive labels and other routes before recording a *genuine* gap. A skipped touchpoint is a hole in the coverage you promised.
+7. **Real prod, real money.** Mutating journeys are gated. The cost of a wrong trade dwarfs the cost of asking.

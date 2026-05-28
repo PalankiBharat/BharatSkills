@@ -14,6 +14,9 @@
 # they need separate emulators.
 #
 # Usage: build-and-install.sh <worktree-dir> <serial> <label>
+#   PARITY_VARIANT (env) selects the Gradle variant; default ProductionDebug.
+#   For the shipped artifact use PARITY_VARIANT=ProductionRelease (minified + shrunk + signed;
+#   slower, but it's what users actually run). Both builds in a run MUST use the same variant.
 # Prints: APP_ID=<resolved applicationId>   (also echoes a testTagsAsResourceId warning if off)
 
 set -euo pipefail
@@ -22,12 +25,18 @@ WT="${1:?usage: build-and-install.sh <worktree-dir> <serial> <label>}"
 SERIAL="${2:?missing serial}"
 LABEL="${3:-build}"
 WT="$(cd "$WT" && pwd -P)"
+VARIANT="${PARITY_VARIANT:-ProductionDebug}"
+# Derive flavor + buildType to LOCATE the APK metadata. AGP places it under either
+# apk/<flavor>/<buildType>/ (this project's release) or apk/<flavorBuildType>/ (debug),
+# depending on version — so glob for both rather than assuming one layout.
+BT="$(printf '%s' "$VARIANT" | grep -oiE 'release$|debug$' | tr 'A-Z' 'a-z')"
+FLAVOR="$(printf '%s' "$VARIANT" | sed -E 's/(Release|Debug)$//' | tr 'A-Z' 'a-z')"
 
 ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
 ADB="$ANDROID_HOME/platform-tools/adb"
 export ANDROID_SERIAL="$SERIAL"
 
-echo "[$LABEL] building ProductionDebug in $WT -> $SERIAL"
+echo "[$LABEL] building $VARIANT in $WT -> $SERIAL"
 cd "$WT"
 
 # testTagsAsResourceId gate: Maestro id: selectors only resolve when Compose testTags are
@@ -42,10 +51,10 @@ fi
 ./gradlew :app:objectboxPrepareBuild --no-configuration-cache --build-cache
 
 # Step 2 — install, reusing step 1, skipping lint.
-./gradlew installProductionDebug -x :app:objectboxPrepareBuild -x lint --build-cache
+./gradlew "install$VARIANT" -x :app:objectboxPrepareBuild -x lint --build-cache
 
 # Resolve the applicationId Gradle actually produced (survives any applicationIdSuffix drift).
-META="app/build/outputs/apk/productionDebug/output-metadata.json"
+META="$(find app/build/outputs/apk -path "*${FLAVOR}*${BT}*" -name output-metadata.json 2>/dev/null | head -1)"
 if [ -f "$META" ]; then
   APP_ID="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["applicationId"])' "$META")"
 else
