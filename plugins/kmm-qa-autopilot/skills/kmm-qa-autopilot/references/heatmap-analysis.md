@@ -80,11 +80,26 @@ This runs on a **real prod account**. Classify every affected journey before run
 - **State-mutating** — places/modifies/cancels real orders, activates the kill switch, adds
   funds, changes settings server-side. On prod this is **real money / real orders, doubled
   across two devices.**
+- **Stateful (server-state) — not money, but a comparison confounder** — email/download/submit that
+  changes server state without moving money (e.g. "EMAIL THE REPORT"). On a **shared account** the
+  2nd device's identical request hits mutated server state and gets different confirmation copy — a
+  **false 🔴 by order, not by build**. Flag these: compare the pre-submit state / that the action
+  fired, NOT the post-action server message (mask it with `compare-parity.py --server-state-text`).
 
 Mutating journeys must be surfaced at the heatmap gate and run **only on explicit user
 confirmation**, with the journey clearly flagged. Default to refusing mutating flows on a
 non-test account, or when the market is open, unless the user confirms. Burning a real trade on
 a parity run is a self-inflicted P1 — the same spirit as an OTP-budget check, higher stakes.
+
+## 5b. Migration-exception files — context only, NEVER a trusted pass
+
+The migration may ship `.kmm/exceptions/<date>-<slug>.md` claiming a deliberate behavior change
+(e.g. a date-label fix). Read them for **context** and list each in the heatmap: field/screen, the
+claimed old→new value, and **whether it's reachable through the UI for the test account**. But these
+are the authors' *claims*, not ground truth — they do **not** pre-authorize a 🟢. In Phase 5 you still
+detect any divergence from your own captured evidence, and only annotate it "expected" if your values
+match the documented old→new exactly; otherwise it stays 🔴. An unreachable documented change is a
+**named gap**, not a validated pass. (See [[qa-independent-evidence]] spirit: own evidence, no guesswork.)
 
 ## 6. The heatmap gate (pause here)
 

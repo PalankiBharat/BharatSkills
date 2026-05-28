@@ -54,6 +54,12 @@ the same offset. Use a **slow swipe** (e.g. `swipe 720 2200 720 800 700`) to sup
 devices can drift to different offsets and read as a false divergence. Compare after each scroll
 step; a paging bug shows as different rows below the fold.
 
+**Scroll to a deterministic anchor before comparing.** Even with identical swipes, two devices can
+rest a row apart, producing a FALSE presence 🔴 at the boundary. Prefer `scrollUntilVisible` a known
+end marker, or scroll **both to the list bottom**, then compare — offsets converge there. On a
+boundary-only presence diff mid-scroll, converge and re-compare before recording a 🔴 (observed: a
+ledger scroll flagged one extra row that vanished once both devices reached the bottom).
+
 ## Robust navigation — relaunch, never blind-Back
 
 Reset to a known screen by **relaunching the app** (`monkey -p <pkg> LAUNCHER 1`) then navigating
@@ -67,6 +73,16 @@ Labels in the wild differ by case and exact wording. Match exact first, then fal
 case-insensitive. If a control still isn't found, **inspect the live hierarchy and try alternate
 labels/routes before declaring a gap** — never silently skip a touchpoint in a "no-exclusions" run.
 
+## Stateful actions (submit / send / download / email) — don't diff the server's reply
+
+A flow that fires a stateful action changes server state. Because both devices use the **same
+account**, the 2nd device's identical request sees the mutated state and gets different confirmation
+copy — a false 🔴 by ORDER, not by build. So assert the action **fired** and compare the **pre-submit**
+state; do not compare the post-action server message. If the comparator still flags the copy, it's
+server-returned (not in either build's source) — mask it with `compare-parity.py --server-state-text`.
+(Observed: Contract-notes "EMAIL THE REPORT" showed "You will receive…" on the 1st device and "We have
+sent…" on the 2nd — purely request order; an order-swap proved it.)
+
 ## Flows must be login-agnostic
 
 Manual login already happened (Phase 1). Every flow starts logged-in:
@@ -76,10 +92,11 @@ Manual login already happened (Phase 1). Every flow starts logged-in:
 ```
 A flow that re-runs login would consume real OTPs and desync the two devices. Don't.
 
-## Reuse first, generate second
+## Generate is the norm; reuse only if a flow already exists
 
-For each affected journey: if a `maestro/` flow already covers it, reuse it (these are
-id-based, segmented, screenshot-checkpointed — ideal). Only generate when none exists.
+Most repos (this one included) have **no ready-made journey flows** — generating one per journey is
+the default; don't waste time hunting for flows that aren't there. Reuse only if a matching
+`maestro/<journey>/` already exists (id-based, segmented, screenshot-checkpointed — ideal when present).
 
 ## Selector discipline (unchanged from good Maestro practice)
 
@@ -88,6 +105,11 @@ id-based, segmented, screenshot-checkpointed — ideal). Only generate when none
 | ✅ 1st | `id: "tag_name"` | a `testTag` (exposed via `testTagsAsResourceId=true`) |
 | ⚠️ rare | `text: "..."` | system dialogs only ("Allow", "OK"), or a closed 2-value control with no tag |
 | ❌ never | `point: "x%, y%"` | breaks across device sizes |
+
+**Untagged screens (reports/ledgers):** `id:` won't resolve, so use `text:` selectors for stable
+navigation controls (tab labels, buttons, labeled FY chips, list-row titles) — expected here, not a
+fallback to avoid. The parity VALUE signal comes from the comparator's text-multiset of the whole
+screen, not from selectors, so untagged value tables still get a strict verdict. Reserve `point:` for never.
 
 Stock symbols, prices, and percentages appear many times per screen — `text:` selectors match
 the wrong node. Always `id:`. Before writing a flow, discover tags in the **master** worktree

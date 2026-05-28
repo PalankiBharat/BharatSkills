@@ -41,10 +41,12 @@ command -v gh >/dev/null || { echo "GitHub CLI 'gh' is required (brew install gh
 # --- resolve the PR via gh (accepts a number or a full URL) ---
 # Run gh from inside the sniper repo so it infers the correct GitHub repo from origin,
 # regardless of the caller's current directory.
-PR_JSON="$(cd "$SNIPER_ROOT" && gh pr view "$PR_INPUT" --json number,headRefName,headRefOid,baseRefName)"
+PR_JSON="$(cd "$SNIPER_ROOT" && gh pr view "$PR_INPUT" --json number,headRefName,headRefOid,baseRefName,state,mergeCommit)"
 PR_NUM="$(printf '%s' "$PR_JSON"  | python3 -c 'import json,sys;print(json.load(sys.stdin)["number"])')"
 PR_REF="$(printf '%s' "$PR_JSON"  | python3 -c 'import json,sys;print(json.load(sys.stdin)["headRefName"])')"
 PR_BASE="$(printf '%s' "$PR_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin)["baseRefName"])')"
+PR_STATE="$(printf '%s' "$PR_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("state",""))')"
+PR_MERGE_SHA="$(printf '%s' "$PR_JSON" | python3 -c 'import json,sys;d=json.load(sys.stdin).get("mergeCommit");print(d["oid"] if d else "")')"
 
 RUN_DIR="${3:-$HOME/.kmm-parity/pr-$PR_NUM}"
 mkdir -p "$RUN_DIR"
@@ -53,8 +55,22 @@ MASTER_WT="$WT_BASE/master"
 PR_WT="$WT_BASE/pr"
 PR_LOCAL_BRANCH="kmm-parity-pr-$PR_NUM"
 
-MASTER_REF="${BASELINE_REF:-origin/master}"
-echo "PR #$PR_NUM  head=$PR_REF  base=$PR_BASE"
+# Baseline (A) selection — "master-latest is truth" UNLESS the PR is already merged into it:
+#   1. explicit BASELINE_REF always wins;
+#   2. else if the PR is MERGED, latest master already contains the migration (the normal
+#      master-vs-PR diff would be EMPTY), so baseline against the merge commit's first parent
+#      = pre-migration master, which is the only ref that yields a meaningful diff;
+#   3. else live origin/master.
+if [ -n "${BASELINE_REF:-}" ]; then
+  MASTER_REF="$BASELINE_REF"
+elif [ "$PR_STATE" = "MERGED" ] && [ -n "$PR_MERGE_SHA" ]; then
+  MASTER_REF="${PR_MERGE_SHA}^1"
+  echo "PR #$PR_NUM is MERGED — auto-baselining against pre-migration master (${PR_MERGE_SHA}^1),"
+  echo "  not live origin/master (which already contains the migration -> empty diff)."
+else
+  MASTER_REF="origin/master"
+fi
+echo "PR #$PR_NUM  head=$PR_REF  base=$PR_BASE  state=${PR_STATE:-?}"
 echo "Run dir: $RUN_DIR"
 echo "Baseline (A) ref: $MASTER_REF"
 [ "$PR_BASE" = "master" ] || echo "Note: PR base is '$PR_BASE', but per design we diff against the baseline ref above."
@@ -83,8 +99,18 @@ git -C "$SNIPER_ROOT" worktree add --force "$PR_WT" "$PR_LOCAL_BRANCH"
 
 MASTER_SHA="$(git -C "$MASTER_WT" rev-parse --short HEAD)"
 PR_SHA="$(git -C "$PR_WT" rev-parse --short HEAD)"
-echo "master worktree @ origin/master ($MASTER_SHA)"
+echo "master worktree @ $MASTER_REF ($MASTER_SHA)"
 echo "pr worktree     @ $PR_REF ($PR_SHA)"
+
+# --- empty-diff gate: refuse to run a vacuous parity pass ---
+# If the baseline and the PR head are identical there is nothing to compare, and the run would
+# emit a false "PARITY HOLDS". This is the #1 trap for an already-merged PR baselined wrong.
+if [ -z "$(git -C "$MASTER_WT" diff --name-only "$MASTER_REF"..."$PR_LOCAL_BRANCH")" ]; then
+  echo "REFUSING: baseline ($MASTER_REF) and PR head ($PR_REF) are identical — nothing to compare." >&2
+  echo "  A parity run here would be vacuous. If the PR is merged, set BASELINE_REF to the" >&2
+  echo "  pre-migration commit (e.g. ${PR_MERGE_SHA:-<mergeSha>}^1) and re-run." >&2
+  exit 3
+fi
 
 # --- copy build-required but gitignored files into both worktrees ---
 # These are not tracked, so a fresh worktree lacks them and Gradle would fail.
