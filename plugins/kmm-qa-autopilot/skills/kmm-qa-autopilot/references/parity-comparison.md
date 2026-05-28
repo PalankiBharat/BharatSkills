@@ -38,6 +38,12 @@ the comparison gets stricter (which is fine — static values *should* match exa
 Per-checkpoint verdict: **EVICTION** > **DIVERGENCE** (any hard signal) > **DRIFT** (only soft
 hints) > **PARITY**. Exit codes: PARITY/DRIFT=0, DIVERGENCE=1, EVICTION=2.
 
+**On untagged value-table screens (reports/ledgers/statements), the visible-text signal IS the
+primary oracle** — the on-screen amounts/dates are the migrated logic's output, so a stable text that
+differs is a real value 🔴, while text-count deltas at a scroll boundary are soft hints. Don't treat a
+clean text-based 🟢 as weak: with static (market-closed) data and zero live masking it's a strict,
+trustworthy comparison. Tagging every cell is unnecessary — a screen-level tag only aids navigation.
+
 ## EVICTION is not a bug
 
 Even though prod allows concurrent sessions, if one device gets bumped to login mid-run, that
@@ -54,6 +60,17 @@ A 🔴 is a strong lead, not an automatic bug. Before reporting:
   missed and it didn't tick in 2s). If so, add it to `--seed-mask` and re-run that checkpoint.
 - Confirm both builds were at the same step (a flaky tap can leave one device a screen behind →
   spurious presence diffs). Re-run the checkpoint.
+- **Scroll/paging offset:** a single extra row at a list boundary is almost always the two devices
+  resting at slightly different scroll offsets, not a migration bug. Scroll **both to a deterministic
+  anchor** (list bottom / `scrollUntilVisible`) and re-compare; if it converges (no A-only/B-only),
+  it's drift → not a 🔴.
+- **Stateful-action server copy:** on a shared account a submit/send/download confirmation can differ
+  purely by request ORDER (the 2nd request sees mutated server state). Check the copy isn't in either
+  build's source (i.e. it's server-returned); if so mask it (`--server-state-text`) and compare the
+  pre-submit state instead. Treat like EVICTION, not a 🔴. (Confirm via an order-swap if unsure: run
+  the action on B first, then A — if the message follows the order, not the build, it's server state.)
+- **A doc doesn't excuse it:** if a `.kmm/exceptions/*.md` claims this change is intentional, that's
+  context, not a verdict. Keep the 🔴 unless YOUR captured values match the documented old→new exactly.
 - A genuine 🔴 on a *value* (`order_count`, a P&L total, a formatted price that's stable) is the
   headline finding — that's a migration that changed behavior. Quote both values.
 

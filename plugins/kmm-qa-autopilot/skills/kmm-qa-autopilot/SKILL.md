@@ -1,6 +1,6 @@
 ---
 name: kmm-qa-autopilot
-description: Use for PARITY QA of an Android-to-KMM migration PR — proving a migration changed nothing the user can see. Triggers on "parity test this PR", "qa my migration", "parity QA", "compare master vs migrated", "does this migration change behavior", "differential test the PR", "run parity on PR <url>", "kmm qa autopilot", or any request to verify a KMM/shared-module migration PR is behavior-preserving. Given a GitHub PR link, it builds LATEST master and the PR head as two ProductionDebug APKs (same package), boots and locks TWO visible emulators (master→A, PR→B), waits for one manual prod login on each, derives a no-exclusions heatmap from the master-vs-PR git diff, runs the SAME Maestro flows on both devices, and diffs structure + stable values (live prices/charts auto-masked) into a per-journey parity verdict. This is two builds compared head-to-head — distinct from single-build branch QA. Do NOT use for testing one branch in isolation, writing a one-off Maestro flow, or Figma parity (that's qa-autopilot); use this only when there are TWO builds to compare.
+description: Use for PARITY QA of an Android-to-KMM migration PR — proving a migration changed nothing the user can see. Triggers on "parity test this PR", "qa my migration", "parity QA", "compare master vs migrated", "does this migration change behavior", "differential test the PR", "run parity on PR <url>", "kmm qa autopilot", or any request to verify a KMM/shared-module migration PR is behavior-preserving. Given a GitHub PR link, it builds the baseline master and the PR head as two ProductionRelease APKs (the shipped, R8-minified artifact — same package), boots and locks TWO visible emulators (master→A, PR→B), waits for one manual prod login on each, derives a no-exclusions heatmap from the master-vs-PR git diff, runs the SAME Maestro flows on both devices, and diffs structure + stable values (live prices/charts auto-masked) into a per-journey parity verdict. This is two builds compared head-to-head — distinct from single-build branch QA. Do NOT use for testing one branch in isolation, writing a one-off Maestro flow, or Figma parity (that's qa-autopilot); use this only when there are TWO builds to compare.
 ---
 
 # KMM QA Autopilot — Parity testing for migration PRs
@@ -56,6 +56,12 @@ bash scripts/ensure-two-emulators.sh "$RUN_DIR"        # locks A (master) + B (P
 A="$(cat "$RUN_DIR/locks/lock-a")"; B="$(cat "$RUN_DIR/locks/lock-b")"
 ```
 
+`setup-worktrees.sh` resolves the PR and picks the baseline (A): **if the PR is already MERGED**, it
+auto-baselines against the pre-migration commit (`<mergeSha>^1`) — latest master already contains the
+migration, so a normal master-vs-PR diff would be EMPTY. Override with `BASELINE_REF`. It also
+**hard-stops on an empty diff** (baseline == PR head) — never run a vacuous parity pass that would
+report a false 🟢.
+
 Read `references/dual-emulator.md` for the locking policy and the **scope-every-command** rule
 (two devices now — an unscoped `adb`/`maestro` call is ambiguous).
 
@@ -65,11 +71,15 @@ identical across the two trees, so the same edit applies to both; patching only 
 manufactures a false divergence.
 
 ```bash
-bash scripts/build-and-install.sh "$MASTER_WT" "$A" master   # ProductionDebug -> emu A
-bash scripts/build-and-install.sh "$PR_WT"     "$B" pr        # ProductionDebug -> emu B
+bash scripts/build-and-install.sh "$MASTER_WT" "$A" master   # ProductionRelease -> emu A
+bash scripts/build-and-install.sh "$PR_WT"     "$B" pr        # ProductionRelease -> emu B
 ```
-Both print `APP_ID=…` (same package, different devices) and warn if `testTagsAsResourceId` is
-off. Expect the first build to take minutes; the second reuses the shared Gradle cache.
+Builds default to **ProductionRelease** — the shipped, R8-minified artifact users actually run. Do
+**NOT** use ProductionDebug: it's the canary / non-R8 build and can HIDE R8-only regressions, most
+dangerously serialization (a Gson→kotlinx.serialization migration can be 🟢 on debug yet broken under
+R8). Both print `APP_ID=…` (same package, different devices) and warn if `testTagsAsResourceId` is off.
+ProductionRelease is slower (~5–6 min cold); the second build reuses the shared Gradle cache. Release &
+debug share signing here, so the release APK installs over a prior debug one with login preserved.
 
 ## Phase 1 — Manual login (the ONLY manual step)
 
@@ -88,24 +98,42 @@ Then tell the user, and **wait**:
 Do not proceed until the user confirms. (Prod allows concurrent sessions; if one device later
 lands on a login screen mid-run, the comparator flags EVICTION — re-login, don't report a bug.)
 
-## Phase 2 — Heatmap (no exclusions) → GATE
+## Phase 2 — Heatmap (no exclusions) + exception context → GATE
 
-Read `references/heatmap-analysis.md`. Diff against **latest master**:
+Read `references/heatmap-analysis.md`. Diff against the **baseline ref** chosen in Phase 0
+(`$MASTER_REF` — pre-migration master for a merged PR, else latest master):
 
 ```bash
-git -C "$MASTER_WT" diff origin/master..."$PR_LOCAL_BRANCH" --name-status
+git -C "$MASTER_WT" diff "$MASTER_REF"..."$PR_LOCAL_BRANCH" --name-status
 ```
 Categorize every changed file, trace each changed symbol up to the screens that show it, and map
-to **user journeys**. Classify each journey **read-only vs state-mutating** (see the safety
-section below). Then **present the heatmap table and STOP for approval** — the user approves,
-trims, or excludes mutating journeys before any flow runs.
+to **user journeys**. Classify each journey **read-only vs state-mutating** (safety section below),
+and additionally flag **stateful actions** (submit/send/download/email): on a shared prod account
+the 2nd device's request hits mutated server state, so their post-action confirmation copy is NOT a
+parity signal — compare the pre-submit state, not the server message (see `references/heatmap-analysis.md`).
+
+**Read `.kmm/exceptions/*.md` in the PR tree for CONTEXT only.** These are the authors' *claims* that
+the migration deliberately changes some behavior (e.g. a date-label fix). They are **not trusted
+ground truth** — never let a doc downgrade a real divergence to a pass. List each as context (field /
+screen, claimed old→new, and whether it's even **reachable through the UI** for this account), then
+verify independently from the tool's own captured evidence in Phase 5. See `references/parity-comparison.md`.
+
+Then **present the heatmap table and STOP for approval** — the user approves, trims, or excludes
+mutating journeys before any flow runs.
 
 ## Phase 3 — Flow coverage (EXERCISE the logic, don't just open the screen)
 
-Read `references/maestro-parity.md`. For each approved journey: reuse the existing `maestro/`
-flow if present; otherwise generate one (login-agnostic `clearState: false`, `id:` selectors,
-discovered from the **master** worktree). One flow per journey — the *same file* runs on both
-builds.
+Read `references/maestro-parity.md`. **Generating a flow per journey is the norm** — this repo
+usually has no ready-made journey flows, so don't waste time hunting; reuse only if a matching
+`maestro/<journey>/` already exists. Each flow is login-agnostic (`clearState: false`), prefers
+`id:` selectors, and falls back to **text selectors** on untagged screens (many real screens —
+reports, ledgers — carry no testTags; that's expected, not a blocker). Discover selectors from the
+**master** worktree. One flow per journey — the *same file* runs on both builds.
+
+On **untagged value-table screens** (reports/ledgers/statements) the verdict rests on the
+comparator's **visible-text** signal — the on-screen amounts/dates ARE the migrated logic's output,
+and static (market-closed) data makes that comparison strict. Don't try to tag every cell; at most
+add a screen-level `testTag("screen_<name>")` to BOTH trees for navigation. (See `references/parity-comparison.md`.)
 
 **Render parity ≠ functional parity — this is the #1 trap.** A migration moves *business logic*
 that only runs when the user **does** something. Opening a screen and diffing its initial render
@@ -127,36 +155,50 @@ gap** after a real attempt. A skipped touchpoint is a hole in "no exclusions."
 
 ## Phase 4 + 5 — Run both, compare each checkpoint
 
-Per journey, drive both devices through the flow's ordered segments **in lockstep** — and reset
-each device to a known state by **relaunching the app and navigating forward**, never by blind
-Back presses (too many Backs exit the app). At each checkpoint capture two samples per device and
-compare (full loop in `references/maestro-parity.md` → "Capture model"):
+Per journey, drive both devices through the flow's ordered segments **in lockstep**. Use the helper
+scripts instead of hand-issuing every maestro/capture/compare (faster, reproducible, fewer slips):
 
 ```bash
-maestro --device "$A" test "$seg"; maestro --device "$B" test "$seg"
-bash scripts/capture-checkpoint.sh "$A" "$RUN_DIR/artifacts/<j>/<cp>/a.s0"; sleep 2
-bash scripts/capture-checkpoint.sh "$A" "$RUN_DIR/artifacts/<j>/<cp>/a.s1"
-bash scripts/capture-checkpoint.sh "$B" "$RUN_DIR/artifacts/<j>/<cp>/b.s0"; sleep 2
-bash scripts/capture-checkpoint.sh "$B" "$RUN_DIR/artifacts/<j>/<cp>/b.s1"
-python3 scripts/compare-parity.py --a0 .../a.s0.hierarchy.json --a1 .../a.s1.hierarchy.json \
-  --b0 .../b.s0.hierarchy.json --b1 .../b.s1.hierarchy.json \
-  --checkpoint "<j>/<cp>" --out "$RUN_DIR/artifacts/<j>/<cp>/verdict.json"
+# one checkpoint (runs the SAME flow on A+B, captures, compares, writes verdict):
+bash scripts/run-checkpoint.sh "$RUN_DIR" <journey> <checkpoint> <flow.yaml> [single|double]
+# or every segment in a journey's flows dir, in order:
+bash scripts/run-journey.sh "$RUN_DIR" <journey> <flows-dir> [single|double]
 ```
-The two samples per device exist only to auto-detect live fields. If a screen's checkpoints come
-back with `masked_volatile`/`masked_text` = 0 (proven static — common for historical/market-closed
-data), the second sample was redundant there; you may switch that screen to **single-sample**
-(capture once, reuse it as both s0/s1) to roughly halve capture time. Keep double-sampling wherever
-anything live could appear (dashboards, tickers, clocks).
+Reset each device to a known base by **force-stop + relaunch** (preserves login; never `clearState`)
+then navigate forward — never blind Back presses (too many Backs exit the app).
 
-Read `references/parity-comparison.md` to interpret 🟢/🟡/🔴/⚠️ and to **confirm a 🔴 before
-reporting it** (re-check it isn't an unmasked live field, a step desync, or an eviction).
+**Sampling:** two samples/device auto-detect live fields. If a screen reports `masked_volatile`/
+`masked_text` = 0 (proven static — common for historical/market-closed reports), switch it to
+`single` to ~halve capture time. Keep `double` wherever anything live can appear (dashboards, tickers).
+
+**Scroll/paging — confirm before 🔴:** a scrolling flow MUST scroll to a **deterministic anchor**
+(list bottom / `scrollUntilVisible`) before capture — two devices at different mid-scroll offsets
+produce a FALSE presence 🔴 (one extra boundary row). On a boundary-only presence diff, converge
+(scroll both to the bottom) and re-run the checkpoint before trusting it.
+
+**Stateful actions (submit/send/download/email) — confirm before 🔴:** on a shared account the 2nd
+device hits mutated server state, so post-action confirmation copy differs by ORDER, not by build.
+Compare the pre-submit state / that the action fired; mask the server copy with
+`compare-parity.py --server-state-text "<phrase>" …`. Treat such a diff like EVICTION, not a 🔴.
+
+Read `references/parity-comparison.md` to interpret 🟢/🟡/🔴/⚠️ and to **confirm a 🔴 before reporting
+it** (re-check it isn't an unmasked live field, a scroll-offset / step desync, a stateful-action
+server message, or an eviction). **The verdict is the tool's OWN, evidence-backed call** — an
+exception doc claiming a change is "intentional" never auto-downgrades a confirmed 🔴.
 
 ## Phase 6 — Report
 
-Read `references/report-template.md`. Write
-`$RUN_DIR/parity-report-pr<num>-<date>.md` with the per-journey verdicts, confirmed divergences
-(with both values + screenshot paths), drift notes, evictions, and **named gaps** (untested or
-declined journeys — "no exclusions" means gaps are listed, never hidden).
+Read `references/report-template.md`. Write `$RUN_DIR/parity-report-pr<num>-<date>.md` with the
+per-journey verdicts, confirmed divergences (with both values + screenshot paths), drift notes,
+evictions, and **named gaps** (untested or declined journeys — "no exclusions" means gaps are
+listed, never hidden). State the build variant (**ProductionRelease**) and the baseline ref used.
+
+Make every 🟢 **auditable** — include a per-journey **confidence line**: which interactions were
+actually exercised (date-range/scroll/expand/submit), how many real values were compared, how many
+fields were masked, and whether the signal was tag- or text-based. A green over a shallow flow is a
+false green; the report must show what each verdict actually covered. The verdict is
+**evidence-backed**: report what was observed with evidence, and list anything unverified (including
+documented exceptions that were not UI-reachable) as a named gap, never as a silent pass.
 
 ## Phase 7 — Cleanup
 
@@ -167,6 +209,23 @@ git -C "$SNIPER_ROOT" worktree prune
 ```
 Leave the emulators running (never kill devices you booted unless the user asks). The report and
 artifacts under `$RUN_DIR` are persistent — they are the deliverable.
+
+## Phase 8 — Session retro (always run; the skill improves every real run)
+
+After the report, run a retrospective of THIS session and write `$RUN_DIR/retro.md` (use
+`references/retro-template.md`). Throughout the run you've been observing friction; here you record
+it — **save only; do NOT edit the skill during a run.** Capture, with evidence from this run,
+anything that hurt:
+- **speed** — phase timings, slow or redundant steps;
+- **robustness** — failures, manual re-syncs, any deviation (e.g. a non-Maestro probe);
+- **confidence** — false 🔴s + their proven root cause, over-strict/over-masked cases, ambiguous or
+  UI-unreachable documented changes;
+- **harness** — anything you had to hand-drive that a script should do.
+
+Each entry: observation → **evidence from this run** → proposed skill change → goal. Evidence-backed,
+no guesswork. Finish by telling the user `retro.md` is saved and can be triaged into the skill **in a
+separate session** (edit source in a worktree, bump versions, open a PR) — this is how the skill gets
+better with every real run.
 
 ## Real-prod-state safety gate (BLOCKING for mutating journeys)
 
@@ -195,6 +254,12 @@ places/cancels **real orders / real money — doubled**. So:
 | Unscoped `adb`/`maestro` with two devices | Always `-s "$A"` / `--device "$B"`. |
 | Calling a single 🔴 "the migration is fine on average" | One confirmed structural/value divergence = 🔴 DIVERGENCE FOUND. Don't average it away. |
 | Reusing single-build qa-autopilot for this | That tests one branch in isolation. Parity needs two builds compared — this skill. |
+| Building **ProductionDebug** (the canary) | Use **ProductionRelease** — the shipped R8 artifact. Debug skips R8 and can hide serialization regressions (false 🟢). |
+| Running when the baseline↔PR diff is empty | Vacuous parity. setup auto-baselines a merged PR to `<mergeSha>^1` and hard-stops on an empty diff — don't bypass it. |
+| Trusting `.kmm/exceptions/*.md` to downgrade a 🔴 | Exceptions are authors' claims, context only. Verify independently; a confirmed 🔴 stays 🔴 until your own evidence explains it. |
+| Calling a mid-scroll boundary-row diff a 🔴 | Scroll both to a deterministic anchor (list bottom) and re-compare — offset drift, not a migration bug. |
+| Diffing a stateful action's server confirmation copy | Same account → 2nd request hits mutated server state. Compare pre-submit state; mask copy with `--server-state-text`. |
+| Skipping the Phase 8 retro | Always write `$RUN_DIR/retro.md` — that's how the skill improves from each real run. |
 
 ## Key principles
 
@@ -205,3 +270,6 @@ places/cancels **real orders / real money — doubled**. So:
 5. **Exercise the logic, not the screen.** Render parity ≠ functional parity. The migrated code runs on *interaction* — date-range/filter changes, paging, expansion, submit/download. Drive the interaction on both builds and compare the result; opening a screen barely tests the migration.
 6. **No exclusions — investigate, don't skip.** Attempt every affected touchpoint. If a control isn't found, inspect the live UI and try alternate / case-insensitive labels and other routes before recording a *genuine* gap. A skipped touchpoint is a hole in the coverage you promised.
 7. **Real prod, real money.** Mutating journeys are gated. The cost of a wrong trade dwarfs the cost of asking.
+8. **Test the shipped artifact.** ProductionRelease (R8-minified), never the debug/canary build — release-only behavior (esp. serialization) is exactly what parity must catch.
+9. **Your own evidence is the verdict.** Reference exception docs / PR notes for context, never to excuse a divergence; a confirmed 🔴 stays 🔴 until the tool's own evidence explains it.
+10. **Improve every run.** Phase 8 writes a retro so the skill compounds with each real PR.

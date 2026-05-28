@@ -149,6 +149,11 @@ def main():
     ap.add_argument("--b0", required=True); ap.add_argument("--b1", required=True)
     ap.add_argument("--checkpoint", default="checkpoint")
     ap.add_argument("--seed-mask", nargs="*", default=DEFAULT_SEED_MASK)
+    ap.add_argument("--server-state-text", nargs="*", default=[],
+                    help="substrings of backend-driven confirmation copy to mask as account/"
+                         "server-state-dependent (e.g. 'sent this report', 'you will receive'). "
+                         "Same prod account on both devices means a stateful action's 2nd request "
+                         "sees mutated server state — that copy is not a parity signal.")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
 
@@ -207,6 +212,12 @@ def main():
     for t in sorted((set(ta0) | set(tb0)) - vol_text):
         ca_, cb_ = ta0.get(t, 0), tb0.get(t, 0)
         if ca_ == cb_:
+            continue
+        if any(p.lower() in t.lower() for p in args.server_state_text):
+            # Backend-driven confirmation copy on a stateful action (same account on both devices):
+            # the 2nd request sees mutated server state, so this text is order/state-dependent,
+            # not a build difference. Mask it instead of calling a 🔴. (See stateful-action note.)
+            masked.append({"text": t, "reason": "server-state-text"})
             continue
         if min(ca_, cb_) == 0:
             # Present on exactly ONE build → a real value/row difference (a unique row key like a

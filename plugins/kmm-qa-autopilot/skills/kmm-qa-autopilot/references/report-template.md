@@ -10,7 +10,8 @@ Use this structure:
 # Parity Report — PR #<num> "<title>"
 
 - **Candidate (B):** <branch> @ <pr-sha>
-- **Baseline (A):** origin/master @ <master-sha>   ← source of truth
+- **Baseline (A):** <baseline ref> @ <master-sha>   ← source of truth (pre-migration commit if the PR is merged)
+- **Build variant:** ProductionRelease (R8-minified — the shipped artifact users run)
 - **Verdict:** 🟢 PARITY HOLDS | 🟡 REVIEW DRIFT | 🔴 DIVERGENCE FOUND
 - **Date:** <YYYY-MM-DD>   **Devices:** A=<serial> (master)  B=<serial> (PR)
 - **Account / market:** <test acct?> / <market open|closed>
@@ -43,9 +44,21 @@ For each confirmed divergence:
 <affected journeys with no flow that couldn't be generated, and mutating journeys the user
 declined — be explicit; "no exclusions" means gaps are named, not hidden.>
 
+## Confidence / coverage (a 🟢 is only as good as what it exercised)
+| Journey | Interactions exercised | Values compared | Masked | Signal | Verdict |
+|---|---|---|---|---|---|
+| <j> | open, date-range, scroll, expand, submit | <N> | <N> | text / tag | 🟢 |
+Every confirmed false positive (scroll-offset, stateful server copy, eviction) is listed with HOW it
+was confirmed — explained, never hidden. Documented exceptions that were not UI-reachable are named gaps.
+
 ## Masking note
 Auto-masked volatile fields this run: <count typical per screen>. Seed mask used: <list>.
+Server-state confirmation copy masked (stateful actions, if any): <phrases via --server-state-text>.
 ```
+
+## Retro
+A session retro is saved to `$RUN_DIR/retro.md` (Phase 8) — friction + proposed skill improvements
+from this run, for triage into the skill in a separate session.
 
 ## Verdict rules
 - One confirmed 🔴 anywhere → overall **🔴 DIVERGENCE FOUND**. Don't average it away.

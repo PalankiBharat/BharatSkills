@@ -14,9 +14,11 @@
 # they need separate emulators.
 #
 # Usage: build-and-install.sh <worktree-dir> <serial> <label>
-#   PARITY_VARIANT (env) selects the Gradle variant; default ProductionDebug.
-#   For the shipped artifact use PARITY_VARIANT=ProductionRelease (minified + shrunk + signed;
-#   slower, but it's what users actually run). Both builds in a run MUST use the same variant.
+#   PARITY_VARIANT (env) selects the Gradle variant; DEFAULT ProductionRelease — the shipped
+#   artifact users actually run (minified + shrunk by R8 + signed). This matters: ProductionDebug
+#   is the canary / non-R8 build, so it can HIDE R8-only regressions — most dangerously serialization
+#   (a Gson->kotlinx.serialization migration can be green on debug yet broken under R8). Override to
+#   ProductionDebug only if you knowingly want a fast non-R8 build. Both builds MUST use the same variant.
 # Prints: APP_ID=<resolved applicationId>   (also echoes a testTagsAsResourceId warning if off)
 
 set -euo pipefail
@@ -25,7 +27,7 @@ WT="${1:?usage: build-and-install.sh <worktree-dir> <serial> <label>}"
 SERIAL="${2:?missing serial}"
 LABEL="${3:-build}"
 WT="$(cd "$WT" && pwd -P)"
-VARIANT="${PARITY_VARIANT:-ProductionDebug}"
+VARIANT="${PARITY_VARIANT:-ProductionRelease}"
 # Derive flavor + buildType to LOCATE the APK metadata. AGP places it under either
 # apk/<flavor>/<buildType>/ (this project's release) or apk/<flavorBuildType>/ (debug),
 # depending on version — so glob for both rather than assuming one layout.
