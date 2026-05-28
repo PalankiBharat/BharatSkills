@@ -181,16 +181,21 @@ def verdict_hint(delta_e):
     return "clearly-off"
 
 
-def sample_region(region, design_arr, app_arr, inset):
+def sample_region(region, design_arr, app_arr, inset, scale):
+    """`scale` maps the model's box from view-image space to aligned-image space
+    (the model picks boxes off the downscaled *-view.png, the arrays are full-res)."""
     bounds = (design_arr.shape[1], design_arr.shape[0])
-    x0, y0, x1, y1 = inset_box((region["x"], region["y"], region["w"], region["h"]), inset, bounds)
+    scaled = (round(region["x"] * scale), round(region["y"] * scale),
+              round(region["w"] * scale), round(region["h"] * scale))
+    x0, y0, x1, y1 = inset_box(scaled, inset, bounds)
     design_crop, app_crop = design_arr[y0:y1, x0:x1], app_arr[y0:y1, x0:x1]
     design = region_colors(design_crop)
     app = region_colors(app_crop)
     delta_median = ciede2000(srgb_to_lab(design["median_rgb"]), srgb_to_lab(app["median_rgb"]))
     return {
         "name": region.get("name", f"{x0},{y0}"),
-        "box": [region["x"], region["y"], region["w"], region["h"]],
+        "box_view": [region["x"], region["y"], region["w"], region["h"]],
+        "box_aligned": list(scaled),
         "design": design,
         "app": app,
         "delta_e_2000": round(delta_median, 2),
@@ -254,7 +259,9 @@ def parse_args():
     parser.add_argument("out_dir")
     parser.add_argument("--crop-top", type=int, default=0, help="px to strip off the app's top (status bar)")
     parser.add_argument("--crop-bottom", type=int, default=0, help="px to strip off the app's bottom (nav bar)")
-    parser.add_argument("--regions", help="JSON file of boxes in aligned-image coords")
+    parser.add_argument("--regions", help="JSON file of boxes (in *-view.png pixel space by default)")
+    parser.add_argument("--regions-space", choices=["view", "aligned"], default="view",
+                        help="coordinate space of --regions boxes: 'view' (the *-view.png you look at, default) or 'aligned' (full-res)")
     parser.add_argument("--inset", type=float, default=0.15, help="fraction to shrink each region before sampling")
     parser.add_argument("--threshold", type=float, default=24.0, help="RGB distance for the global hint overlay")
     parser.add_argument("--view-width", type=int, default=900, help="width of the downscaled *-view.png copies the model opens")
@@ -276,15 +283,24 @@ def main():
     diff_mask, hint = global_hint(design_arr, app_arr, args.threshold)
     write_overlay(app_arr, diff_mask, os.path.join(args.out_dir, "diff-overlay.png"))
 
-    blank = blank_screen_check(app_arr)
+    # Blank/keyguard detection on the RAW screenshot — a big crop could otherwise
+    # skew the luminance stats and flip the verdict.
+    blank = blank_screen_check(np.asarray(app))
+
+    aligned_w = design_arr.shape[1]
+    view_w = min(args.view_width, aligned_w)
+    scale = (aligned_w / view_w) if args.regions_space == "view" else 1.0
+
     report = {
         "aligned_size": [design_arr.shape[1], design_arr.shape[0]],
         "crop": {"top": args.crop_top, "bottom": args.crop_bottom},
+        "regions_space": args.regions_space,
+        "view_to_aligned_scale": round(scale, 4),
         "blank_screen_check": blank,
         "view_images": ["design-view.png", "app-view.png"],
         "global_hint": hint,
         "delta_e_reference": {"imperceptible": "<1", "close": "1-3", "noticeable": "3-5", "clearly_off": ">5"},
-        "regions": [sample_region(r, design_arr, app_arr, args.inset) for r in load_regions(args.regions)],
+        "regions": [sample_region(r, design_arr, app_arr, args.inset, scale) for r in load_regions(args.regions)],
     }
     report_path = os.path.join(args.out_dir, "diff-report.json")
     with open(report_path, "w") as report_file:

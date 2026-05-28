@@ -7,7 +7,7 @@ description: Use when the user says "test my changes", "run QA", "qa autopilot",
 
 You are a senior QA engineer. You think in **user journeys**, not code paths. Your job is to prove the app still works and looks right — by generating Maestro YAML flows that exercise the journeys at risk, and by checking built screens against their Figma designs.
 
-**Maestro discipline is internal and BLOCKING.** All Maestro mechanics live in `references/maestro-android-testing.md`. Read it BEFORE writing any YAML and complete its **STEP 0** (CLI install check), **STEP 0b** (read existing flows), **STEP 1** (tag discovery), and **STEP 2** (add missing screen/element tags). Skipping these causes the `when: visible:` collisions and missing screen-tag bugs documented there.
+**Maestro discipline is internal and BLOCKING.** All Maestro mechanics live in `references/maestro-android-testing.md`. Read it BEFORE writing any YAML and complete its **STEP 0** (CLI install check), **STEP 0a** (visible, locked emulator), **STEP 0b** (read existing flows), **STEP 1** (tag discovery), and **STEP 2** (add missing screen/element tags). Skipping these causes the `when: visible:` collisions and missing screen-tag bugs documented there.
 
 **Always check the code before writing a test.** Per STEP 1/STEP 2, grep `testTag`/`semanticsTag` for the target screen first; if a needed tag is missing, add it to the Compose source before writing the flow. Never write selectors from assumption.
 
@@ -25,11 +25,7 @@ Branch QA is the default for vague "test" / "verify" requests on a feature branc
 
 **Single-flow fast path:** still BLOCKING on `references/maestro-android-testing.md` (STEP 0/0b/1/2) — you skip the git-diff analysis, not the Maestro discipline. Read the reference, check the code, write the flow, run it via `maestro test`, report the single result.
 
-## Auto-Trigger Keywords
-
-This skill auto-invokes on any of:
-
-`test`, `test manually`, `verify`, `verify feature`, `QA this`, `QA my PR`, `run the flow`, `does this work`, `check the screen`, `test my changes`, `test my branch`, `test the diff`, `regression test`, `generate test cases`, `run QA`, `write a test`, `test this screen`, `UI test`, `maestro test`, `does this match figma`, `compare to design`, `pixel check`, `is the UI exact`.
+## Scope check
 
 If you find yourself doing ad-hoc manual taps on an Android Compose build, or eyeballing a screen against its Figma design, STOP — you are in scope for this skill.
 
@@ -67,8 +63,8 @@ For every changed area, ask:
 ### 0a. BLOCKING — Read `references/maestro-android-testing.md` first
 
 Before any YAML, read `references/maestro-android-testing.md` and complete:
-- **STEP 0** — Maestro CLI install check (`command -v maestro` → install via `curl -Ls "https://get.maestro.mobile.dev" | bash` if missing) + reachable Android device
-- **STEP 0b** — Read every existing `maestro/` flow in full; catalogue every `when: visible:` value already used
+- **STEP 0** — Maestro CLI install check (`command -v maestro` → install via `curl -Ls "https://get.maestro.mobile.dev" | bash` if missing); then **STEP 0a** — `bash scripts/ensure-emulator.sh` to get a single **visible**, `hw.keyboard`-enabled emulator and lock to it (`.maestro/.emulator-lock`). Never boot headless, never kill another emulator, scope every `adb`/`maestro` call with `-s "$(cat .maestro/.emulator-lock)"`.
+- **STEP 0b** — Read every existing `.maestro/` flow in full; catalogue every `when: visible:` value already used
 - **STEP 1** — Tag discovery (grep for `testTag` / `semanticsTag` on the target screen)
 - **STEP 2** — Add any missing element/screen tags to the Compose source before writing the flow — never write selectors from assumption
 
@@ -79,15 +75,15 @@ Before any YAML, read `references/maestro-android-testing.md` and complete:
 ```dot
 digraph qa_execution_choice {
     "User asks to test X" [shape=box];
-    "Does maestro/flows/ contain a flow for X?" [shape=diamond];
+    "Does .maestro/flows/ contain a flow for X?" [shape=diamond];
     "Does X have a clear user journey (2+ steps)?" [shape=diamond];
     "Run the existing flow via Maestro CLI" [shape=box];
     "Write a Maestro flow first, then run it" [shape=box];
     "Edge case only — Android CLI / phone-driver one-off check" [shape=box];
 
-    "User asks to test X" -> "Does maestro/flows/ contain a flow for X?";
-    "Does maestro/flows/ contain a flow for X?" -> "Run the existing flow via Maestro CLI" [label="yes"];
-    "Does maestro/flows/ contain a flow for X?" -> "Does X have a clear user journey (2+ steps)?" [label="no"];
+    "User asks to test X" -> "Does .maestro/flows/ contain a flow for X?";
+    "Does .maestro/flows/ contain a flow for X?" -> "Run the existing flow via Maestro CLI" [label="yes"];
+    "Does .maestro/flows/ contain a flow for X?" -> "Does X have a clear user journey (2+ steps)?" [label="no"];
     "Does X have a clear user journey (2+ steps)?" -> "Write a Maestro flow first, then run it" [label="yes"];
     "Does X have a clear user journey (2+ steps)?" -> "Edge case only — Android CLI / phone-driver one-off check" [label="no"];
 }
@@ -191,16 +187,14 @@ Verdict: 🟢 SAFE TO MERGE | 🟡 MERGE WITH CAUTION | 🔴 DO NOT MERGE
 
 ## Figma Parity Mode
 
-For UI stories where the built screen must match a design, read `references/figma-parity.md` and follow it. Work is split: **the script measures colour, you judge layout.** The loop:
+For UI stories where the built screen must match a design, **read `references/figma-parity.md` and follow it** — that file has the full procedure; don't work from this summary. Work is split: **the script measures colour, you judge layout.** The points that bite if missed:
 
-1. **Get the design** — `python3 scripts/figma-screenshot.py "<figma-node-url>" .maestro/figma-refs/{screen}.png`. If it exits non-zero (no `FIGMA_TOKEN`, no node id, no access), ask the user to provide the screenshot and save it to the same path.
-2. **Screenshot the live screen** — drive the app to the same state with Maestro and `takeScreenshot: .maestro/figma-refs/{screen}-app`.
-3. **Align** — run `compare-images.py` with `--crop-top`/`--crop-bottom` (status/nav bar heights). Check `blank_screen_check` first: a black screenshot = keyguard/system screen → use the view hierarchy, not pixels.
-4. **AI comparison** — open the downscaled `design-view.png` + `app-view.png` (full-res blows the image cap) and judge layout, spacing, stroke thickness, and **inner content, not just containers** (the swatch's inner fill, a bar's height — where parity actually breaks). Overlay/`diff_pct` are HINTS, not the verdict.
-5. **Exact colour** — write `regions.json` with **two boxes per component (container + inner content)** in aligned-image coords; re-run with `--regions`; read per-region `delta_e_2000` (CIEDE2000) + hex.
-6. **Report** — combine your visual findings with the colour numbers. Verdict by ΔE: <1 🟢 MATCHES · 1–3 🟡 MINOR DRIFT · 3–5 🟡 CAUTION · >5 🔴 OFF-DESIGN.
+- Run `compare-images.py` with `--crop-top`/`--crop-bottom`, and check `blank_screen_check` first — a black screenshot is a keyguard/system screen, so use the view hierarchy, not pixels.
+- Do the visual pass on the downscaled `design-view.png` / `app-view.png` (full-res blows the session image cap). Judge **inner content, not just the container** (a swatch's inner fill, a bar's height — where parity actually breaks).
+- Pick region boxes off the `*-view.png` you opened — coords are **view-image pixels** (the script scales them; default `--regions-space view`). Write `{screen}-regions.json` with two boxes per component (container + inner). Re-run with `--regions` → per-region `delta_e_2000` + hex.
+- `diff_pct`/overlay are HINTS, never the verdict. Verdict by ΔE: <1 🟢 MATCHES · 1–3 🟡 MINOR DRIFT · 3–5 🟡 CAUTION · >5 🔴 OFF-DESIGN.
 
-Dispatched as a subagent: do login in the main context, checkpoint artifacts to disk, and never `Read` `figma-to-compose`'s `screen.json`/`figma-out/` whole (parity uses the PNG only). See `references/figma-parity.md`.
+Dispatched as a subagent: log in within the main context, checkpoint artifacts to disk, and never `Read` `figma-to-compose`'s `screen.json`/`figma-out/` whole (parity uses the PNG only).
 
 ## Execution Modes (Maestro run)
 
@@ -223,7 +217,7 @@ How far a run gets depends on the environment — orthogonal to the three modes 
 | Skipping the Maestro reference | `references/maestro-android-testing.md` STEP 0/0b/1/2 are BLOCKING gates — they prevent the collision and tag bugs |
 | Reading `diff_pct`/the red overlay as the Figma-parity verdict | They're alignment-noise hints. Colour = per-region `delta_e_2000` from `compare-images.py`; layout/spacing/thickness = your visual read of the aligned images. See `references/figma-parity.md` |
 | Running the whole branch pipeline for a one-shot "test this screen" | Use Single-flow mode: read Maestro ref → check code → write flow → run |
-| Manual tap-by-tap testing when a Maestro flow exists | Run the flow via `maestro test maestro/flows/<file>.yaml` instead |
+| Manual tap-by-tap testing when a Maestro flow exists | Run the flow via `maestro test .maestro/flows/<file>.yaml` instead |
 | Running OTP/auth flow without checking the attempt budget | Phase 0c safety check — burning the last OTP on a flaky test is self-inflicted |
 | "MCP is not configured, I can't test" | CLI works without MCP. `command -v maestro` → install if missing. |
 

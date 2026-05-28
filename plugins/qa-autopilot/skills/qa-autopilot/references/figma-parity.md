@@ -30,7 +30,7 @@ The red overlay and `diff_pct` are **hints for where to look, never the verdict.
 .maestro/figma-refs/
   {screen}.png              ← design reference (fetched or user-supplied)
   {screen}-app.png          ← live app screenshot (Maestro)
-  {screen}-regions.json     ← element boxes you choose (aligned-image coords)
+  {screen}-regions.json     ← element boxes you choose (view-image coords — the *-view.png)
   diff-{screen}/
     design-aligned.png      ← full-res design pixels being compared
     app-aligned.png         ← full-res app pixels being compared
@@ -102,7 +102,7 @@ This writes `design-aligned.png` / `app-aligned.png` (full-res), `design-view.pn
 
 Use `diff-overlay.png` only as a "where to look" hint.
 
-Then **write `{screen}-regions.json`** (via the Write tool). **For every component, add TWO regions — the container AND its inner content** — so colour is checked on what's actually rendered inside, not just the frame. Coordinates are **aligned-image pixels** (post-crop, post-resize — NOT original Figma or raw-screenshot dimensions):
+Then **write `{screen}-regions.json`** (via the Write tool). **For every component, add TWO regions — the container AND its inner content** — so colour is checked on what's actually rendered inside, not just the frame. Coordinates are **view-image pixels** — read straight off the `*-view.png` you just opened. The script scales them to full-res internally (default `--regions-space view`), so do NOT pre-scale, and do NOT use original Figma or raw-screenshot dimensions:
 
 ```json
 [
@@ -127,6 +127,7 @@ Read `diff-report.json`. Per region you get:
 
 | Field | Meaning |
 |-------|---------|
+| `box_view` / `box_aligned` | the region you gave (view-image px) and where it landed after scaling (full-res px) — sanity-check it covers the element |
 | `design.median_hex` / `app.median_hex` | median colour of the region (edges inset out), design vs app |
 | `design.dominant_hex` / `app.dominant_hex` + `dominant_pct` | most-common colour and how much of the region it covers |
 | `delta_e_2000` | perceptual colour distance between the two medians |
@@ -137,7 +138,26 @@ If `median` and `dominant` disagree a lot, the region is contaminated (text/icon
 
 ### 6. Report
 
-Write the report (`references/report-template.md` structure), combining **your visual findings** (layout/spacing/thickness, with px estimates) and **the script's colour numbers** (exact hex pair + ΔE per region).
+Combine **your visual findings** (layout/spacing/thickness, with px estimates) and **the script's colour numbers** (exact hex pair + ΔE per region). Use this parity-specific shape (the branch-QA `references/report-template.md` is for the other mode):
+
+```markdown
+# Figma Parity — {screen}
+
+**Verdict:** 🟡 MINOR DRIFT
+
+## Colour (from diff-report.json)
+| Region | Design | App | ΔE | |
+|--------|--------|-----|----|--|
+| swatch_inner_fill | #2962FF | #1E66FF | 1.5 | close |
+| header_bar        | #101529 | #101529 | 0.0 | match |
+
+## Layout / spacing / thickness (your visual read)
+- Primary button ~6px taller than the design.
+- Divider under the header reads 2px vs 1px in the design.
+
+## Notes
+- crop-top 96 / crop-bottom 132; blank_screen_check: false.
+```
 
 **Verdict by ΔE (numerical anchors, no hand-waving):**
 
@@ -167,7 +187,7 @@ Parity runs dispatched as a subagent died in the field (login mid-step, API rate
 | "I'll open the full-res aligned images" | They blow the image cap and get rejected. Open the downscaled `*-view.png` copies; view a couple of pairs, not many. |
 | "The screenshot is black, parity fails" | A black screenshot is a keyguard/system screen (`blank_screen_check`), not a design failure. Use the view hierarchy instead. |
 | "I'll eyeball the colours too" | You can't see a ΔE of 2 by eye. Put a region on it and read `delta_e_2000`. |
-| "I'll put region coords from the Figma frame" | Coords are ALIGNED-image space (post-crop, post-resize), or they sample the wrong pixels. |
+| "I'll put region coords from the Figma frame" | Coords are the `*-view.png` pixel space you looked at (the script scales them), or they sample the wrong pixels. |
 | "The status bar is fine, I won't crop" | Uncropped chrome shifts the whole grid and poisons alignment. Always set `--crop-top`/`--crop-bottom`. |
 | "I'll describe the design from memory" | Fetch or get the real reference. No memory-based parity. |
 | "Close enough, ship it" | Report every mismatch with numbers. The user decides what's close enough. |
@@ -182,7 +202,7 @@ Parity runs dispatched as a subagent died in the field (login mid-step, API rate
 | Opening full-res images / bulk-opening many crops | Open the `*-view.png` copies, a couple of pairs at a time (image cap) |
 | Trying to pixel-parity a keyguard/system screen | Black screenshot → use the view hierarchy (`maestro hierarchy`/inspect), not a screenshot |
 | Not cropping the status/nav bars | Set `--crop-top`/`--crop-bottom` so design and app share the same frame |
-| Region coords in Figma or raw-screenshot space | Use aligned-image pixels (post-crop, post-resize) |
+| Region coords in Figma or raw-screenshot space | Use `*-view.png` pixel space (the script scales to full-res) |
 | App screenshot in a different state than the design | Match data/theme/variant before `takeScreenshot` |
 | "Colours slightly off" with no numbers | Quote the hex pair and `delta_e_2000` per region |
 | Trusting `median_hex` on a text-over-fill region | Use `dominant_hex` for the fill, or tighten the box |

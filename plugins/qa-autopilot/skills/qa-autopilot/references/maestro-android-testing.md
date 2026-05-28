@@ -2,6 +2,21 @@
 
 qa-autopilot's internal reference for writing and executing Maestro YAML UI tests on Android Jetpack Compose apps. qa-autopilot reads this before generating any flow — it is not a standalone skill.
 
+## Contents
+
+- **STEP 0** — Maestro CLI check
+- **STEP 0a** — Emulator setup & locking (visible, `hw.keyboard`, single lock)
+- **STEP 0b** — Read existing flows first
+- **STEP 1** — Discover tags before writing
+- **Flow File Header** — mandatory YAML header block
+- **Selector Hierarchy** — id-first, the `when: visible:` plain-text rule, the stock-text trap
+- **Sniper App Navigation Map** + **Sniper Tag Reference** — *example app* (see the note there)
+- **Concrete Flow Templates**, **Biometric / Fingerprint**
+- **STEP 2** — Add missing tags
+- **Common Mistakes**, **Red Flags**
+
+> The blocking pre-YAML gate is **STEP 0 → 0a → 0b → 1 → 2**. STEP 2 is documented near the end (alongside the tag-naming detail) but is part of that same gate — don't skip it just because it appears later in the file.
+
 ## Overview
 
 Maestro tests interact with composables via accessibility IDs — never coordinates, never ambiguous domain text. Verify the Maestro CLI is installed and an Android device is reachable (STEP 0) before writing a single line of YAML.
@@ -25,29 +40,48 @@ The CLI is the primary execution path. MCP is treated as an optional convenience
    maestro --version   # verify
    ```
    Tell the user: "Installing Maestro CLI — one-time prerequisite. Add `~/.maestro/bin` to your shell PATH if it isn't already."
-3. Confirm an Android device or emulator is reachable:
+3. Guarantee a single, **visible**, physical-keyboard-enabled emulator and lock qa-autopilot to it:
    ```bash
-   adb devices
+   bash scripts/ensure-emulator.sh        # writes the locked serial to .maestro/.emulator-lock
    ```
-   If empty, ask the user to boot an emulator before proceeding. Do not write tests against a phantom device.
+   This is the only blessed way to bring up an emulator (see **STEP 0a** for the policy and rules). Do not write tests against a phantom device, and do not boot one by hand with ad-hoc flags.
 4. (Optional) If `maestro_*` MCP tools are also available in this session, prefer them for ergonomic device selection and screen inspection — but never block on MCP being configured. The CLI is enough.
 
 **No workarounds.** "I'll write the YAML and you run it later" is not acceptable — installing the CLI takes seconds and lets you run flows immediately.
 
 ### Running flows via CLI
 
+Scope every run to the locked serial (see STEP 0a):
+
 ```bash
+LOCK="$(cat .maestro/.emulator-lock)"
+
 # Single flow
-maestro test maestro/flows/login.yaml
+maestro test --device "$LOCK" .maestro/flows/login.yaml
 
 # Whole folder, smoke tag only
-maestro test maestro/flows/ --include-tags=smoke
+maestro test --device "$LOCK" .maestro/flows/ --include-tags=smoke
 
 # With env vars (use env: in YAML to consume)
-maestro test maestro/flows/login.yaml -e PHONE=9876543210
+maestro test --device "$LOCK" .maestro/flows/login.yaml -e PHONE=9876543210
 ```
 
 ---
+
+## STEP 0a — EMULATOR SETUP & LOCKING (MANDATORY, BLOCKING)
+
+`scripts/ensure-emulator.sh` is the **only** way qa-autopilot brings up or selects an emulator. It enforces:
+
+**Policy** (by running-emulator count):
+- **0 running** → create the AVD if missing (with `hw.keyboard = yes`) and boot it **visible**, then lock to it.
+- **1 running** → lock to that one; do NOT open a second.
+- **2+ running** → it refuses and asks you which serial to use. Never guess.
+
+**Non-negotiable rules:**
+- **Visible only.** Never launch with `-no-window` (headless). The user must be able to watch the test run.
+- **Physical keyboard must work.** The AVD's `config.ini` must have `hw.keyboard = yes` (default `no` silently blocks the host keyboard, so `inputText` and manual typing fail). The script sets this.
+- **Lock = hard scoping.** The locked serial lives in `.maestro/.emulator-lock`. **Every** `adb` / `maestro` command is scoped to it: `adb -s "$(cat .maestro/.emulator-lock)" ...`, `maestro test --device "$(cat .maestro/.emulator-lock)" ...`.
+- **Never touch another emulator.** No `adb emu kill`, no `adb kill-server`, no booting/stopping any emulator other than the locked one. If the locked emulator dies, stop and report — do not grab a different device.
 
 ## STEP 0b — READ EXISTING FLOWS FIRST (MANDATORY, BLOCKING)
 
@@ -57,13 +91,13 @@ Run these in order:
 
 ```bash
 # 1. List every existing flow
-find maestro/ -name "*.yaml" | sort
+find .maestro/ -name "*.yaml" | sort
 
 # 2. Read every related flow file in full (do NOT skim)
 #    Pay attention to subflows referenced by runFlow.
 
 # 3. Catalogue every `when: visible:` value already used in the flow tree
-grep -rn "when:" -A 2 maestro/ | grep -E "visible:" | sort -u
+grep -rn "when:" -A 2 .maestro/ | grep -E "visible:" | sort -u
 ```
 
 **Decision rules after inspection:**
@@ -128,6 +162,8 @@ tags:
 ---
 
 ## Sniper App — Navigation Map
+
+> **Example app.** This navigation map, the app IDs, and the Sniper Tag Reference below are the sniper app (`com.marketpulse.sniper.vte`) shown as a concrete worked example. On a different project, replace the appId and tag names with your own — the *rules* (id-first selectors, screen-level `testTag`s, the `when: visible:` plain-text constraint) are universal.
 
 ```
 App Launch
@@ -428,7 +464,10 @@ tags:
     visible: "Enter PIN"
     timeout: 20000
 
-# Enter 4-digit PIN (system PIN pad — no testTag, use text after each digit)
+# Enter 4-digit PIN — entry differs by screen, confirm against the real one:
+#  - in-app PIN TextField (hw.keyboard=yes, STEP 0a): a single `inputText` works
+#  - system lock-screen PIN pad: inputText usually does NOT register — tapOn each
+#    digit's id, or `pressKey` per digit
 - inputText: "1234"
 
 # Dashboard should load
@@ -629,7 +668,7 @@ tags:
     timeout: 15000
 
 # Simulate fingerprint via HTTP bridge
-- runScript: fingerprint-bridge-trigger.js
+- runScript: fingerprint-bridge-trigger.js   # copy this file next to the flow YAML — Maestro resolves runScript paths relative to the flow
 
 # Dashboard loads
 - extendedWaitUntil:
@@ -740,13 +779,16 @@ See the **Screens — MANDATORY top-level testTags** table above for the canonic
 | No header comment on YAML | Always add the full header block |
 | `assertVisible: "BUY"` | `assertVisible: {id: "call"}` |
 | Writing test before checking tags | Grep STEP 1 first |
-| Writing YAML before reading existing flows | STEP 0b — `find maestro/ -name "*.yaml"` and read them all first |
+| Writing YAML before reading existing flows | STEP 0b — `find .maestro/ -name "*.yaml"` and read them all first |
 | `when: visible: {id: "tag"}` | Parse error — use plain text only; use `extendedWaitUntil` + `id:` inside the subflow |
 | `when: visible: "CONTINUE"` (reused word) | Pick a text unique to ONE screen, or add a `screen_<name>` testTag |
 | Screen has no top-level `testTag` | Add `Modifier.testTag("screen_<name>")` before writing the flow |
 | Skipping CLI install check | Step 0 is non-negotiable — `command -v maestro` first, install if absent |
 | Using biometric on CI/cloud | Use OTP fallback path instead |
 | `takeScreenshot` on a keyguard/system screen | Device-credential, keyguard, and full-screen system prompts capture as a black image — assert against the view hierarchy (`maestro hierarchy` / inspect) instead |
+| Booting an emulator by hand / headless | Always `scripts/ensure-emulator.sh` — visible window, `hw.keyboard = yes`, locked serial (STEP 0a) |
+| `inputText` / typing does nothing in the emulator | The AVD has `hw.keyboard = no`. Set `hw.keyboard = yes` in `config.ini` (ensure-emulator.sh does this) |
+| Killing another emulator that was in the way | Never. Lock to one (or ask the user if several run); never `adb emu kill` |
 
 ---
 
@@ -766,3 +808,6 @@ See the **Screens — MANDATORY top-level testTags** table above for the canonic
 | "I'll add the tag after" | Tag code first, then write YAML |
 | "I can simulate fingerprint natively" | Maestro has no biometric command — use ADB bridge or OTP fallback |
 | "The screenshot came back black, the screen is broken" | Keyguard/system screens screenshot black but the hierarchy is intact — use `maestro hierarchy`/inspect, don't assert on the image |
+| "I'll boot it `-no-window` to save resources" | Never. The user must SEE the run — `ensure-emulator.sh` launches visible only |
+| "Another emulator is in the way, I'll kill it" | Never kill/touch other emulators. Lock to one, or ask which to use if several are running |
+| "Typing isn't working, the field must be broken" | It's `hw.keyboard = no` on the AVD — fix the config (ensure-emulator.sh), don't blame the UI |
