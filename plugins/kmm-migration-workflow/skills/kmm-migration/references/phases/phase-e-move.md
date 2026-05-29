@@ -12,7 +12,7 @@
 
 ### E.0 — Skip check + pre-promotion smokes (Haiku, parallel)
 
-- **E.0.1 — Skip check.** Read `coverage.md`: if no row has status `migrated`, Phase E is skipped. Skill records "Phase E skipped — no files reached commonMain this session" in `move.md` and proceeds to Phase F.
+- **E.0.1 — Skip check (cross-checked against `migration.md`, NOT the status column alone).** Determine whether any file reached `commonMain`. Read `coverage.md`'s status column **and cross-check `migration.md`'s per-file entries / commit SHAs** — if they disagree, `migration.md` (what actually happened) wins, and the stale `coverage.md` is reconciled before proceeding. *Both prior sessions opened Phase E with the column stuck at `frozen` for already-migrated files; a literal read would have wrongly skipped Phase E and thrown away the strongest equivalence proof. Phase D's serialization gate should keep the column current now — this cross-check is the backstop.* If — after the cross-check — genuinely no file reached `commonMain`, Phase E is skipped: record "Phase E skipped — no files reached commonMain this session" in `move.md`, proceed to Phase F.
 
 - **E.0.2 — Pre-existing commonTest K/N compile health (E6).** Run `./gradlew :<dest>:compileTestKotlinIosSimulatorArm64` (or equivalent K/N target per project setup) against the **current** `<dest>/commonTest` source set — BEFORE any baselines are moved. The K/N compile (vs the looser JVM compile) catches reflection-based test patterns, K/N-illegal idioms, and singleton-reset reflection in pre-existing tests that would cascade as invisible failure layers post-mv. Report: clean / list of broken files with compile output. Broken pre-existing tests get `@Ignore` quarantine (same Phase B.2 pattern; per `test-discipline/migration-baselines.md` (Quarantine section)). If quarantine applied, commit separately before E.1.
 
@@ -20,6 +20,7 @@
   - **E.0.3a — Scratch-dir K/N compile (Haiku, parallel per file).** Copy the file content to a scratch location compiled by `compileTestKotlinIosSimulatorArm64` AS-IF it were already in commonTest (without performing the git mv). Compile. Failures surface K/N-illegal patterns — backtick-quoted test names with certain chars, JVM-only imports, reflection that doesn't survive K/N — **while the file is still at `androidUnitTest` status `migrated`** (NOT `frozen`). Edits here are normal, no migration-exception required.
   - **E.0.3b — Verifier subagent (Sonnet) for any BLOCKED files.** First-pass K/N compile output can over-flag (e.g., flagging imports that are actually fine once the file is in commonTest because the source-set transitively closes the import). For every file the scratch compile flagged as BLOCKED, dispatch a Sonnet verifier that re-examines the failure mode against the file's current content + the actual compile output. The verifier confirms or denies the block. Only verifier-confirmed BLOCKED files are demoted or fixed; scanner-only-flagged files proceed to E.1 normally.
   - **For verifier-confirmed blockers:** fix in `androidUnitTest` under normal edit (status is `migrated`, NOT `frozen`, so no exception needed). Commit fixes BEFORE E.1's mv. Result: E.1's promotion commit stays pure `git mv` — no surprise content edits, no portability migration-exception required.
+  - **Module-boundary + feasibility check BEFORE offering the user any fix options (per SKILL.md verify-before-offering).** When a blocker is a reflection/visibility issue (e.g., a test reads an `internal`/`final`-class member), self-verify each candidate fix is actually feasible *before* presenting it: a cross-module `internal` accessor is useless to a `commonTest` in a *different* module; a `final` class can't be subclassed for a fake; K/N has no reflection. *A prior session's N1 fix cost three user decision rounds because each option's infeasibility surfaced only after a subagent tried it.* Pre-filter to compiler-feasible options; run the portability smoke first so options are grounded.
 
 ### E.1 — Move via `git mv` (Haiku, parallel)
 
@@ -50,6 +51,8 @@ Fix via surgical edit (per Tooling discipline: `git restore` for revert; never r
 
 `./gradlew :<dest>:iosSimulatorArm64Test` or equivalent target per profile. All promoted tests must be green.
 
+**Requires a provisioned + booted simulator DEVICE — not just installed runtimes.** A missing/cold sim yields a misleading *"Xcode does not support simulator tests for ios_simulator_arm64"* error that looks like a code/SDK problem but isn't. Pre-create and boot one before the run (`xcrun simctl create <name> <devicetype> <runtime>` then `xcrun simctl boot <name>` + `bootstatus`). The sim name is a per-repo fact → `project.md`. (Recurring across both prior sessions' E and F.)
+
 **Strongest equivalence verification** — same baseline tests now running on the iOS runtime, against the migrated code.
 
 If host doesn't support iOS testing (non-macOS dev machine): skill flags this clearly — full local verification is incomplete. **User decides handling** — test on a Mac, defer until team has access. Skill does not auto-defer to CI.
@@ -68,7 +71,7 @@ For files whose baselines stayed in androidUnitTest (held files, or feature-surf
 - Final commit follows two-commit cadence (SKILL.md): code commit (the `git mv`) + audit commit (`move.md` + `coverage.md`). Autopilot.
 
 ### E.7 — Phase E retro
-Amend `retro.md` with `## Phase E — Baseline Promotion (captured YYYY-MM-DD)`. Five-bullet structure. User can skip with `skip retro`. Skipped if Phase E itself was skipped (no `migrated` files).
+Amend `retro.md` with `## Phase E — Baseline Promotion (captured YYYY-MM-DD)`. Five-bullet structure. **Blocking, non-skippable** (per SKILL.md Retro gate) — except when Phase E itself was skipped (no `migrated` files), in which case the retro notes the skip.
 
 ---
 

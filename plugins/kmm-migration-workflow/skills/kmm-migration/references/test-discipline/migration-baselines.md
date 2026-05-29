@@ -241,7 +241,13 @@ The PR description includes an **"Out-of-scope follow-ups"** section listing the
 
 The quarantine is **non-judgmental** — it does not assert the test is bad, only that fixing it is not this migration's job.
 
-**Flow:** Phase 0 step 8 surfaces broken pre-existing tests in `<dest>/androidUnitTest`. Phase B.2 applies `@Ignore` as its first sub-step, before any baseline is written. Phase E.0 does the same check on `<dest>/commonTest` before baseline promotion. The migration's own new tests are never `@Ignore`'d — only pre-existing unrelated broken ones.
+**Quarantine is for *unrelated, pre-existing* breakage only.** A test that is in this migration's scope, or that breaks *because of* the migration, gets a **root-cause fix — never a quarantine** (no bandages). Quarantine applies solely to breakage that pre-dates and is unrelated to the migration.
+
+**Run-broken vs compile-broken (different mechanics):**
+- **Run-broken** (compiles, fails at runtime): `@Ignore` as above.
+- **Compile-broken** (references removed types — won't compile to reach `@Ignore`, so `@Ignore` is useless): exclude at the **build level** (e.g., gradle `KotlinCompile.exclude` for the file). This is a committed change that widens the PR diff — **list every excluded file in the PR out-of-scope follow-ups**. Accepted and reviewable; there's no clean way to exclude a compile-broken test without a committed change.
+
+**Flow:** Phase 0 step 8 surfaces broken pre-existing tests. Phase B.2 quarantines them as its first sub-step, before any baseline is written — in **`<dest>/androidUnitTest`** (relocate-first path) or **`:app/src/test/`** (baseline-in-place path; the source module inherits the same need). Phase E.0 does the same check on `<dest>/commonTest` before baseline promotion. The migration's own new tests are never quarantined — only pre-existing unrelated broken ones.
 
 ### Freeze enforcement (mechanical + behavioral)
 

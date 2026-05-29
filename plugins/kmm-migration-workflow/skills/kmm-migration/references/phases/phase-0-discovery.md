@@ -14,6 +14,8 @@ User invokes with natural language (e.g., *"migrate the funds screen to KMM"*).
 ### 2. Profile read + drift check
 Scan repo against profile claims (modules in `settings.gradle`, plugins applied, source-set folders); surface mismatches; ask user to confirm updates via diff-confirm.
 
+**iOS-project-state probe (one-time per repo; informs every seam decision downstream).** Before recommending any seam strategy, check whether the repo has a real iOS consumer: an Xcode project, CocoaPods/SPM setup, an existing `:shared` framework link. This materially changes the right answer — **a real iOS app means invest in genuine KMP (shared infrastructure), while no-iOS-yet makes thin commonMain interfaces with Android-only concretes acceptable.** A prior session only surfaced this when the user asked; it flipped the whole seam strategy. Record the finding in `project.md` (iOS consumption / distribution flow).
+
 ### 3. Determine which profile facts this migration needs
 Driven by seed type and depth. Gap-fill missing facts: **auto-detect → confirm with user** where possible, ask user otherwise. Lazy growth — profile expands per session, not via one-shot interview.
 
@@ -56,6 +58,12 @@ Parallel Sonnet subagents from each seed. Bounds:
 
 **Walk reports confidence and unresolved bindings.** Example output: *"30 files via static + Hilt graph; 3 Koin DSL modules with dynamic logic — 2 unresolved bindings flagged for sanity check."* Skill admits limits; user sanity-checks before confirming. Koin DSL with dynamic logic / Hilt+Koin coexistence can hide bindings.
 
+**Standard sweeps in the dep-walk output (all four mandatory — surfaced late in prior sessions, so they're now standard, not discovery-on-demand):**
+- **Platform-specific logger sweep.** Catalogue `Timber` / `Log` / Logcat / `NSLog` usage across the reachable set, alongside ObjectBox/Firestore/DataStore, as a standard Android-only blocker. (Timber surfaced only on a third pass in *both* sessions.)
+- **DI-qualifier enumeration.** List the Hilt/Koin qualifier annotations on the reachable graph (e.g., `@Live`, `@Practice`, `@*Sync`) — they shape Phase A's seam/DI design and the platform-ownership decision (SKILL.md / Phase A 1.6).
+- **Final-class-without-interface flag.** Flag in-scope files whose dependencies are concrete `final` classes with no interface (grep `class X(` not `open`/`interface`/`abstract`) — these block clean baselining of their consumers and need a pre-baseline interface seam. (Caught two consumers at Phase B-time in a prior session.)
+- **Transitive display-model blocker scan.** When a business-logic file references a VM-co-located or view-data type, flag embedded domain models (Chart-style: mutable cached state, `@Stable` misuse, `java.util.Date` entanglement) that would block iOS-readiness — don't wait for the user to ask "what is X doing?".
+
 ### 7. Classification
 Haiku subagent. Each discovered file → one type per `test-discipline` taxonomy (see `test-discipline/index.md`):
 ViewModel / UseCase / Repository / RemoteStore / LocalStore / Mapper / Model / Interactor / Presenter / Composable / Worker / Receiver / Service / Other.
@@ -95,11 +103,13 @@ Filter manifest by depth.
 
 **Manifest review = deselect, not approve.** All classified files in selected layers are in-scope **by default**. User scans the manifest and **removes** files that shouldn't be in this session. Faster than per-file approval. Per-file adjustments here, before confirming. *Depth is a starting filter, not a fence* — "Custom" is the same UI without the pre-filter.
 
+**Frame the manifest by iOS outcome, not file counts.** Lead with *"what iOS gets vs doesn't get"* per file/layer — concrete user-visible outcomes drive better scope decisions than file-count abstractions (a prior session repeatedly pushed back on count-based framing). Include an explicit **"already in commonMain (no-op)"** section so the user can see what new value this session delivers vs what's already shared.
+
 ### 12. Confirm scope
 Hard gate: scope + depth + destination + per-ripple decisions all user-confirmed before Phase A.
 
 ### 13. Phase 0 retro
-Before marking Phase 0 complete, amend `.kmm/migrations/kmm/<feature>-<depth>/retro.md` with a `## Phase 0 — Discovery & Scoping (captured YYYY-MM-DD)` section: five-bullet structure per SKILL.md (recap / smooth / stuck / could-improve / user steering log). User can skip with `skip retro`. Purely reflective — no skill/drop verdicts.
+Before marking Phase 0 complete, amend `.kmm/migrations/kmm/<feature>-<depth>/retro.md` with a `## Phase 0 — Discovery & Scoping (captured YYYY-MM-DD)` section: five-bullet structure per SKILL.md (recap / smooth / stuck / could-improve / user steering log). **Blocking, non-skippable** (per SKILL.md Retro gate). Purely reflective — no skill/drop verdicts.
 
 ---
 

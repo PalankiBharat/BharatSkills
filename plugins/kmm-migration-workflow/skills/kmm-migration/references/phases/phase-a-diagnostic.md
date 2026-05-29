@@ -15,8 +15,9 @@
 Before any bulk search, lock the library substitution direction for every Android-only dep in scope. Searches that run against a moving target produce subagent context drops (a subagent doesn't see the resolved decision and re-derives it incorrectly).
 
 - Skill enumerates candidate library substitutions from Phase 0 scope (Retrofit, Joda, Gson, Paging <3.5, etc.).
-- For each, present as a **discrete user decision**: *"Found Retrofit usage in 7 files. Plan to substitute with Ktor (commonMain-compatible). Confirm direction?"*
+- For each, present as a **discrete user decision** in plain language (per SKILL.md Decision routing): *"Found Retrofit usage in 7 files. Plan to substitute with Ktor (works on iOS). Confirm direction?"* **Dependency change/replacement/version decisions are never auto-decided — always routed to the user** (SKILL.md general rule).
 - User confirms / pushes back / picks a different target lib.
+- **Version-exists + Kotlin-compatibility check (mandatory, before locking).** For each confirmed target library + version, verify against reality, anchored to the repo's pinned Kotlin version: (a) the exact version **exists** (Maven Central / repo metadata — `curl` the `maven-metadata.xml` or `./gradlew :<dest>:dependencyInsight --dependency <lib>`), and (b) it's **ABI-compatible with the repo's Kotlin version**. *Why: a prior session locked GitLive `2.5.0` (which doesn't exist), and the chain Kotlin-version → Room-version → GitLive-version → needed-API only unravelled deep in Phase D. Aspirational versions cost time proportional to how far the migration has progressed.* Record the verified version in `plan.md`. Phase D re-checks at entry (cheap guard against drift).
 - **Transitive-consumer scan (mandatory, before locking).** For each confirmed substitution target, dispatch a Haiku subagent to enumerate transitive consumers — libraries in the gradle classpath that *depend on* the substituted library and may break under the new version. Use `./gradlew :<dest>:dependencyInsight --dependency <lib>` (or `./gradlew dependencies | grep <lib>`). Flag any version constraint mismatch or binary-compat risk discovered. Each flagged transitive consumer becomes a row in `plan.md`'s risk register with proposed handling: (a) tolerate (compatible across versions), (b) bump together (in-scope addition), (c) defer (declare out-of-scope, accept the implication). User decides per row. **Out-of-scope file rewrites caused by transitive bumps are part of the migration's blast radius — make them visible at planning time, not at Batch N when a build fails.**
 - Confirmed substitutions land in `plan.md` decisions log AND feed the per-file `lib-swap` classifier in sub-phase 2 (Path A — contract baseline / Path B — defer to Phase D / `none` — no swap).
 - **No bulk search until every lib-swap direction is locked.** This protocol is the cause-of-truth for subagent prompts in sub-phase 2.
@@ -41,6 +42,26 @@ Triggered if sub-phase 1 confirmed any HTTP-client substitution (Retrofit→Ktor
 
 Both audits feed `plan.md`'s risk register and become mandatory checkpoints in Phase F.3.
 
+### 1.6. Platform-ownership decisions (BLOCKING — resolved here, never deferred to Phase D)
+
+Some architectural choices determine the *shape* of the whole migration and are ruinous to discover mid–Phase D. Both prior sessions paid for this: one rewrote database entities after a "Room-everywhere vs platform-owned storage" pivot landed at the D.1 boundary (~2h of rework); the other thrashed 4 round-trips + a full revert over where DI-framework annotations live. These are knowable now.
+
+Resolve and record each (this is a Phase A completion gate; Phase D will not start without it):
+- **Storage ownership** — does each platform own its native DB (native-per-platform: e.g., Android keeps ObjectBox/Room-Android, iOS gets its own, commonMain holds plain data classes + interfaces), or is storage shared (e.g., Room KMP / SQLDelight everywhere)? This gates the entire entity/DAO plan.
+- **DI-framework symbol placement** — kept in the app layer (commonMain classes take plain constructor params; the platform DI layer disambiguates), or pushed into shared? Default per the canonical hard-won answer: **keep DI-framework symbols (Hilt qualifiers, etc.) out of `commonMain`; resolve in the app-side providers.**
+- **Logging** — which shared logging approach (e.g., injected `ILogger` interface / Kermit), decided once.
+- **Catch-all** — any other capability whose platform-ownership is ambiguous → decide it here, not at execution time.
+
+Each is a dependency-adjacent / behavior-shaping decision → routed to the user in plain language with the skill's evidence-based recommendation (SKILL.md Decision routing). Recorded in `plan.md` decisions log; feeds the Phase D batch plan.
+
+### 1.7. Plan validation pass (parallel docs+web sweeps)
+
+After scope and the substitution/platform decisions above are locked, validate the *plan against current ecosystem reality* before committing to Phase A's per-file work. **Runs whenever the plan is non-trivial** — any library swap, new infra dependency, version pin, or iOS-consumption concern arms it; a trivial pure-Kotlin move with zero dependency changes may skip it (announce the skip).
+
+Dispatch 3–4 parallel Context7+web sweeps, one per major decision area (e.g., "Room KMP mechanics + iOS wiring", "GitLive Firestore on iOS", "Kermit + datetime + coroutines"), **plus a mandatory "what's changed in the last 12 months" sweep** for the libraries/SDKs in play. Cache every result to `.kmm/searches/<topic-hash>.md` (30-day TTL) so the next migration reuses it.
+
+*Why this earns its place: in a prior session this pass (~40 min) caught a setting that would have silently cascade-deleted production data, a library package rename, an SDK sunset deadline, and a Kotlin-version prerequisite — none visible to the normal per-file analysis. Its surprises-caught-per-hour is the highest of any planning activity.* Findings that invalidate a locked decision loop back to sub-phase 1/1.6 (re-decide with the user).
+
 ### 2. Bulk pattern search (orchestrator)
 
 Based on Phase 0 manifest + locked lib-swap decisions, fire live searches:
@@ -55,12 +76,16 @@ Results cached in `.kmm/searches/<topic-hash>.md` — **subagents consume from c
 
 ### 3. Per-file analysis (parallel Sonnet)
 
-**Subagent prompt template — mandatory prefix.** Every per-file analysis subagent dispatch in this sub-phase is prefixed with a `## Resolved decisions (from Phase 0 + Phase A sub-phase 1)` block. The skill assembles this block once at the start of the sub-phase from `plan.md`'s decisions log (Paging version locked, Retrofit→Ktor confirmed, etc.) and reuses it across every parallel dispatch. Subagents are instructed to **apply** these decisions, **never re-derive** substitution choices. This prevents the failure mode where one subagent miscalls a file because the deciding context wasn't in its prompt.
+**Subagent prompt template — mandatory prefix.** Every per-file analysis subagent dispatch in this sub-phase is prefixed with a `## Resolved decisions (from Phase 0 + Phase A sub-phase 1)` block. The orchestrator **auto-assembles this block once** from `plan.md`'s decisions log (locked substitutions + verified versions + platform-ownership decisions) and reuses it verbatim across every parallel dispatch — never hand-pasted per prompt. Subagents **apply** these decisions, **never re-derive** substitution choices. This prevents the failure mode where one subagent miscalls a file because the deciding context wasn't in its prompt.
+
+**SDK/library KMM-availability — HARD GATE (NON-NEGOTIABLE).** Before any subagent (or the orchestrator) labels a dependency Android-only / `no-equivalent` / `Forces hold`, it MUST verify against the library's **published Gradle module metadata** — the `.module` file / an `iosSimulatorArm64`/`iosArm64`/`iosX64` klib in `~/.gradle/caches`, or `./gradlew :<dest>:dependencyInsight --dependency <lib>`. **How the `:app` consumes it proves nothing about iOS availability.** The per-file analysis entry must **cite the metadata check** behind any "non-portable" verdict; a verdict without the citation is rejected and re-run. When the check is genuinely inconclusive, surface to the user rather than guess (SKILL.md Decision routing). *Repeated failure mode: `mobilenetworkingsdk` was misclassified Android-only three times across two sessions; the gradle-cache klib proved it KMM-published each time, and the user had to correct it.*
+
+**Output schema — enumerated values only (no free-form phrasings).** Parallel analysis subagents drifted across two sessions ("migrate-with-seam", etc.), forcing the synthesizer to normalize. Each per-file entry uses exact enum values: **`Phase D plan` ∈ {`migrate`, `hold`}**, **`lib-swap` ∈ {`path-a`, `path-b`, `none`}**, **iOS interop verdict ∈ {`clean`, `blocked`, `degraded`}**. Reject and re-run any subagent output that invents a value outside these sets.
 
 Per in-scope file:
 
 - **Public surface** — methods, signatures, return types, exceptions, public properties.
-- **Direct + transitive deps of concern** — Android-only / has-KMM-equivalent / no-equivalent.
+- **Direct + transitive deps of concern** — Android-only / has-KMM-equivalent / no-equivalent. Each "Android-only"/"no-equivalent" verdict carries its gradle-metadata citation (per the hard gate above).
 - **Classification** — platform-free / -incidental / -essential, with cited justification.
 - **`lib-swap` classification** — applies if this file uses any of the libraries locked for substitution in sub-phase 1:
   - **`path-a`** — SUT output is assertable without referencing the old-lib types (use MockWebServer / hand-rolled HTTP fake / date-string outputs / round-tripped objects). Baseline in Phase B survives the swap unchanged. **Default**.
@@ -126,7 +151,7 @@ Before presenting:
 Batched per logical unit (per file, then synthesis). User accepts / edits / rejects each batch. `plan.md` status flips to complete on final confirmation.
 
 ### 7. Phase A retro
-Before marking Phase A complete, amend `retro.md` with a `## Phase A — Diagnostic (captured YYYY-MM-DD)` section: five-bullet structure per SKILL.md. User can skip with `skip retro`.
+Before marking Phase A complete, amend `retro.md` with a `## Phase A — Diagnostic (captured YYYY-MM-DD)` section: five-bullet structure per SKILL.md. **Blocking, non-skippable** (per SKILL.md Retro gate).
 
 ---
 
@@ -172,6 +197,11 @@ Living document. Contains:
 Beyond universals:
 
 - **Context7-first for library/SDK/API specifics, web search for patterns** (per SKILL.md Tooling discipline) before any architectural decision. No training-data assumptions about KMM patterns or library behavior.
+- **Platform-ownership decisions (storage / DI-symbol placement / logging / catch-all) all recorded** (sub-phase 1.6) before Phase A completes — Phase D will not start without them.
+- **Every locked substitution has a verified-existing, Kotlin-compatible version** (sub-phase 1) — no aspirational versions.
+- **Plan validation pass run** (sub-phase 1.7) when the plan is non-trivial, including the "what's new in 12 months" sweep — or an announced skip for a trivial pure-Kotlin move.
+- **Every "Android-only / non-portable" dep verdict cites its gradle-metadata check** (sub-phase 3 hard gate) — no inference from the `:app` call site.
+- Per-file entries use the enumerated output values only (`Phase D plan`, `lib-swap`, iOS verdict).
 - Every classification and seam strategy cites evidence (search finding, dep analysis, profile rule).
 - Every in-scope file has a recorded `Phase D plan` (`migrate` / `hold`) with rationale.
 - New interfaces meet the ≥2-consumer test or get inlined.

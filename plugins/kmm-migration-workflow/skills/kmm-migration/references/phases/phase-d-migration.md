@@ -37,13 +37,17 @@ This brief loads ONCE per Phase D resume; subsequent batches within the same res
 
 First action: **read `phase-d-followups.md`** (populated by Phase B). This is Phase D's entry-point checklist — every Path B deferral, static-service-locator deferral, or post-migration cleanup that Phase B accumulated. Skill scans the open followups and slots them into the per-batch work below: foundation interfaces (e.g., IUserQueryRepository for UserModel.getUcc replacement) land at D.0; Path B baselines land alongside their file's D.1 batch; pure cleanups land at D.2.
 
+**Version re-check at entry (cheap drift guard).** Before any substitution work, re-confirm each locked library version still exists and fits the repo's Kotlin version (per Phase A sub-phase 1). Plans written days earlier drift; this is a `curl`/`dependencyInsight` call against a failure mode that costs hours when it surfaces mid-batch.
+
+**Parallel-batch scope guard applies in Phase D too** (same as Phase B.4): every D.x write-subagent declares the exact file(s) it may touch and is forbidden from `.broken` renames, out-of-scope edits, and edits to build scripts / `gradle.properties` / `local.properties` / `project.md`. The orchestrator runs `git status` between waves. (A prior session had a subagent commit session state into `project.md`, bypassing the diff-confirm gate — the guard + the no-`project.md`-edit rule prevent it.)
+
 Then proceed with per plan.md's `expect`/`actual` and DI plans. Consult `references/expect-actual-boundaries.md` for the seam-pattern rubric (semantic common APIs, thin actuals, interface-over-`expect class` when tests/DI/lifecycle matter, Compose leaf rule).
 
 - **Opus orchestrator** finalizes the consolidation *decision* — which interfaces are shared, which collapse into one, which earn their ≥2-consumer slot. Cross-file synthesis stays on the main thread.
 - **Opus subagent (one per consolidated interface)** authors the interface declaration in `commonMain`. High-stakes — every downstream consumer is shaped by this signature, so it's an Opus authoring job, never an orchestrator one. Multiple consolidated interfaces dispatch as **parallel Opus subagents** in one orchestrator turn.
 - **Parallel Sonnet subagents** write the `androidMain` and `iosMain` **working `actual` impls** — two platforms = two subagents dispatched in the same turn (independent files, parallel is free). No `NotImplementedError` stubs; done-means-done applies to foundation too.
 - **Sonnet subagent** sets up or extends the destination Koin module per plan.md DI plan. Covers both `commonMain` bindings (for files about to migrate) and `androidMain` bindings (for held files that stay platform-specific).
-- **Pre-flight: destination module builds clean** with all Phase B relocations + the new commonMain foundation. Catches infra issues (missing Koin dep, wrong source-set wiring, BuildKonfig misconfigured) before they compound across files. ~30s investment; saves 10+ min of debugging compounded issues mid-batch.
+- **Pre-flight: destination module builds clean on BOTH platforms (NON-NEGOTIABLE iOS gate).** Build with all Phase B relocations + the new commonMain foundation, and run — at minimum — `:<dest>:compileKotlinMetadata`, `:<dest>:compileDebugKotlinAndroid`, **and `:<dest>:compileKotlinIosArm64`** (plus the SKIE/framework link if cheap). **The iOS klib compile is mandatory, not optional** — the single biggest time-sink across both prior sessions was a foundation that passed a JVM/Android-only pre-flight and broke iOS a full batch later (the `compileOnly javax.inject` / typealiased-`@Qualifier` thrash). **And force a cold KSP run for the iOS target: `:<dest>:kspKotlinIosArm64 --rerun-tasks`** — KSP cache reuse silently masked an `expect`-contract collapse (`AppDatabaseConstructor`) in a prior session; only a cold run caught it. ~30–60s; saves a full batch of compounded debugging.
 - **Haiku subagent** runs gradle build; **Sonnet subagent** addresses any compile errors with Context7 / web-search citations (per SKILL.md Tooling discipline). Subagent failure → another subagent, never the orchestrator picking up the fix.
 - Baselines green after foundation (**Haiku subagent** runs full `<dest>/androidUnitTest` suite).
 - Commit foundation as a separate atomic change. SHA logged in `migration.md`.
@@ -80,13 +84,13 @@ For each layer-batch — files committed individually within the batch:
    
    Otherwise → real bug, investigate.
 
-7. **Lightweight iOS check** (Haiku) — compile `commonMain` + `iosMain` targets only. ~30s. Fast safety net. Full XCFramework check happens at D.2.
+7. **iOS check per batch (mandatory, not lightweight-optional)** (Haiku) — compile `commonMain` + `iosMain` for the iOS target (`:<dest>:compileKotlinIosArm64`), and on any batch that touched KSP-generated code (DB/DAO/serializer codegen) run `:<dest>:kspKotlinIosArm64 --rerun-tasks` so cache reuse can't mask an `expect`-contract break. A batch is not done until iOS compiles. Full XCFramework/SKIE link at D.2.
 
 8. **Consumer impact check** (Sonnet). Intra-module moves typically don't change FQN — no consumer updates required. If the project has package conventions that differ between source sets, Sonnet drafts the FQN search-replace plan, Haiku applies, diff-confirmed. After any updates, baselines re-green via Haiku gradle run.
 
 9. **Commit per file** via the two-commit cadence (SKILL.md): code commit + audit commit. Autopilot, one-line announcements. Sonnet composes messages. One file (or coherent unit) per code commit.
 
-10. **`migration.md` updated** per file (Haiku structured fields + Sonnet prose rationale). If this file resolved a `phase-d-followups.md` entry, flip that entry's `**Status:**` to `done`.
+10. **`coverage.md` + `migration.md` updated** per file — **flip `coverage.md` status `frozen → migrated` the moment the file's code lands in `commonMain`** (and update its Final-code-path column), per the SKILL.md State-serialization gate. This is non-negotiable: both prior sessions left the status column stale at `frozen` through all of Phase D, which would have made Phase E's skip-check wrongly skip. Then update `migration.md` (Haiku structured fields + Sonnet prose). If this file resolved a `phase-d-followups.md` entry, flip that entry's `**Status:**` to `done`.
 
 If iOS check (step 7) fails irrecoverably for a file this session → Phase D plan flip proposed (D.3).
 
@@ -101,7 +105,7 @@ If iOS check (step 7) fails irrecoverably for a file this session → Phase D pl
 Any failure → not done. Investigate, fix, or flip affected file to `hold` with user approval (see D.3).
 
 ### D.4 — Phase D retro
-Amend `retro.md` with `## Phase D — KMM-ification (captured YYYY-MM-DD)`. Five-bullet structure. User can skip with `skip retro`.
+Amend `retro.md` with `## Phase D — KMM-ification (captured YYYY-MM-DD)`. Five-bullet structure. **Blocking, non-skippable** (per SKILL.md Retro gate).
 
 ### D.3 — Phase D plan flip (`migrate` → `hold`) — if invoked during D.1 or D.2
 
@@ -145,9 +149,13 @@ Living document. Contains:
 Beyond universals:
 
 - Phase C complete (`freeze.md` status = complete; detekt enforcement live).
+- **D.0 foundation pre-flight passed the iOS klib compile + cold KSP run** (`compileKotlinIosArm64` + `kspKotlinIosArm64 --rerun-tasks`), not just JVM/Android.
+- Every locked library version re-confirmed to exist + fit the repo's Kotlin version at D entry.
 - Every `migrate`-plan file moved via **`git mv` then edit** — never read-rewrite-replace.
 - Baselines green at every commit boundary (with exception refs for sanctioned divergences).
-- iOS-consumability check passes per `migrate`-plan file (lightweight per-batch; full at D.2) before status flips `frozen` → `migrated`.
+- iOS check passes per batch (`compileKotlinIosArm64`; cold `kspKotlinIosArm64 --rerun-tasks` on KSP-touching batches); full XCFramework/SKIE at D.2 — before status flips `frozen` → `migrated`.
+- **`coverage.md` flipped `frozen → migrated` as each file's code reaches `commonMain`** (State-serialization gate) — never left stale for Phase E.
+- Parallel-batch scope guard observed (declared files only; `git status` between waves).
 - **No new `TODO` / `FIXME` / stub / deferral** introduced in any migrated file. (Pre-existing such items in held files are out of scope — they didn't move.)
 - Self-review documented for any new code.
 - D.2 integration check passes before Phase E.

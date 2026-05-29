@@ -1,8 +1,20 @@
 # Phase B — Structural Relocation + Baseline Coverage Audit & Write
 
-**Purpose.** Move every in-scope file uniformly from `:app` to `<dest>/androidMain` (structural — zero Kotlin-semantic change), then produce the frozen baseline test suite that proves current Android behavior, survives the migration (KMM-portable stack only), and catches divergence post-migration. **Longest phase by token count; strongest equivalence guarantee in the workflow.**
+**Purpose.** Produce the frozen baseline test suite that proves current Android behavior, survives the migration (KMM-portable stack only), and catches divergence post-migration. **Longest phase by token count; strongest equivalence guarantee in the workflow.**
 
-Relocation happens first because it preserves behavior trivially (`git mv` + consumer-import update, no Kotlin changes). Baselines are then written against the relocated code in the destination module's `androidUnitTest` source set — the same module where they'll live through Phase E.
+### B-strategy choice (FIRST decision of Phase B) — relocate-first vs baseline-in-place
+
+Phase B opens by choosing where baselines are written this session. **Both are blessed, co-equal paths** — what makes a baseline safe is the **test stack being iOS-portable, not where the test file sits**. The choice is surfaced with the skill's recommendation (SKILL.md Decision routing).
+
+| | **Relocate-first** | **Baseline-in-place** |
+|---|---|---|
+| B.1 | `git mv` every in-scope file to `<dest>/androidMain` first, then baseline in `<dest>/androidUnitTest` | **Skip B.1** — leave production code in `:app`; write baselines in `:app/src/test/` (KMM-portable stack) |
+| Relocation timing | now (Phase B) | deferred to Phase D (`git mv` to `commonMain`); Phase E `git mv`s baselines |
+| Pick when | clean single-module move, small held set, no multi-module-hostile plugins | **multi-module-hostile plugins** (e.g., ObjectBox plugin can't span modules), a large held-back set, or relocation would drag throwaway transient deps into `<dest>` just to move then remove |
+
+**Both prior sessions chose baseline-in-place** (ObjectBox plugin hostility / Holdings precedent). Recording the choice in `audit.md` is mandatory; it drives B.1/B.2 routing below and downstream Phase C (detekt-smoke target), the `frozen_baseline_guard` hook (baseline-path resolution from coverage.md), and Phase E (`git mv` source).
+
+Whichever path, baselines use the **KMM-portable stack only** (kotlin.test + hand-rolled fakes + Turbine) so the eventual promotion to `commonTest` is a mechanical `git mv`.
 
 **Inputs:** `scope.md`, `plan.md`, `audit.md` (if resuming), `project.md`, `coverage.md`, **`references/test-discipline/index.md` and `references/test-discipline/migration-baselines.md` (mandatory — load at Phase B startup)**, plus **`references/test-discipline/<type>.md` per in-scope file type** (loaded on demand as each batch is processed — never bulk-load all per-type files).
 
@@ -22,9 +34,9 @@ Before any baseline writing, apply the SUT test-classpath gaps surfaced in Phase
 
 Skipped silently if Phase A reported zero gaps.
 
-### B.1 — Structural relocation (uniform `git mv`)
+### B.1 — Structural relocation (uniform `git mv`) — *relocate-first path only*
 
-For each in-scope prod file (parallel Haiku):
+**Skipped entirely on the baseline-in-place path** (production code stays in `:app` until Phase D; baselines are written in `:app/src/test/`). On the relocate-first path, for each in-scope prod file (parallel Haiku):
 
 - `git mv :app/src/main/.../X.kt <dest>/src/androidMain/.../X.kt`
 - Package declaration updated to the new path (Haiku).
@@ -40,15 +52,17 @@ Commits follow the two-commit cadence (SKILL.md): code commit ("relocation only,
 
 ### B.2 — Quarantine pre-existing broken tests (Haiku)
 
-Per Phase 0 step 8's broken-test discovery in `<dest>/androidUnitTest`:
+Target source set depends on the B-strategy: `<dest>/androidUnitTest` on the relocate-first path; **`:app/src/test/` on the baseline-in-place path** (the source module inherits the same need — don't assume destination-only). Per Phase 0 step 8's broken-test discovery.
 
-- For each pre-existing broken test, apply `@Ignore("<one-line reason>; see PR out-of-scope follow-ups")`.
-- Per `test-discipline/migration-baselines.md` (Quarantine of unrelated broken tests).
-- Non-judgmental — does not assert the test is bad, only that fixing it is not this migration's job.
+**Quarantine is only for *unrelated, pre-existing* breakage** — never for tests in this migration's scope or breakage the migration itself caused. In-scope or migration-caused failures get a **root-cause fix**, not a quarantine (per `test-discipline/migration-baselines.md` Quarantine section + the user's standing no-bandage rule).
 
-After this step, `<dest>/androidUnitTest` compiles clean — ready for baselines to be written.
+**Run-broken vs compile-broken — different mechanics:**
+- **Run-broken** (compiles, fails at runtime): apply `@Ignore("<one-line reason>; see PR out-of-scope follow-ups")`.
+- **Compile-broken** (references removed types — won't even compile to reach `@Ignore`): `@Ignore` is useless. Exclude at the **build level** (e.g., gradle `KotlinCompile.exclude` for the broken file). This widens the PR diff — **list every excluded file in the PR's out-of-scope follow-ups** (Phase G). The exclude is a committed change; that's accepted and reviewable.
 
-If Phase 0 reported clean (no broken pre-existing tests), this sub-phase is skipped.
+Non-judgmental — does not assert the test is bad, only that fixing it is not this migration's job.
+
+After this step, the chosen test source set compiles clean — ready for baselines. If Phase 0 reported clean, this sub-phase is skipped.
 
 ### B.3 — Audit existing tests (parallel Sonnet per file)
 
@@ -72,6 +86,10 @@ Recorded per file in `audit.md`.
 ### B.4 — Write missing baselines
 
 **Parallelism (per SKILL.md Smart subagent routing — NON-NEGOTIABLE):** parallel **Sonnet subagents**, one per file in the current batch, dispatched in a single orchestrator turn. Complex files in the shortlist below go to **Opus subagents** (still parallel across independent files; never the orchestrator). The orchestrator never authors a baseline test itself — subagent failure triggers another subagent, not a main-thread fallback.
+
+**Parallel-batch scope guard (NON-NEGOTIABLE — prevents the cross-subagent interference that nearly lost work in a prior session).**
+- Each write-subagent's prompt **declares the exact file(s) it may touch**: the ONE SUT it reads and the ONE test file it owns. It is explicitly **forbidden** from: (a) renaming ANY file `.broken` regardless of perceived compile state, (b) editing files outside its named SUT/test, (c) editing `gradle.properties` / `local.properties` / build scripts / `project.md`. (In a prior session a subagent saw a *sibling subagent's half-written file* mid-flight, judged it "broken," and `mv`'d it to `.broken`; another silently edited `gradle.properties`. Both are now forbidden in-prompt.)
+- The orchestrator runs `git status --short` **between parallel waves** and **halts** if anything outside the declared file set changed — reconcile before the next wave compounds it. Cheap (one command); it's the only thing that catches a stray edit a subagent can't see itself making (siblings run concurrently).
 
 **Defer-to-Phase-D shortlist (no Phase B baseline):**
 - Files classified `lib-swap: path-b` in `plan.md` (SUT public surface unavoidably exposes lib-specific types).
@@ -144,7 +162,7 @@ Opt-out requires explicit user rationale recorded in audit.md.
 - `audit.md` status → `complete`. Final code + audit commits.
 
 ### B.8 — Phase B retro
-Amend `retro.md` with `## Phase B — Baseline (captured YYYY-MM-DD)`. Five-bullet structure. User can skip with `skip retro`.
+Amend `retro.md` with `## Phase B — Baseline (captured YYYY-MM-DD)`. Five-bullet structure. **Blocking, non-skippable** (per SKILL.md Retro gate).
 
 ---
 
