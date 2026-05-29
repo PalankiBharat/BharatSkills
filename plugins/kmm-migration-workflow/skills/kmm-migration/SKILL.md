@@ -25,6 +25,24 @@ Testing rules for the whole workflow live in `references/test-discipline/` (spli
 
 ## Cross-cutting rules
 
+### Decision routing & question discipline — NON-NEGOTIABLE
+
+This is the operating posture for every choice the skill makes. It governs *which* decisions reach the user and *how* they're framed.
+
+**Goals anchor (the lens for every self-made decision).** clean migration; no KMM antipatterns; no unneeded refactoring; no unneeded improvisation over production code; post-migration code is clean and long-term maintainable. We migrate for long-term maintainability, not to tick a box. Every auto-decision is made *toward this outcome* — never toward whatever is fastest or easiest to implement.
+
+**Self-review before asking.** Before surfacing any question, the skill asks itself: *"does the user actually need to decide this, or is it straightforward enough to decide myself?"* Route to the user **only** for high-impact calls — anything that materially affects the migration, changes observable behavior, or where a locked-in dependency/plan turns out not to work (examples, not a closed list). Everything straightforward, the skill decides itself and proceeds.
+
+**Never auto-decide the highest-impact, hardest-to-reverse class (general rule).** Decisions in this class are *always* presented to the user, even when they look straightforward. **Dependency change / replacement / version decisions are the canonical example — never auto-answered**, regardless of how mechanical the swap appears.
+
+**Transparent auto-decisions.** When the skill decides something itself, it **shows the decision and its one-line reasoning visibly** (not buried in a subagent dispatch or a file write), so the user can interrupt and redirect. Silent auto-decisions are not allowed — visibility is what makes smart-routing safe.
+
+**Question framing (when the skill does ask).** Plain, scannable language for **both the problem and the options** — no jargon in chat-facing text. State: (1) the problem and its impact, (2) each option and its impact, (3) the skill's evidence-based pick and why. Technical depth lives in the phase file or an in-conversation explanation if the user asks — never in the chat-facing option labels.
+
+> **Plain-language example.** Don't write: *"Q3: ctor param vs snapshot semantics — forced ripple to 2 VM consumers via FQN update; recommend Option B."* Write: *"The checksum class currently figures out live-vs-practice mode by itself. To share it, that decision has to move out. Option A keeps it on the class (but then iOS can't build it cleanly); Option B passes the answer in when the class is created (2 callers in the app need a one-line update). I recommend B — it's the clean long-term shape and the ripple is tiny."*
+
+This rule changes the skill's default cadence: **fewer, higher-quality questions; more transparent auto-decisions biased toward the correct long-term outcome.** See also Principle #4 and the Non-trivial decision protocol below.
+
 ### Diff-confirm protocol (scoped to `.kmm/project.md` only)
 
 Writes to `.kmm/project.md` — the one cross-session, human-curated config file — are gated. The skill produces the diff-confirm prompt before any project.md write:
@@ -124,6 +142,8 @@ The skill's job in the chat is to drive the workflow, not to recite artifacts.
 
 Brevity is the contract. If the user wants to inspect, they open the file or invoke a deliberate "show me" — the default is silent and pointer-only.
 
+**Value-driven, abstract presentation (as the migration runs).** Keep the main-context screen as clean as possible — the user must not be bombarded with text across a multi-hour session. Every chat turn leads with **signal**: what happened, what it means, what's next — abstracted over detail. Don't narrate steps, don't pad with reassurance, don't restate the plan. A sub-phase that completed cleanly is one line. The user can ask for any detail on demand; the default is the short, value-first version. Optimize for signal, not word count or polish.
+
 ### Context budget — phase boundaries
 
 At the end of each phase, if main context feels heavy (heavy reads this phase, several subagent dispatches with large returns, conversation already long), the skill **suggests** the user open a new session for the next phase. State is fully serialized in `.kmm/migrations/kmm/<feature>-<depth>/`; `resume_session.py` picks up at the next phase.
@@ -141,6 +161,8 @@ Reflex defaults that govern tool choice. These are not preferences — they shap
 - **`git restore <path>` over reverse-edits.** For any tracked-file undo, use git's restore. Manually reverting via str_replace is error-prone and skips git's history checks.
 - **No code comments unless WHY is non-obvious — and then, only a one-liner.** Comments explaining WHAT the code does are noise; the code is the source of truth. Comments explaining WHY (constraint, business rule, non-obvious gotcha) are allowed but must be a single line. No block comments, no multi-line explanations.
 - **Gradle output via `tee` or `> file; ec=$?`, never `| tail`.** A `cmd | tail -N` invocation reports `tail`'s exit code (always 0), masking gradle failures. Use either `cmd 2>&1 | tee /tmp/gradle.log; ec=${PIPESTATUS[0]}` (preserves stream-through-tail while capturing real exit code) or `cmd > /tmp/gradle.log 2>&1; ec=$?; echo --exit:$ec--` (silent until done, then echo status). `set -o pipefail` at the top of a script also works but isn't portable to one-shot Bash tool invocations.
+- **"BUILD SUCCESSFUL" is not proof tests ran — verify execution + counts via JUnit XML.** Gradle suppresses test counts in console output, and a cached / `UP-TO-DATE` task prints `BUILD SUCCESSFUL` *without running anything*. After any test task, confirm the tests actually executed and read their counts from `build/test-results/<task>/*.xml` (testsuite `tests`/`failures`/`skipped` attributes). This is the companion to the `--rerun-tasks` false-green rule (Phase D D.1 step 6): `--rerun-tasks` forces execution, JUnit-XML parsing *confirms* it happened.
+- **Verify a library/SDK's KMM availability from its published Gradle module metadata — never infer from the `:app` consumption site.** Whether a dependency can move to `commonMain` is determined by its published artifacts: the `.module` metadata / an `iosSimulatorArm64` (or `iosArm64`/`iosX64`) klib in `~/.gradle/caches`, or `./gradlew :<dest>:dependencyInsight --dependency <lib>`. How the Android app currently consumes it tells you nothing about iOS availability. (Repeated failure mode: `mobilenetworkingsdk` was misclassified Android-only three times across two sessions; the gradle-cache klib proved it KMM-published each time.) See Phase A sub-phase 3 for the hard gate that enforces this.
 
 ### Non-trivial decision protocol (principle #4)
 
@@ -155,12 +177,13 @@ Reflex defaults that govern tool choice. These are not preferences — they shap
 **Protocol:**
 1. **Live research (parallel Sonnet)** — Context7 for API specifics, web search for patterns + antipatterns; codebase scan for prior similar solutions (reference, not gospel — propagate only what's clean).
 2. **Opus planning** — generates 2–3 plausible approaches; pros/cons; fit with project conventions (per project.md); risk to equivalence; states its lean and why.
-3. **Present to user** — problem, options with rationale, skill's lean, asks for thoughts.
-4. **Discuss** — substantively engage; don't just defer.
-5. **Log** — in active phase's decisions log: problem, options considered, choice, rationale. Audit trail for PR reviewers.
-6. **Proceed.**
+3. **Verify-before-offering (NON-NEGOTIABLE).** Before any option reaches the user, the orchestrator **self-verifies every subagent-reported API/library/module fact the options rest on** — read the actual signature from source, confirm the module boundary (a cross-module `internal` is useless to a `commonTest` in another module), confirm the library version exists and fits the repo's Kotlin version. An option built on an unverified claim is not presented. *Why: across two sessions, users wasted whole decision rounds choosing options that turned out impossible — a Hilt approach that failed at compile on an untested KSP edge case, and the N1 fix that needed three rounds because each option's infeasibility surfaced only after a subagent tried it. The cost of a quick self-verify (read one file, check one boundary) is tiny next to a wasted round-trip.*
+4. **Present to user** — plain-language problem + options + impacts + the skill's evidence-based pick and why (per Decision routing & question discipline above). Asks for thoughts.
+5. **Discuss** — substantively engage; don't just defer.
+6. **Log** — in active phase's decisions log: problem, options considered, choice, rationale. Audit trail for PR reviewers.
+7. **Proceed.**
 
-Trivial decisions (apply plan.md substitution; single obvious compile fix) — skill self-decides and logs to decisions log. User can review later, isn't blocked.
+Trivial decisions (apply plan.md substitution; single obvious compile fix) — skill self-decides, **shows the call + one-line reasoning per the transparent-auto-decision rule**, and logs to the decisions log. User can interrupt; isn't blocked. (Dependency change/replacement/version decisions are **never** trivial — always routed to the user per the general rule above.)
 
 ### Resume protocol (every invocation)
 
@@ -187,6 +210,8 @@ If the SessionStart hook didn't run for some reason (hook crashed, plugin not lo
 Patterns applied **≥3 times in the same session** become project.md promotion candidates. Detection: Haiku scans decisions logs for keyword + structural matches (e.g., `expect/actual + <same shape>` appearing in 3 entries). Sonnet drafts the addition. Diff-confirm to user. Single- or twice-applied patterns stay in session.
 
 Setup facts (modules, DI framework, source-set wiring) captured on **first** occurrence via Phase 0 gap-fill — they're state, not patterns; rule of three doesn't apply.
+
+**Pure per-repo facts are captured INLINE at discovery — never deferred to retro/session-end.** The moment the skill recognizes a fact that belongs *purely* in `project.md` (a module name, host constant, build-config access scope, the canonical flavored gradle task, an iOS-sim name, "SDK X is KMM-published", a final-class testability gap, the squash-merge policy, etc.), it **drafts the `project.md` addition via the diff-confirm gate right then** — shows the user exactly what's being added (apply / edit / reject) and writes it on accept. Capturing at discovery time means later phases in the same session benefit immediately, instead of rediscovering the same fact. **It is also logged in `retro.md` tagged `[project.md]`** — the inline write handles the value now; the retro note lets the separate skill-improvement session decide whether the fact also implies a `[skill]` pattern. For `[both]`-type findings, write the per-repo *value* inline; the *pattern* side stays in retro for the skill session. This does not need the rule of three — a per-repo fact is worth recording on first sighting.
 
 Rule of three targets **KMM patterns specific to this repo** (project.md). General workflow rules that surfaced during a session (tool choices, edit discipline, ordering reflexes) get captured in `retro.md` per phase and reviewed in a separate skill-improvement planning session — they don't auto-promote.
 
@@ -222,7 +247,7 @@ The skill ships two Claude Code hooks in `hooks/` at the plugin root. They conve
 | Hook | Trigger | Behavior |
 |---|---|---|
 | `resume_session.py` | SessionStart | If cwd is in a `kmm/<feature>-<depth>` worktree with a matching `.kmm/migrations/kmm/<feature>-<depth>/` folder, reads every phase file and emits a structured state report (per-phase status table, active phase + next pending task, recent decisions, working-tree-dirty flag) into the initial context. Raw phase files are NOT pulled into main context — the hook does the extraction. Silent on non-`kmm/` branches. |
-| `frozen_baseline_guard.py` | PreToolUse on `Write\|Edit\|MultiEdit\|str_replace\|create_file` | Reads session `coverage.md` to determine baseline status. Blocks writes to any baseline in status `frozen` / `migrated` / `promoted` unless a `.kmm/exceptions/*.md` file references the baseline by name. Exit code 2 (with explanation) on block. |
+| `frozen_baseline_guard.py` | PreToolUse on `Write\|Edit\|MultiEdit\|str_replace\|create_file` | Reads session `coverage.md` to determine baseline status **and to resolve where this session's baselines actually live** — it keys off the baseline-path column rather than a hardcoded `androidUnitTest`/`commonTest` regex, so it protects baselines in the **baseline-in-place** layout (`:app/src/test/…`, Phase B variant) too. Blocks writes to any baseline in status `frozen` / `migrated` / `promoted` unless a `.kmm/exceptions/*.md` file lists it under `Authorizes.baseline-edit`. Exit code 2 (with explanation) on block. |
 
 Hooks are configured via `hooks/hooks.json` and reference `${CLAUDE_PLUGIN_ROOT}` so they work uniformly across worktrees.
 
@@ -270,6 +295,8 @@ Invoking the skill authorizes the workflow's commit cadence. Default rhythm per 
 
 If a sub-phase produces only one kind of change, the cadence collapses to one commit. The rule is "up to two", not "exactly two".
 
+**Gitignore-collapse case (now the canonical setup).** When `.kmm/migrations/` is gitignored (the default — session working state is local-only) AND the code was already committed progressively, **there is no audit commit at all** — `audit.md` / `coverage.md` / `freeze.md` live only in the working tree and never enter git. The cadence collapses to one (code) commit, or to a single empty marker commit where one is structurally required (the Phase C freeze SHA — see below). **Do not manufacture an empty commit just to satisfy "commit 2"**, and do not try to `git add` a gitignored audit file (it will silently no-op or error). Both prior sessions re-derived this each time; it is expected, not an anomaly.
+
 **Never use `git commit -am` or `git add -A` in the two-commit cadence.** Both bypass file selection: `-am` stages every tracked change, `-A` adds all (including new) files. Use `git add <explicit paths>` between the code commit and the audit commit so commit 2 receives only `audit.md` / `coverage.md` / `phase-d-followups.md` and nothing else. The Sonnet commit-message subagent's command template uses explicit-path adds; never aggregating flags.
 
 **Phase C exception — three commits on first-time detekt bootstrap.** The freeze SHA recorded in `freeze.md` + `coverage.md` is the SHA of the freeze commit itself; that SHA can't be self-referenced inside its own commit. When C.2 (bootstrap) runs, the cadence is three commits: (1) bootstrap commit (detekt config + custom rules) → (2) freeze marker commit (baseline tests; SHA becomes the frozen-at marker) → (3) audit commit (`freeze.md` + `coverage.md` with the SHA from commit 2 baked in). On repeat Phase C runs (no bootstrap), the standard two-commit cadence applies. See `phase-c-freeze.md`.
@@ -281,6 +308,8 @@ If a sub-phase produces only one kind of change, the cadence collapses to one co
 - Phase predecessor must be complete (status field).
 - Writes to `.kmm/project.md` go through the diff-confirm pre-write checklist.
 - Scope-creep traceability gate enforced at every action.
+- **State-serialization gate (BLOCKING, non-negotiable).** A phase cannot transition to the next until its `.kmm/` state is fully current. This is enforced at the *source*, not reconciled afterward: task checkboxes are ticked **as each unit commits** (a phase file showing `complete` with unchecked boxes is a defect), `coverage.md` reflects each file's real status and paths (e.g., Phase D flips `frozen → migrated` the moment code lands in `commonMain` — see phase-d), and every living-document section is written. Nothing advances on a stale ledger. The `resume_session` hook's status/checkbox-mismatch warning is a *backstop only*; the drift must not occur in the first place.
+- **Retro gate (BLOCKING, non-negotiable).** The per-phase retro runs before the phase closes. There is **no `skip retro` affordance**, and the skill does **not** ask "should I do the retro?" — it just captures it (see Special actions → Per-phase retro). Same for the session-end consolidation step: it runs (its *writes* to `.kmm/project.md` remain diff-confirmed, but the step itself is not skippable).
 - User confirmation gates transition to next phase (one-line acknowledgment, not a ceremony).
 
 Phase-specific gates are listed in each phase's reference file.
@@ -306,9 +335,11 @@ Phase-specific gates are listed in each phase's reference file.
         ├── freeze.md               # Phase C
         ├── migration.md            # Phase D
         ├── move.md                 # Phase E
-        ├── validation.md           # Phase F
-        ├── heatmap.md              # Phase F — QA checklist artifact
-        ├── pr.md                   # Phase G
+        ├── validation.md           # Phase F (automated checks + smoke; no manual-QA gate)
+        ├── heatmap.md              # Phase F — QA checklist artifact (embedded into the PR body at Phase G)
+        ├── pr.md                   # Phase G — phase artifact (audit wrapper; never the --body-file source)
+        ├── pr-body.md              # Phase G — the raw PR body shipped via --body-file
+        ├── qa.md                   # Phase H — parity-QA hand-off record (kmm-qa-autopilot invocation + PR link)
         └── retro.md                # Per-phase friction dump (see Special actions)
 ```
 
@@ -332,6 +363,7 @@ Phase-specific gates are listed in each phase's reference file.
   - `object_name`: `<name of the shared client/config factory>`
   - `host_constant_convention`: `<e.g., per-flavor BuildKonfig fields named *_API / *_DNS / *_BASE_PATH>`
 - `git.base_branch` (optional) — the repo's PR base branch (`master` / `main` / `develop`). Detected at runtime if absent via `git symbolic-ref refs/remotes/origin/HEAD`.
+- `git.pr_merge_policy` — `squash | merge | rebase`. Drives Phase F.4's pre-merge integration simulation: a squash-merge repo is validated with `git merge origin/<base>` (the true PR simulation), NOT a rebase — a rebase replays intermediate commits and produces spurious conflicts on files the branch relocated that the base also touched at the old path. Conflict detection must use the same operation that will integrate.
 
 The skill defines what slots exist; each repo's `project.md` fills them in. The skill itself contains no per-repo identifiers.
 
@@ -348,24 +380,25 @@ The skill defines what slots exist; each repo's `project.md` fills them in. The 
 
 ## Realistic expectations
 
-A non-trivial migration session takes **5–9 hours end-to-end**, distributed across phases (mostly waiting on gradle and manual QA). Fully resumable — start one day, continue the next. Manual QA in Phase F requires real human time at an emulator/device (typically 30+ minutes for a non-trivial scope).
+A non-trivial migration session takes **5–9 hours end-to-end**, distributed across phases (mostly waiting on gradle). Fully resumable — start one day, continue the next. **Parity QA is no longer inside this skill** — Phase F runs automated checks plus a runtime-crash smoke, the PR opens at Phase G, and Phase H hands off to the `kmm-qa-autopilot` skill (run separately with the PR link) for the behavioral parity QA. That hand-off is the last thing this skill does.
 
 ---
 
 ## Phases — overview
 
-The migration runs through 8 phases. **Load the relevant phase reference file when entering or resuming a phase**, not all upfront.
+The migration runs through 9 phases. **Load the relevant phase reference file when entering or resuming a phase**, not all upfront.
 
 | Phase | Purpose | Output | Reference |
 |---|---|---|---|
 | **0** | Discovery & Scoping | `scope.md` | `references/phases/phase-0-discovery.md` |
 | **A** | Diagnostic — architectural plan (incl. per-file Phase D plan: migrate to `commonMain` this session, or hold at `androidMain`) | `plan.md` | `references/phases/phase-a-diagnostic.md` |
-| **B** | Structural relocation (`git mv` every in-scope file uniformly to `<dest>/androidMain`) + Baseline Coverage Audit & Write (in `<dest>/androidUnitTest`) | `audit.md` | `references/phases/phase-b-baseline.md` |
+| **B** | Structural relocation + Baseline Coverage Audit & Write (relocate-first **or** baseline-in-place — Phase B chooses) | `audit.md` | `references/phases/phase-b-baseline.md` |
 | **C** | Freeze | `freeze.md` | `references/phases/phase-c-freeze.md` |
 | **D** | KMM-ification (abstract Android deps + `git mv` `androidMain` → `commonMain` for files that ripen this session) | `migration.md` | `references/phases/phase-d-migration.md` |
 | **E** | Baseline promotion (`git mv` baseline `androidUnitTest` → `commonTest` for files whose code reached `commonMain`) | `move.md` | `references/phases/phase-e-move.md` |
-| **F** | Validation (build, tests, smoke, manual QA) | `validation.md` + `heatmap.md` | `references/phases/phase-f-validation.md` |
-| **G** | PR Creation | `pr.md` | `references/phases/phase-g-pr.md` |
+| **F** | Validation — automated checks (build, baseline tests JVM+iOS, pre-merge integration, code-quality/iOS-surface) + runtime-crash smoke + heatmap draft. **No manual-QA gate.** | `validation.md` + `heatmap.md` | `references/phases/phase-f-validation.md` |
+| **G** | PR Creation (heatmap embedded as a checklist in the PR body's QA section; concise, value-driven body) | `pr.md` + `pr-body.md` | `references/phases/phase-g-pr.md` |
+| **H** | Parity-QA hand-off — suggest running `kmm-qa-autopilot` with the PR link (the QA skill works off the PR git diff + heatmap). Final phase. | `qa.md` | `references/phases/phase-h-qa.md` |
 
 Read phase references **on demand** — when the workflow enters or resumes a phase, before executing its sub-phases. This keeps context focused on the current work.
 
@@ -387,7 +420,7 @@ Read phase references **on demand** — when the workflow enters or resumes a ph
 
 ### Per-phase retro
 
-Retro fires at the **end of each phase** (Phase 0 through Phase G). It is **purely reflective** — concise dump of friction signal. No skill/drop verdicts, no promotion candidates, no in-session decisions. Decisions about what to promote into the skill happen in a **separate planning session** that consumes retro.md (user opens a fresh session in the skill repo, enters plan mode, drops retro.md content into context, walks through improvements collaboratively, edits skill files there). Migration sessions stay focused on migration.
+Retro fires at the **end of each phase** (Phase 0 through Phase H) and is a **BLOCKING, non-negotiable gate** — the phase does not close without it. There is **no skip affordance**, and the skill does **not** ask "should I do the retro?"; it just captures it and moves on. It is **purely reflective** — concise dump of friction signal. No skill/drop verdicts, no promotion candidates, no in-session decisions. Decisions about what to promote into the skill happen in a **separate planning session** that consumes retro.md (user opens a fresh session in the skill repo, enters plan mode, drops retro.md content into context, walks through improvements collaboratively, edits skill files there). Migration sessions stay focused on migration.
 
 **File:** `.kmm/migrations/kmm/<feature>-<depth>/retro.md`, **amended** with a new section per phase. Header format: `## Phase X — <name> (captured YYYY-MM-DD)`.
 
@@ -401,19 +434,19 @@ Retro fires at the **end of each phase** (Phase 0 through Phase G). It is **pure
 
 **Format discipline:** Bullets, not essays. Concise but self-contained — a separate session reading retro.md (without the original migration conversation) should understand what happened and what could improve. No drama. Pure signal.
 
-User can skip with `skip retro` — skill writes one "skipped" line for that phase and moves on.
+The retro is captured automatically as part of closing the phase — it is not optional and is not gated behind a user prompt (per the Retro gate in §Universal hard gates).
 
-### Session close-out (after Phase G retro)
+### Session close-out (after Phase H retro) — safety-net sweep
 
-Once the final phase retro is captured, the skill runs a one-shot consolidation step that prevents the skill from accumulating per-repo facts:
+Per-repo facts are written to `project.md` **inline at discovery** throughout the session (see Rule of three → "Pure per-repo facts are captured INLINE"). So by close-out, most `[project.md]` values are already in `project.md`. This step is therefore a **safety-net sweep**, not the primary extraction path:
 
-1. **Scan `retro.md`** for every `[project.md]` and `[both]`-tagged bullet under "What could improve the skill" across all phases.
-2. **Draft proposed `project.md` additions** — one block per bullet, slotting into the appropriate canonical field (see §project.md canonical fields). For `[both]` bullets, draft only the per-repo value portion (the pattern side belongs in a separate skill-iteration session, not here).
-3. **Diff-confirm gate** — present the proposed additions via the standard `.kmm/project.md` diff-confirm prompt (apply / edit / reject). User decides per block.
-4. On accept, write to `project.md` and commit as a final two-commit cadence (`project.md` update + retro consolidation marker in `retro.md`).
+1. **Scan `retro.md`** for every `[project.md]` and `[both]`-tagged bullet across all phases.
+2. **Diff each against current `project.md`** — for any value that was NOT already written inline (missed at discovery), draft the addition into the appropriate canonical field (see §project.md canonical fields). For `[both]` bullets, draft only the per-repo value portion (the pattern side belongs in a separate skill-iteration session).
+3. **Diff-confirm gate** — present any remaining additions via the standard `.kmm/project.md` diff-confirm prompt (apply / edit / reject). User decides per block. (Usually empty, because inline capture already handled them.)
+4. On accept, write to `project.md` and commit (`project.md` update + retro consolidation marker in `retro.md`).
 5. `[skill]` and `[both]` bullets remain in `retro.md` for the separate skill-iteration planning session to consume — they are NOT extracted into the skill from inside a migration session.
 
-This step is **silent for sessions that produced no `[project.md]` or `[both]` bullets** (the common case after the skill stabilizes). It runs automatically; user can skip with `skip consolidate`.
+This step runs automatically and is **not skippable** — only its *writes* to `.kmm/project.md` remain gated behind the diff-confirm prompt. It's **silent when the inline captures already covered everything** (the common case).
 
 ---
 

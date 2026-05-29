@@ -66,9 +66,10 @@ main context.
    on the migration.
 4. **Pick the right stack from the start** — if the SUT is in or
    near the migration's blast radius, default to the KMM-portable
-   stack (kotlin.test + MockK + Turbine). The JVM stack (JUnit 4 +
-   Mockito + Truth) is reserved for code confirmed staying in
-   `app/`. See Toolbox for the decision.
+   stack (kotlin.test + **hand-rolled fakes** + Turbine). **MockK is
+   banned in baseline source sets** (see Toolbox + "Fakes vs mocks").
+   The JVM stack (JUnit 4 + Mockito + Truth) is reserved for code
+   confirmed staying in `app/`. See Toolbox for the decision.
 5. Follow the per-type file's checklist exhaustively. Each unchecked
    box is a real-world bug class going un-asserted.
 6. Use the per-type file's template as scaffolding. Don't invent a

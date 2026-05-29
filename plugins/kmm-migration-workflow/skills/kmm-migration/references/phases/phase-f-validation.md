@@ -1,8 +1,12 @@
 # Phase F — Validation
 
-**Purpose.** Prove the migration achieved its stated goal. Multi-layered sanity check: code, docs, build, tests, runtime smoke, manual QA. **User-gated.** Any blocker → loop back through the relevant prior phase → re-validate. Migration is not complete until F is clean AND user signs off.
+**Purpose.** Prove the migration is structurally sound and behavior-preserving *as far as automated checks can show*, then hand a clean, installable build to Phase G (PR) and Phase H (parity QA). Multi-layered automated sanity check: code, docs, build, tests, pre-merge integration — plus a runtime-crash smoke. **Behavioral parity QA is NOT in this phase** — it runs after the PR via the `kmm-qa-autopilot` skill (Phase H). Any blocker here → loop back through the relevant prior phase → re-validate.
 
-**Inputs:** all prior session files (`scope.md` through `move.md`, status complete), `project.md`, `searches/`, `git diff main..HEAD`.
+**What moved out of Phase F.** The old F.6 user-driven manual-QA gate and F.7 "migration complete" sign-off are gone. Parity QA now happens post-PR, off the PR git diff + heatmap, in a separate skill. Phase F's job is: *does it build on both platforms, are the baselines green, does it integrate with the latest base branch, and does it launch without crashing?* The heatmap is still **drafted** here (F.5) because Phase G embeds it into the PR body and Phase H / autopilot consume it.
+
+**The smoke test stays — as a runtime-crash gate, not a QA walk.** Its only job is to confirm the build installs and runs without crashing, so we don't hand a dead build to autopilot and burn a full parity cycle (two APKs + two emulators + a manual prod login) only to crash on launch. It is not a behavioral walk and does not gate on user-visible behavior.
+
+**Inputs:** all prior session files (`scope.md` through `move.md`, status complete), `project.md`, `searches/`, `git diff <base>..HEAD`, `project.md.git.pr_merge_policy`.
 
 ---
 
@@ -48,8 +52,9 @@ Held files (`androidMain`) skip the SKIE surface review — they're not exposed 
 - Baseline suites green:
   - `<dest>/androidUnitTest` — baselines for held files + any feature-surface baselines that stayed.
   - `<dest>/commonTest` (if Phase E ran) — baselines for promoted files.
-  - `<dest>/iosSimulatorArm64Test` (or equivalent, if host supports) — same commonTest baselines on iOS runtime.
+  - `<dest>/iosSimulatorArm64Test` (or equivalent, if host supports) — same commonTest baselines on iOS runtime. **Requires a provisioned + booted simulator device** (see F.5 note) — a cold/missing sim yields a misleading "Xcode does not support simulator tests" error, not a code failure.
 - Full `:app/src/test/` unit test suite (regression check — pre-existing tests untouched apart from Phase B import updates).
+- **Confirm tests actually executed (not cached).** "BUILD SUCCESSFUL" is emitted on an `UP-TO-DATE` no-op too. For each test task above, read `build/test-results/<task>/*.xml` and confirm the testsuite ran with the expected `tests` count and `failures=0` (per SKILL.md Tooling discipline). A green that never ran is not a green.
 - **Visual regression** (Paparazzi/Roborazzi) against pre-migration goldens if UI was indirectly touched.
 - **Telemetry parity scan** — analytics events preserved through migrated code paths (Sonnet scans for analytics-relevant changes).
 - **Crash-reporting hookup verified** for migrated namespaces (Crashlytics/Sentry still receives from new package paths).
@@ -60,24 +65,32 @@ Held files (`androidMain`) skip the SKIE surface review — they're not exposed 
 
 ### F.4 — Pre-merge integration test
 
-- **Haiku** rebases against latest main in a scratch branch.
-- Re-runs F.3 (build + tests) on the rebased state.
-- Catches merge conflicts and integration regressions before PR opens.
+**Choose merge vs rebase from the repo's PR-merge policy — do not default to rebase.** Read `project.md.git.pr_merge_policy`:
+- **`squash` (the common case)** → simulate integration with `git merge origin/<base>` in a scratch branch. A squash-merge collapses the whole branch into one commit on the base, so the *merged tree* is what ships — a merge is the true simulation. **A rebase is wrong here**: it replays every intermediate commit, so a file the branch *relocated* collides with the base's edit at the *old* path, producing spurious conflicts that will never occur on the actual squash-merge.
+- **`rebase`** → simulate with rebase.
+- **`merge`** → simulate with merge.
+
+**Detect conflicts with the same operation that will integrate.** `git merge-tree --write-tree` validates a *merge*, not a *rebase* — in a prior session it reported clean while the actual rebase conflicted. Use the chosen operation for both detection and simulation; never a proxy.
+
+- Re-run F.3 (build + tests) on the integrated state, including the JUnit-XML execution check.
 - **Cross-session ripple verification** — did this migration affect files frozen in OTHER active session worktrees? Scan sibling `.kmm/migrations/*/coverage.md`.
+- **Post-integration leak check** — after the merge, diff the integrated tree against pre-merge for the migrated source sets (`commonMain`/`commonTest`); 3-way merge + rename detection can silently carry the base's same-path edits onto relocated files. Confirm zero leak.
+- A scratch worktree needs gitignored build config copied in before it configures (`local.properties`, flavor `google-services.json`, `keystore.properties`); auto-copy from the primary worktree and run a quick `:app:help` configure check before the long build.
 
-If conflicts surface: user resolves; skill assists with diff-confirm.
+If conflicts surface: user resolves; skill assists with diff-confirm. Recon first (cheap `merge`/divergence/sibling-ripple scan) **before** launching the expensive full build — don't blind-build a conflicted or leaky integration.
 
-### F.5 — Smoke test + heatmap generation (in parallel)
+### F.5 — Runtime-crash smoke + heatmap draft (in parallel)
 
-**Smoke test (Sonnet subagent):**
-- Build APK + install on running emulator (via ADB).
-- Walk the captured navigation flow from `scope.md`.
-- Verify: no crashes, no obvious behavior changes vs pre-migration.
-- Output: screenshots / logs for user verification.
+**Smoke test (Sonnet subagent) — runtime-crash gate only, NOT a behavioral walk.**
+- **Check `adb devices` FIRST.** If no device/emulator is connected, surface it and boot one *before* building — never discover "no device" after a ~15-min build. (Emulator binary may not be on PATH; project.md records the AVD names + path.)
+- Build the ProductionRelease APK (the shipped, R8-minified artifact — never Debug; debug skips R8 and false-greens serialization migrations) and install on the device.
+- Launch the app; confirm it **starts and does not crash** (crash-only logcat scoped to the app PID). Login/OTP-gated deep walks are user territory — the smoke does not attempt them.
+- **Navigation discipline:** if the subagent navigates at all, it **must use the structured-tap CLI** and is **forbidden from back-gesture walking** (back-gestures exit the app and invalidate the check). If the tap CLI isn't available, the agent **screenshots and reports** — it does not fumble the device.
+- Output: launch confirmation + crash-free logcat (or the crash, if any). Goal met = installs + launches + no crash.
 
-**Heatmap generation (Opus subagent, in parallel with smoke test):**
+**Heatmap draft (Opus subagent, in parallel).**
 
-Drafted as a **pre-QA checklist**, not a post-QA summary. Result column starts empty; user fills it during F.6.
+Drafted as a **pre-QA checklist** that Phase G embeds into the PR body and Phase H / `kmm-qa-autopilot` consume. Result column starts empty (`TBD`) and is **never** pre-filled — it's filled during the post-PR parity QA, not here.
 
 Sources:
 - Phase 0 navigation flow
@@ -91,23 +104,9 @@ Format (tickable markdown saved as `heatmap.md`):
 | <user-facing flow> | <expected behavior, risk area to watch> | TBD |
 | ... | ... | TBD |
 
-Skill **presents `heatmap.md` to the user before F.6 starts** and never pre-fills the Result column. Post-hoc summaries of QA outcomes belong in `validation.md`, not `heatmap.md`.
+### F.6 — Blocker loop
 
-### F.6 — Manual QA gate (user-driven)
-
-**Precondition:** `heatmap.md` (from F.5) is open and presented to the user with `TBD` Result cells. F.6 cannot start until this is true.
-
-User exercises the heatmap on a real device or emulator:
-- **Fills in each Result cell** (pass / fail / anomaly note) as flows are verified.
-- Records any anomalies found.
-
-**Phase F blocks** until every Result cell has a value AND all anomalies are resolved (or filed as follow-ups with user sign-off).
-
-This is real human time — typically 30+ minutes on a non-trivial migration. The skill waits.
-
-### F.7 — Blocker loop + sign-off
-
-Any failure in F.1–F.6 → **Opus** categorizes:
+Any failure in F.1–F.5 → **Opus** categorizes:
 
 | Failure type | Loop-back target |
 |---|---|
@@ -116,20 +115,20 @@ Any failure in F.1–F.6 → **Opus** categorizes:
 | API drift | Phase D fix |
 | Quality issue | Phase D code edit |
 | Build / test failure | Investigate, Phase D fix |
-| Smoke failure | Phase D fix, or Phase D plan flip to `hold` via D.3 |
-| QA-found behavior anomaly | Investigate, Phase D fix or migration-exception (if intentional) |
+| Smoke crash | Phase D fix, or Phase D plan flip to `hold` via D.3 |
+| Integration conflict / leak | Resolve in F.4; re-run |
 
 **Re-validation scope after fix — depends on fix surface area:**
 
-- **Surgical fix (≤5 LOC, single file, no new types / methods / public-API signatures):** re-run F.3 (build + tests) + F.5/F.6 smoke + the heatmap row(s) that exercise the fix's surface. **Skip** F.1 (goal/doc consistency unchanged), F.2 (code quality, single-file is trivially reviewable), F.4 (pre-merge integration — only if the merge target moved since the last F.4). Example: changing a single timeout literal, fixing one off-by-one, swapping one constant.
+- **Surgical fix (≤5 LOC, single file, no new types / methods / public-API signatures):** re-run F.3 (build + tests, incl. JUnit-XML execution check) + F.5 smoke. **Skip** F.1 (goal/doc consistency unchanged), F.2 (code quality, single-file is trivially reviewable), F.4 (pre-merge integration — only if the base moved since the last F.4). Example: changing a single timeout literal, fixing one off-by-one, swapping one constant.
 - **Non-surgical fix (≥6 LOC, multiple files, new identifiers introduced, or behavioral diff beyond the immediate fix):** return to F.1, re-validate fully. No partial re-validation.
 
-Skill announces which scope it's using before re-running, with one-line justification (e.g., *"Surgical: 1-line socket timeout swap, re-running F.3 + F.6 only"*). User can override with `re-run fully` or `re-run targeted`. **The threshold is mechanical, derivable from the diff** — not a judgment call to be made under fatigue.
+Skill announces which scope it's using before re-running, with one-line justification (e.g., *"Surgical: 1-line socket timeout swap, re-running F.3 + F.5 only"*). User can override with `re-run fully` or `re-run targeted`. **The threshold is mechanical, derivable from the diff** — not a judgment call to be made under fatigue.
 
-When all F passes → user explicit "migration complete" confirmation → `validation.md` status complete.
+When all F passes → `validation.md` status complete → proceed to Phase G (PR). **There is no manual-QA sign-off here** — parity QA is Phase H, post-PR. (Provenance note: also run the exception-provenance check now, so orphan exceptions surface before Phase G composes the body — see phase-g.)
 
-### F.8 — Phase F retro
-Amend `retro.md` with `## Phase F — Validation (captured YYYY-MM-DD)`. Five-bullet structure. User can skip with `skip retro`. User-steering log section is especially load-bearing here — F.6 is human-driven and friction often surfaces verbally.
+### F.7 — Phase F retro
+Amend `retro.md` with `## Phase F — Validation (captured YYYY-MM-DD)`. Five-bullet structure. **Blocking, non-skippable** (per SKILL.md Retro gate).
 
 ---
 
@@ -145,6 +144,7 @@ Amend `retro.md` with `## Phase F — Validation (captured YYYY-MM-DD)`. Five-bu
 Beyond universals:
 
 - Every F sub-phase passes (or has documented exception).
-- `heatmap.md` presented to user with `TBD` Result cells **before** F.6 starts; skill never pre-fills Result column.
-- Manual QA heatmap fully filled in by user (every Result cell has a value).
-- User **explicit "migration complete" confirmation** before Phase G.
+- Test green-ness is confirmed via JUnit-XML execution + counts, not "BUILD SUCCESSFUL" alone.
+- F.4 integration uses the operation dictated by `project.md.git.pr_merge_policy` (merge for squash-merge repos), and conflict detection uses that same operation.
+- Smoke confirms the ProductionRelease build installs + launches **crash-free**; `heatmap.md` is drafted with `TBD` cells and never pre-filled (it's filled during Phase H parity QA).
+- `validation.md` status `complete` before Phase G. **No manual-QA sign-off gate** — parity QA is Phase H, post-PR.

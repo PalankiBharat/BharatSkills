@@ -21,11 +21,17 @@ import re
 import sys
 from pathlib import Path
 
-# Baseline-test path heuristic — covers Phase B (androidUnitTest) and post-E
-# (commonTest). The destination module path is project-specific, so we match
-# on the source-set segment only.
+# Baseline-test path PRE-FILTER (cheap early-exit only; NOT the real gate).
+# Broad on purpose: matches any test source set — androidUnitTest, commonTest,
+# AND `app/src/test/` (the baseline-in-place Phase B variant) and similar. The
+# actual decision is made by `status_for_file`, which keys off coverage.md (the
+# source of truth for where this session's baselines live and their status), so
+# a too-broad pre-filter is harmless — a non-baseline test file simply won't
+# have a frozen coverage.md row. Segment must contain "test" (case-insensitive):
+# matches `/src/test/`, `/src/androidUnitTest/`, `/src/commonTest/`,
+# `/src/androidTest/`, etc.; excludes `/src/main/`.
 BASELINE_PATH_RE = re.compile(
-    r"/src/(androidUnitTest|commonTest)/", re.IGNORECASE
+    r"/src/[A-Za-z]*[Tt]est[A-Za-z]*/", re.IGNORECASE
 )
 
 # Statuses at/after Phase C freeze. Phase B audited rows are NOT frozen yet

@@ -87,16 +87,23 @@ enforcement_setup:
   custom_rules_rebuild: module-permanently-included | one-shot-script | other (describe)
 ```
 
+### C.3.0 — Baseline-location vs detekt-scope check (FIRST — explicit, not model-derived)
+
+Before the smoke test, reconcile *where this session's baselines live* (from `coverage.md`'s baseline-path column) against *what detekt actually scans* (`project.md.enforcement_setup.scope`). On the **baseline-in-place** path baselines sit in `:app/src/test/`, which is typically **outside** detekt's configured scope — so a smoke test passing "in scope" would give false assurance about *this session's* baselines.
+
+- **If the session's baselines fall inside detekt scope** → proceed to C.3 normally.
+- **If they fall outside** → choose (surfaced to the user with the recommendation): (a) **extend detekt scope** to cover the session's baseline source set, or (b) **document the residual gap** in `freeze.md` plus the compensating layers (skill-behavioral refusal + `frozen_baseline_guard` hook reading coverage.md paths + reviewer attention + Phase E relocation into a scanned set). Record the decision; don't leave it implicit.
+
 ### C.3 — Detekt smoke test (BEFORE freeze commit)
 
 **Non-negotiable.** Verifies the detekt rule actually bites — runs while baselines are still at status `audited` so the `frozen_baseline_guard` hook does not block the deliberate mutation edit.
 
-- **Sonnet** adds a forbidden import to a baseline test file in scope — e.g., `import io.mockk.mockk` (MockK is now banned in baseline source sets per the updated denylist; Mockito works too — pick either).
+- **Sonnet creates a scratch file in a detekt-scoped source set** (e.g., `<dest>/src/androidUnitTest/.../scratch/DetektSmokeProbe.kt`) with a forbidden import — `import io.mockk.mockk` (MockK is banned in baseline source sets; Mockito works too). **Prefer a scratch file over mutating an existing baseline** — mutating a real (possibly already-frozen, from a prior session) baseline risks the hook blocking it and is needless. If C.3.0 chose to keep baselines outside detekt scope, the scratch file goes in a *scoped* set so the smoke still proves the rule fires.
 - Runs `./gradlew :<dest>:detekt` (or project-specific task per `project.md`). Captures output via the discipline in SKILL.md Tooling discipline (`tee` or `> file; ec=$?`, never `| tail`).
 - Expected: detekt failure citing the denylist rule for that import.
 - **Haiku** parses output, confirms the failure type matches.
-- **Sonnet** reverts via `git restore`. Verifies clean state.
-- Records proof in `freeze.md` (forbidden import added, detekt output, revert, clean).
+- **Sonnet** removes the scratch file (`rm` / `git restore`). Verifies clean state.
+- Records proof in `freeze.md` (forbidden import added, detekt output, revert, clean) — plus, if relevant, the C.3.0 scope decision and residual-gap note.
 
 If the smoke test passes when it should have failed → detekt enforcement is broken. Phase C halts; user notified.
 
@@ -120,7 +127,7 @@ The skill's behavioral refusal to edit frozen baselines is not smoke-testable me
 - Committed as the audit half of the cadence (two-commit or three-commit per above).
 
 ### C.6 — Phase C retro
-Amend `retro.md` with `## Phase C — Freeze (captured YYYY-MM-DD)`. Five-bullet structure per SKILL.md (each "What could improve the skill" bullet tagged `[skill]` / `[project.md]` / `[both]`). User can skip with `skip retro`.
+Amend `retro.md` with `## Phase C — Freeze (captured YYYY-MM-DD)`. Five-bullet structure per SKILL.md (each "What could improve the skill" bullet tagged `[skill]` / `[project.md]` / `[both]`). **Blocking, non-skippable** (per SKILL.md Retro gate).
 
 ---
 

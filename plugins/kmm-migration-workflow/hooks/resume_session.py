@@ -42,6 +42,7 @@ PHASES = [
     ("E", "move.md",        "Baseline promotion"),
     ("F", "validation.md",  "Validation"),
     ("G", "pr.md",          "PR Creation"),
+    ("H", "qa.md",          "Parity-QA hand-off"),
 ]
 
 
@@ -215,16 +216,40 @@ def format_report(branch: str, folder: Path, states: dict[str, dict | None]) -> 
                 lines.append(f"- Phase {phase_id}: `{d}` — appears checked AND unchecked")
         lines.append("")
 
+    # Status/checkbox mismatch — a phase marked `complete` that still has pending
+    # boxes. Per SKILL.md the State-serialization gate should prevent this at the
+    # source (tick boxes as work commits); this is a BACKSTOP warning only.
+    mismatch_warnings: list[tuple[str, int]] = []
+    for phase_id, _filename, _name in PHASES:
+        s = states.get(phase_id)
+        if s and s["status"] == "complete" and s["pending_count"] > 0:
+            mismatch_warnings.append((phase_id, s["pending_count"]))
+    if mismatch_warnings:
+        lines.append("### ⚠️ Status/checkbox mismatch detected")
+        lines.append("")
+        lines.append(
+            "One or more phase files report `Status: complete` while still "
+            "carrying unchecked task boxes. The serialization gate (SKILL.md "
+            "Universal hard gates) should have ticked these as work committed — "
+            "treat this as a defect to reconcile: confirm the work actually "
+            "landed (check git log / coverage.md) and either tick the boxes or "
+            "correct the status before relying on the phase as done."
+        )
+        lines.append("")
+        for phase_id, n in mismatch_warnings:
+            lines.append(f"- Phase {phase_id}: `complete` but {n} unchecked task box(es)")
+        lines.append("")
+
     # Active phase detail
     active = active_phase(states)
     if active is None:
         lines.append("### Active phase: **none — all phases complete**")
         lines.append("")
         lines.append(
-            "All phases through G report `complete`. If the PR has not yet "
-            "merged, the next action is verifying the merge / running the "
-            "session retro. If the session is post-merge, offer worktree "
-            "cleanup per Phase E post-session steps."
+            "All phases through H report `complete` — PR opened and parity QA "
+            "handed off to kmm-qa-autopilot. If the PR has not yet merged, the "
+            "next action is the autopilot QA run / merge. If the session is "
+            "post-merge, offer worktree cleanup per Phase E post-session steps."
         )
     else:
         phase_id, filename, name = active
