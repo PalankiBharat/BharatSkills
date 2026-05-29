@@ -211,6 +211,8 @@ Patterns applied **≥3 times in the same session** become project.md promotion 
 
 Setup facts (modules, DI framework, source-set wiring) captured on **first** occurrence via Phase 0 gap-fill — they're state, not patterns; rule of three doesn't apply.
 
+**Pure per-repo facts are captured INLINE at discovery — never deferred to retro/session-end.** The moment the skill recognizes a fact that belongs *purely* in `project.md` (a module name, host constant, build-config access scope, the canonical flavored gradle task, an iOS-sim name, "SDK X is KMM-published", a final-class testability gap, the squash-merge policy, etc.), it **drafts the `project.md` addition via the diff-confirm gate right then** — shows the user exactly what's being added (apply / edit / reject) and writes it on accept. Capturing at discovery time means later phases in the same session benefit immediately, instead of rediscovering the same fact. **It is also logged in `retro.md` tagged `[project.md]`** — the inline write handles the value now; the retro note lets the separate skill-improvement session decide whether the fact also implies a `[skill]` pattern. For `[both]`-type findings, write the per-repo *value* inline; the *pattern* side stays in retro for the skill session. This does not need the rule of three — a per-repo fact is worth recording on first sighting.
+
 Rule of three targets **KMM patterns specific to this repo** (project.md). General workflow rules that surfaced during a session (tool choices, edit discipline, ordering reflexes) get captured in `retro.md` per phase and reviewed in a separate skill-improvement planning session — they don't auto-promote.
 
 ### Scope-creep traceability gate
@@ -434,17 +436,17 @@ Retro fires at the **end of each phase** (Phase 0 through Phase H) and is a **BL
 
 The retro is captured automatically as part of closing the phase — it is not optional and is not gated behind a user prompt (per the Retro gate in §Universal hard gates).
 
-### Session close-out (after Phase H retro)
+### Session close-out (after Phase H retro) — safety-net sweep
 
-Once the final phase retro is captured, the skill runs a one-shot consolidation step that prevents the skill from accumulating per-repo facts:
+Per-repo facts are written to `project.md` **inline at discovery** throughout the session (see Rule of three → "Pure per-repo facts are captured INLINE"). So by close-out, most `[project.md]` values are already in `project.md`. This step is therefore a **safety-net sweep**, not the primary extraction path:
 
-1. **Scan `retro.md`** for every `[project.md]` and `[both]`-tagged bullet under "What could improve the skill" across all phases.
-2. **Draft proposed `project.md` additions** — one block per bullet, slotting into the appropriate canonical field (see §project.md canonical fields). For `[both]` bullets, draft only the per-repo value portion (the pattern side belongs in a separate skill-iteration session, not here).
-3. **Diff-confirm gate** — present the proposed additions via the standard `.kmm/project.md` diff-confirm prompt (apply / edit / reject). User decides per block.
-4. On accept, write to `project.md` and commit as a final two-commit cadence (`project.md` update + retro consolidation marker in `retro.md`).
+1. **Scan `retro.md`** for every `[project.md]` and `[both]`-tagged bullet across all phases.
+2. **Diff each against current `project.md`** — for any value that was NOT already written inline (missed at discovery), draft the addition into the appropriate canonical field (see §project.md canonical fields). For `[both]` bullets, draft only the per-repo value portion (the pattern side belongs in a separate skill-iteration session).
+3. **Diff-confirm gate** — present any remaining additions via the standard `.kmm/project.md` diff-confirm prompt (apply / edit / reject). User decides per block. (Usually empty, because inline capture already handled them.)
+4. On accept, write to `project.md` and commit (`project.md` update + retro consolidation marker in `retro.md`).
 5. `[skill]` and `[both]` bullets remain in `retro.md` for the separate skill-iteration planning session to consume — they are NOT extracted into the skill from inside a migration session.
 
-This step is **silent for sessions that produced no `[project.md]` or `[both]` bullets** (the common case after the skill stabilizes). It runs automatically and is **not skippable** — the consolidation step always runs; only its *writes* to `.kmm/project.md` remain gated behind the diff-confirm prompt (apply / edit / reject).
+This step runs automatically and is **not skippable** — only its *writes* to `.kmm/project.md` remain gated behind the diff-confirm prompt. It's **silent when the inline captures already covered everything** (the common case).
 
 ---
 

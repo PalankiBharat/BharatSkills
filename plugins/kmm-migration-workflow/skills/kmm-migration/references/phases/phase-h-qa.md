@@ -44,7 +44,7 @@ Amend `retro.md` with `## Phase H — Parity-QA Hand-off (captured YYYY-MM-DD)` 
 
 ### H.5 — Session close-out
 
-Run the session-end consolidation step (SKILL.md → Special actions → Session close-out): scan `retro.md` for `[project.md]` / `[both]` bullets, draft additions to the live repo's `project.md`, diff-confirm, write. Not skippable; its writes remain diff-confirmed. After consolidation, the session is complete — offer worktree cleanup per Phase E post-session notes once the PR merges.
+Run the session-end consolidation step (SKILL.md → Special actions → Session close-out). This is now a **safety-net sweep** — pure per-repo facts were written to `project.md` **inline at discovery** throughout the session (SKILL.md Rule of three → "Pure per-repo facts are captured INLINE"), so most `[project.md]` values are already in place. The sweep diffs `retro.md`'s `[project.md]`/`[both]` bullets against current `project.md` and diff-confirms only what wasn't already captured (usually nothing). Not skippable; writes remain diff-confirmed. After consolidation, the session is complete — offer worktree cleanup per Phase E post-session notes once the PR merges.
 
 ---
 
