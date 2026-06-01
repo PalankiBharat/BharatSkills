@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# build-and-install.sh — build the ProductionDebug APK from ONE worktree and install it
-# to ONE locked emulator. Run once per build (master -> A, pr -> B).
+# build-and-install.sh — build the ProductionRelease APK (default) from ONE worktree and
+# install it to ONE locked emulator. Run once per build (master -> A, pr -> B).
 #
 # Mirrors the repo's working install sequence (see sniper-ops install-prod):
 #   1. :app:objectboxPrepareBuild WITHOUT the configuration cache (ObjectBox's annotation
 #      processor isn't config-cache-safe in this project).
-#   2. installProductionDebug WITH config cache, objectbox + lint excluded.
+#   2. install<Variant> WITH config cache, objectbox + lint excluded.
 # Scoped to the target serial via ANDROID_SERIAL so the two builds land on the right devices.
 # --build-cache is on so the second build reuses the first where possible.
 #
-# Why ProductionDebug: real prod backend, debuggable, signed with the release-dev keystore.
-# Both master and the PR produce the same package (com.marketpulse.sniper.vte) — that's why
-# they need separate emulators.
+# Clean slate: before installing, the known package is UNINSTALLED on the target serial
+# (best-effort, ignored if absent). master and the PR build the SAME package
+# (com.marketpulse.sniper.vte) and live on separate emulators — a stale prior-run APK left on a
+# device makes post-install presence checks ambiguous, so we wipe first. This runs in Phase 0,
+# BEFORE the Phase 1 manual login, so no session/OTP is ever burned by it.
 #
 # Usage: build-and-install.sh <worktree-dir> <serial> <label>
 #   PARITY_VARIANT (env) selects the Gradle variant; DEFAULT ProductionRelease — the shipped
@@ -48,6 +50,14 @@ if grep -rqs "testTagsAsResourceId" app/src/main 2>/dev/null; then
 else
   echo "[$LABEL] ⚠ testTagsAsResourceId not found under app/src/main — id: selectors may not resolve; parity will fall back to text/structure only."
 fi
+
+# Clean slate — uninstall any prior build of this package on the target device before install.
+# Best-effort: a fresh device (nothing installed) returns non-zero, which we ignore. Override the
+# package with PARITY_APP_ID if a flavor adds an applicationIdSuffix. Runs in Phase 0, before the
+# Phase 1 manual login, so it never wipes a session you logged into.
+UNINSTALL_PKG="${PARITY_APP_ID:-com.marketpulse.sniper.vte}"
+echo "[$LABEL] uninstalling any prior $UNINSTALL_PKG on $SERIAL (clean slate)..."
+"$ADB" -s "$SERIAL" uninstall "$UNINSTALL_PKG" >/dev/null 2>&1 || echo "[$LABEL]   (none installed — ok)"
 
 # Step 1 — ObjectBox prepare, no config cache.
 ./gradlew :app:objectboxPrepareBuild --no-configuration-cache --build-cache

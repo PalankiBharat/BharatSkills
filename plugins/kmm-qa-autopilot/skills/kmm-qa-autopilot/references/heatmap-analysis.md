@@ -2,7 +2,8 @@
 
 The heatmap decides what to parity-test. "No exclusions, thorough" is the rule: every journey
 the diff can touch gets a flow. The art is mapping a business-logic diff to *user journeys*,
-because that's what we replay on both builds.
+because that's what we replay on both builds. Coverage is the **union of two sources** — the
+git diff (below) *and* the PR's own QA checklist (§1b) — not the diff alone.
 
 ## 1. Diff against LATEST master (not the PR's recorded base)
 
@@ -13,6 +14,29 @@ diff against the freshly-fetched tip (`setup-worktrees.sh` already did `git fetc
 git -C "$MASTER_WT" diff origin/master..."$PR_LOCAL_BRANCH" --name-status
 git -C "$MASTER_WT" diff origin/master..."$PR_LOCAL_BRANCH" --stat
 ```
+
+## 1b. Coverage = the diff ∪ the PR's own QA checklist (don't test the diff alone)
+
+The diff tells you what *changed*; the PR author's QA checklist tells you what they consider *at
+risk* — including negative/edge paths a pure diff-trace under-weights. Test **both, unioned**.
+
+```bash
+gh pr view "$PR_NUM" --json body -q .body   # extract the QA-checklist table rows
+```
+
+- Parse the PR body for a QA-checklist table (rows like *mobile entry, OTP verify, invalid-OTP,
+  422/429 mapping, network-failure, lockout, session-expiry edge*). Each row is a coverage item.
+- **Union + dedupe** these with the diff-derived journeys into one list. A checklist row that maps to
+  an already-derived journey merges into it; rows with no diff journey (e.g. pure negatives) become
+  their own items.
+- Every checklist row must end the run as **either a tested checkpoint or an explicitly-declined named
+  gap with a reason** — never silently dropped (PR #420 left 11 of 19 rows dark; that's the failure
+  this fixes).
+- **Negative paths are first-class flows, not skips.** invalid-OTP, 422/429 mapping, airplane-mode /
+  network-failure are cheap and **don't mutate state** — generate flows for them. (OTP-attempt
+  *lockout* is the exception: it locks the prod account → declined gap unless the user confirms a test
+  account. Parsing is best-effort: if the body has no recognizable QA table, fall back to diff-only and
+  say so at the gate.)
 
 ## 2. KMM migration diffs look different from feature diffs
 

@@ -42,6 +42,11 @@ DEFAULT_SEED_MASK = [
     "price", "ltp", "pnl", "p_n_l", "pl_", "percent", "change", "ticker",
     "clock", "time", "timestamp", "chart", "canvas", "candle", "spark", "ohlc",
     "marquee", "live", "quote", "last_traded",
+    # chart-region render nodes: SciChart axis ticks/series/annotations re-render at a
+    # sub-value offset and a device can diverge from ITSELF on relaunch (the visible price
+    # is identical; the axis tick label rounds differently). Masking the region kills a
+    # recurring false 🔴 on chart-bearing screens (see parity-comparison.md "relaunch trick").
+    "axismodifier", "axis", "renderableseries", "adorner", "annotation",
 ]
 
 # A device showing any of these is on an auth/login surface — used for eviction detection.
@@ -154,6 +159,12 @@ def main():
                          "server-state-dependent (e.g. 'sent this report', 'you will receive'). "
                          "Same prod account on both devices means a stateful action's 2nd request "
                          "sees mutated server state — that copy is not a parity signal.")
+    ap.add_argument("--mask-text", nargs="*", default=[],
+                    help="substrings of visible text to mask as render/display noise rather than "
+                         "migrated-logic output — e.g. chart-axis tick numbers that re-render at a "
+                         "sub-value offset and differ across devices though the real value matches. "
+                         "Distinct from --server-state-text (which is for backend confirmation copy); "
+                         "use this for on-screen-render jitter that has no stable resource-id to seed-mask.")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
 
@@ -218,6 +229,11 @@ def main():
             # the 2nd request sees mutated server state, so this text is order/state-dependent,
             # not a build difference. Mask it instead of calling a 🔴. (See stateful-action note.)
             masked.append({"text": t, "reason": "server-state-text"})
+            continue
+        if any(p.lower() in t.lower() for p in args.mask_text):
+            # Render/display noise with no stable id (e.g. a chart-axis tick number that rounds
+            # differently per device while the real value matches) — masked, not a build 🔴.
+            masked.append({"text": t, "reason": "mask-text"})
             continue
         if min(ca_, cb_) == 0:
             # Present on exactly ONE build → a real value/row difference (a unique row key like a

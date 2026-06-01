@@ -56,6 +56,27 @@ Auto-masked volatile fields this run: <count typical per screen>. Seed mask used
 Server-state confirmation copy masked (stateful actions, if any): <phrases via --server-state-text>.
 ```
 
+## Publishing to the PR (automatic — the PR is the deliverable, not a local .md)
+
+The local report is the audit trail; the **PR is the deliverable surface**. Phase 6 publishes there
+automatically (gated only by "is this a GitHub PR" — it always is, the single input is a PR link).
+Don't wait to be asked (PR #420 left the body's QA table all `—` until prompted). Three steps:
+
+1. **Fill the PR body's QA-table Result column in place** (the author's checklist rows — see the
+   coverage union). Edit, don't rewrite the body:
+   ```bash
+   gh pr view "$PR_NUM" --json body -q .body > /tmp/pr-body.md
+   # update each QA row's Result cell (🟢/🔴/🟡/⏭️ untested) + flip the QA section header to the verdict
+   gh pr edit "$PR_NUM" --body-file /tmp/pr-body.md
+   ```
+2. **Flip the QA section header** to the overall verdict (🟢 PARITY HOLDS / 🔴 DIVERGENCE FOUND / 🟡 REVIEW DRIFT).
+3. **Post the divergence writeup as a comment** (the per-🔴 detail + both values + the audit-subagent root cause):
+   ```bash
+   gh pr comment "$PR_NUM" --body-file "$RUN_DIR/parity-report-pr$PR_NUM-<date>.md"
+   ```
+Use `--body-file` (never inline `--body "$(…)"`) so the markdown table/emoji survive shell quoting.
+A declined/untested row stays `⏭️ untested` in the table — published gaps, never silent passes.
+
 ## Retro
 A session retro is saved to `$RUN_DIR/retro.md` (Phase 8) — friction + proposed skill improvements
 from this run, for triage into the skill in a separate session.

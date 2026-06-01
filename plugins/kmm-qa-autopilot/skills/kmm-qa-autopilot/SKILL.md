@@ -65,6 +65,11 @@ report a false 🟢.
 Read `references/dual-emulator.md` for the locking policy and the **scope-every-command** rule
 (two devices now — an unscoped `adb`/`maestro` call is ambiguous).
 
+**Reuse persisted assets if the UI is unchanged.** If `.kmm-qa/manifest.json` exists in the PR tree
+and its `ui_source_tree` hash matches the current `app/src/main`, seed `$RUN_DIR` from `.kmm-qa/` and
+skip rediscovery of the login path, selectors, and flows — a migration doesn't touch the UI, so it
+usually matches even across PRs. Otherwise rediscover only the deltas. See `references/kmm-qa-assets.md`.
+
 **If any flow needs a testTag that doesn't exist**, add the *identical* patch to BOTH worktrees'
 UI source **now, before building** (`references/maestro-parity.md` → "Missing tag?"). The UI is
 identical across the two trees, so the same edit applies to both; patching only one tree
@@ -77,16 +82,27 @@ bash scripts/build-and-install.sh "$PR_WT"     "$B" pr        # ProductionReleas
 Builds default to **ProductionRelease** — the shipped, R8-minified artifact users actually run. Do
 **NOT** use ProductionDebug: it's the canary / non-R8 build and can HIDE R8-only regressions, most
 dangerously serialization (a Gson→kotlinx.serialization migration can be 🟢 on debug yet broken under
-R8). Both print `APP_ID=…` (same package, different devices) and warn if `testTagsAsResourceId` is off.
+R8). Each script **uninstalls any prior build of the package first** (clean slate — master & PR share
+`com.marketpulse.sniper.vte`, so a stale prior-run APK makes presence checks ambiguous; the uninstall
+runs before the Phase 1 login, so no session is lost). Both print `APP_ID=…` and warn if
+`testTagsAsResourceId` is off; after BOTH installs, confirm the package is present on A *and* B.
 ProductionRelease is slower (~5–6 min cold); the second build reuses the shared Gradle cache. Release &
 debug share signing here, so the release APK installs over a prior debug one with login preserved.
+
+**Overlap the build wait.** The two ProductionRelease builds run **sequentially** (~12–16 min cold;
+parallel builds were measured slower — they lose Gradle-cache reuse and contend for CPU/disk, so don't).
+Use that wait: run the Phase 2 heatmap diff + coverage analysis *while the builds run*, so nothing is
+idle. Builds and analysis are independent — only flow-running needs the installed APKs.
 
 ## Phase 1 — Manual login (the ONLY manual step)
 
 Launch the app on both, then hand control to the user:
 
 ```bash
-APP_ID="$(python3 -c 'import json;print(json.load(open("'"$MASTER_WT"'/app/build/outputs/apk/productionDebug/output-metadata.json"))["applicationId"])')"
+# build-and-install.sh already printed APP_ID=… (capture that). To re-derive, glob the metadata for
+# whatever variant was built (default productionRelease) instead of assuming a fixed path:
+META="$(find "$MASTER_WT/app/build/outputs/apk" -name output-metadata.json | head -1)"
+APP_ID="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["applicationId"])' "$META")"
 for S in "$A" "$B"; do adb -s "$S" logcat -c; adb -s "$S" shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1; done
 ```
 Optionally start a crash-only logcat per device in the background (`adb -s "$S" logcat --pid=<pid> -v threadtime '*:E'`, `run_in_background: true`).
@@ -111,6 +127,14 @@ to **user journeys**. Classify each journey **read-only vs state-mutating** (saf
 and additionally flag **stateful actions** (submit/send/download/email): on a shared prod account
 the 2nd device's request hits mutated server state, so their post-action confirmation copy is NOT a
 parity signal — compare the pre-submit state, not the server message (see `references/heatmap-analysis.md`).
+
+**Coverage = the diff ∪ the PR's own QA checklist** — not the diff alone. Parse the PR body
+(`gh pr view "$PR_NUM" --json body -q .body`) for its QA-checklist rows and **union + dedupe** them
+with the diff-derived journeys. Every checklist row must end the run as a tested checkpoint OR an
+explicitly-declined named gap with a reason — never silently dropped (PR #420 left 11 of 19 rows
+dark). **Negative paths** (invalid OTP, 422/429 mapping, airplane-mode) are first-class flows, not
+skips — they're cheap and don't mutate state (OTP-lockout is the exception: it locks the account →
+declined gap unless the user confirms a test account). See `references/heatmap-analysis.md` §1b.
 
 **Read `.kmm/exceptions/*.md` in the PR tree for CONTEXT only.** These are the authors' *claims* that
 the migration deliberately changes some behavior (e.g. a date-label fix). They are **not trusted
@@ -181,10 +205,28 @@ device hits mutated server state, so post-action confirmation copy differs by OR
 Compare the pre-submit state / that the action fired; mask the server copy with
 `compare-parity.py --server-state-text "<phrase>" …`. Treat such a diff like EVICTION, not a 🔴.
 
-Read `references/parity-comparison.md` to interpret 🟢/🟡/🔴/⚠️ and to **confirm a 🔴 before reporting
-it** (re-check it isn't an unmasked live field, a scroll-offset / step desync, a stateful-action
-server message, or an eviction). **The verdict is the tool's OWN, evidence-backed call** — an
+**Chart-axis render jitter — confirm before 🔴:** SciChart axis ticks re-render at a sub-value offset,
+so a device can diverge from ITSELF on relaunch while the real price is identical. The default seed
+now masks `axis*`/`renderableseries`/`annotation`; for an axis number with no stable id use
+`compare-parity.py --mask-text "<token>"` (not `--server-state-text`). Confirm via the relaunch trick.
+
+**The bug-handling protocol (in order) — `references/parity-comparison.md`:** (1) reproduce a 🔴 ≥2×
+on B; (2) if it *could be expected behavior* (account-state, one-device-per-account, server dedupe,
+eviction), try once then **ASK THE USER UPFRONT via the AskUserQuestion tool** — don't assume and burn
+turns on a hypothesis; (3) **batch all findings, don't tunnel** on the first; (4) interpret 🟢/🟡/🔴/⚠️
+and rule out the false-positive classes (unmasked live field, scroll-offset / step desync, chart
+jitter, stateful server copy, eviction). **The verdict is the tool's OWN, evidence-backed call** — an
 exception doc claiming a change is "intentional" never auto-downgrades a confirmed 🔴.
+
+## Phase 5b — Batch & root-cause each finding (before reporting)
+
+With every journey run and all findings batched, **confirm each is migration-induced with a per-issue
+code-audit subagent** — never inline on the main thread (that bloats context and biases toward a
+mid-run hypothesis, exactly the PR #420 account-state detour). One subagent per issue, given full
+context upfront (symptom + both values, the changed files + `git diff <baseline>...<pr>`, relevant
+`.kmm/exceptions/*` claims, captured evidence), returning is-migration-induced / root cause / offending
+lines / suggested fix. **Model-tier per issue:** Sonnet for small/localized (a missing slash, a renamed
+field), Opus for complex or auth/money-path issues. See `references/code-audit-subagents.md`.
 
 ## Phase 6 — Report
 
@@ -199,6 +241,20 @@ fields were masked, and whether the signal was tag- or text-based. A green over 
 false green; the report must show what each verdict actually covered. The verdict is
 **evidence-backed**: report what was observed with evidence, and list anything unverified (including
 documented exceptions that were not UI-reachable) as a named gap, never as a silent pass.
+
+**Publish to the PR — automatic, don't wait to be asked.** The PR is the deliverable surface, not a
+local .md. Phase 6 (gated only by "is this a GitHub PR" — it always is) **fills the PR body's QA-table
+Result column in place** (`gh pr edit --body-file`), **flips the QA section header to the verdict**,
+and **posts the divergence writeup** (`gh pr comment --body-file`). Use `--body-file`, never inline
+`--body`, so the table/emoji survive shell quoting. Declined/untested rows stay `⏭️ untested` —
+published gaps, never silent. Recipes in `references/report-template.md`.
+
+**Persist reusable assets to `.kmm-qa/`** (do this here, while the PR worktree still exists). Promote
+the finalized per-journey flows + refreshed `selectors.json`/`manifest.json` into the repo's
+`.kmm-qa/` (drop `_tmp_*` probes), run the **no-PII scan** (phone/PIN/OTP → abort on any hit) and the
+`git check-ignore .kmm-qa` gate, then `git add .kmm-qa` → conventional commit (`chore(kmm-qa): …` +
+Co-Authored-By) → push to the PR branch. A rerun with a matching UI-tree hash reuses this wholesale.
+See `references/kmm-qa-assets.md`.
 
 ## Phase 7 — Cleanup
 
@@ -259,6 +315,12 @@ places/cancels **real orders / real money — doubled**. So:
 | Trusting `.kmm/exceptions/*.md` to downgrade a 🔴 | Exceptions are authors' claims, context only. Verify independently; a confirmed 🔴 stays 🔴 until your own evidence explains it. |
 | Calling a mid-scroll boundary-row diff a 🔴 | Scroll both to a deterministic anchor (list bottom) and re-compare — offset drift, not a migration bug. |
 | Diffing a stateful action's server confirmation copy | Same account → 2nd request hits mutated server state. Compare pre-submit state; mask copy with `--server-state-text`. |
+| Calling a chart-axis tick diff a 🔴 | SciChart axes re-render at a sub-value offset (a device diverges from itself on relaunch). Mask the chart region / `--mask-text`; confirm via the relaunch trick. |
+| Stopping at a local report | The PR is the deliverable — auto-fill the body QA table, flip the verdict header, and `gh pr comment` the findings. Don't wait to be asked. |
+| Testing only the git diff | Coverage = diff ∪ the PR's own QA checklist. Every checklist row → tested or a named declined gap; negatives are first-class flows. |
+| Assuming a possibly-expected 🔴 and chasing a hypothesis | Reproduce 2×; if it could be account-state/server behavior, ASK the user upfront via AskUserQuestion — don't burn turns on a theory. |
+| Root-causing a finding inline on the main thread | Batch all findings, then confirm each with a per-issue code-audit subagent (Sonnet small / Opus complex), full context upfront. |
+| Rediscovering login/selectors/flows every run | Reuse `.kmm-qa/` when the UI-tree hash matches; persist finalized flows back (no PII, no `_tmp_*`) and push to the PR branch. |
 | Skipping the Phase 8 retro | Always write `$RUN_DIR/retro.md` — that's how the skill improves from each real run. |
 
 ## Key principles
@@ -272,4 +334,6 @@ places/cancels **real orders / real money — doubled**. So:
 7. **Real prod, real money.** Mutating journeys are gated. The cost of a wrong trade dwarfs the cost of asking.
 8. **Test the shipped artifact.** ProductionRelease (R8-minified), never the debug/canary build — release-only behavior (esp. serialization) is exactly what parity must catch.
 9. **Your own evidence is the verdict.** Reference exception docs / PR notes for context, never to excuse a divergence; a confirmed 🔴 stays 🔴 until the tool's own evidence explains it.
-10. **Improve every run.** Phase 8 writes a retro so the skill compounds with each real PR.
+10. **Ask, don't assume — then audit.** On a possibly-expected 🔴, ask the user upfront (AskUserQuestion) instead of theorizing; confirm every finding is migration-induced with an independent code-audit subagent before it lands on the PR.
+11. **The PR is the deliverable.** Auto-fill the body's QA table, post the findings, and persist reusable flows to `.kmm-qa/` — a local .md is the audit trail, not the result.
+12. **Improve every run.** Phase 8 writes a retro so the skill compounds with each real PR.
