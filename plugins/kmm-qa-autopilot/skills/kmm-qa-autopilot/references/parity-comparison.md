@@ -51,13 +51,35 @@ device's screens stop matching for a reason that has nothing to do with the migr
 oracle detects "auth surface on exactly one device" and returns EVICTION instead of a false 🔴.
 When you see it: re-login on both devices and re-run that journey; don't report it as a finding.
 
-## DIVERGENCE — confirm before you call it
+## DIVERGENCE — the bug-handling protocol
 
-A 🔴 is a strong lead, not an automatic bug. Before reporting:
+A 🔴 is a strong lead, not an automatic bug. Run this protocol **in order** — it's the fix for the
+PR #420 failure mode (one B failure → an account-state hypothesis → ~8 wasted tool calls before the
+real cause, a missing URL slash, was read from source):
+
+1. **Reproduce ≥2× on B** before treating the 🔴 as real (re-run the checkpoint). A one-off flake
+   isn't a finding.
+2. **If the divergence could be *expected behavior*** — account-state, one-device-per-account, server
+   dedupe, eviction — try it **once**, then **ASK THE USER UPFRONT via the AskUserQuestion tool**
+   ("B's 2nd biometric registration on the same account failed — is that expected, or should both
+   succeed?"). A one-line question beats an 8-call hypothesis you then have to tear down. Do **not**
+   assume and burn turns building/refuting a theory.
+3. **Batch, don't tunnel.** Accumulate *all* findings across *all* journeys into one list; don't stop
+   the run to chase the first 🔴.
+4. **Root-cause each batched finding with a per-issue code-audit subagent** (model-tiered) — see
+   [code-audit-subagents.md](code-audit-subagents.md) — before writing it up as confirmed.
+
+Before reporting any single 🔴, also rule out the known false-positive classes:
 - Open the side-by-side `a.s0.png` / `b.s0.png` for that checkpoint — does the difference show
   visually, or is it a hierarchy artifact?
 - Re-check the value isn't actually live (a number that *should* have been masked but the seed
   missed and it didn't tick in 2s). If so, add it to `--seed-mask` and re-run that checkpoint.
+- **Chart-axis render jitter (the "relaunch" trick):** SciChart axis ticks/series re-render at a
+  sub-value offset, so a device can **diverge from ITSELF on relaunch** (e.g. A flipped `23379→23383`
+  on relaunch while the real NIFTY value `23382.60` was identical on both). Confirm by relaunching the
+  *same* build and re-capturing — if it differs from itself, it's render noise, not the migration.
+  Mask the chart region (default seed now covers `axis*`/`renderableseries`/`annotation`) or, for an
+  axis number with no stable id, `compare-parity.py --mask-text <token>` — not `--server-state-text`.
 - Confirm both builds were at the same step (a flaky tap can leave one device a screen behind →
   spurious presence diffs). Re-run the checkpoint.
 - **Scroll/paging offset:** a single extra row at a list boundary is almost always the two devices

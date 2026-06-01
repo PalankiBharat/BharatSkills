@@ -73,6 +73,15 @@ Labels in the wild differ by case and exact wording. Match exact first, then fal
 case-insensitive. If a control still isn't found, **inspect the live hierarchy and try alternate
 labels/routes before declaring a gap** — never silently skip a touchpoint in a "no-exclusions" run.
 
+Inspect with the committed helper, not a hand-rolled one-liner:
+```bash
+python3 scripts/dump-hierarchy.py "$A" --filter id            # what's tagged (id: selectors)
+python3 scripts/dump-hierarchy.py "$A" --filter text --grep ledger   # text on untagged screens
+python3 scripts/dump-hierarchy.py "$A" --filter clickable      # the tappable target
+```
+(Use this over inline `python3 -c '…'` — those break on backslashes/quoting under zsh, which cost
+real time on the PR #420 run.)
+
 ## Stateful actions (submit / send / download / email) — don't diff the server's reply
 
 A flow that fires a stateful action changes server state. Because both devices use the **same
