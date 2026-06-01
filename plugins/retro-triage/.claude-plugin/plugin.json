@@ -1,0 +1,5 @@
+{
+  "name": "retro-triage",
+  "description": "Triage a skill's session retro (retro.md / improvement backlog) into reviewed, version-bumped skill edits and a PR. Use when the user hands you a retro (file path or pasted) plus the skill they're working on — \"triage the retro for <skill>\", \"/retro-triage\", \"apply the retro to my skill\", \"turn retro.md into a PR\", \"work through the retro one by one\". Treats the retro as CANDIDATES not decisions: reads the whole target skill first, distills distinct candidates, gets approval one-by-one (each with a recommended option + reasoning via AskUserQuestion), reconciles against the skill's own refuted/learned notes, then implements surgically in a worktree and ships a PR without bloat.",
+  "version": "0.1.0"
+}
