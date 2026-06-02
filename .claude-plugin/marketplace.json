@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",
-    "version": "1.18.0",
+    "version": "1.19.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -361,37 +361,6 @@
         "shared module",
         "expect actual",
         "baseline tests"
-      ]
-    },
-    {
-      "name": "kmm-pr-review",
-      "source": "./plugins/kmm-pr-review",
-      "description": "PR review for Kotlin Multiplatform repos. Spawns specialist subagents per file (correctness, idiom, master-grounded) against canonical JetBrains / Android / SKIE docs \u2014 every finding cites a source or is dropped. P0\u2013P3 prioritization with PR-induced vs pre-existing attribution so existing debt never blocks merge; iOS-readiness auto-promotes to P0 on migration PRs.",
-      "version": "1.1.1",
-      "category": "developer-tools",
-      "tags": [
-        "kmm",
-        "kotlin-multiplatform",
-        "code-review",
-        "pull-request",
-        "android",
-        "ios",
-        "skie",
-        "compose",
-        "swiftui",
-        "expect-actual"
-      ],
-      "keywords": [
-        "kmm",
-        "kmp",
-        "pr review",
-        "kotlin-multiplatform",
-        "commonMain",
-        "iosMain",
-        "expect actual",
-        "skie",
-        "migration drift",
-        "review pr"
       ]
     },
     {
