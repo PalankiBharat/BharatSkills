@@ -80,7 +80,7 @@ Results cached in `.kmm/searches/<topic-hash>.md` — **subagents consume from c
 
 **SDK/library KMM-availability — HARD GATE (NON-NEGOTIABLE).** Before any subagent (or the orchestrator) labels a dependency Android-only / `no-equivalent` / `Forces hold`, it MUST verify against the library's **published Gradle module metadata** — the `.module` file / an `iosSimulatorArm64`/`iosArm64`/`iosX64` klib in `~/.gradle/caches`, or `./gradlew :<dest>:dependencyInsight --dependency <lib>`. **How the `:app` consumes it proves nothing about iOS availability.** The per-file analysis entry must **cite the metadata check** behind any "non-portable" verdict; a verdict without the citation is rejected and re-run. When the check is genuinely inconclusive, surface to the user rather than guess (SKILL.md Decision routing). *Repeated failure mode: `mobilenetworkingsdk` was misclassified Android-only three times across two sessions; the gradle-cache klib proved it KMM-published each time, and the user had to correct it.*
 
-**Output schema — enumerated values only (no free-form phrasings).** Parallel analysis subagents drifted across two sessions ("migrate-with-seam", etc.), forcing the synthesizer to normalize. Each per-file entry uses exact enum values: **`Phase D plan` ∈ {`migrate`, `hold`}**, **`lib-swap` ∈ {`path-a`, `path-b`, `none`}**, **iOS interop verdict ∈ {`clean`, `blocked`, `degraded`}**. Reject and re-run any subagent output that invents a value outside these sets.
+**Output schema — enumerated values only (no free-form phrasings).** Parallel analysis subagents drifted across two sessions ("migrate-with-seam", etc.), forcing the synthesizer to normalize. Each per-file entry uses exact enum values: **`Phase D plan` ∈ {`migrate`, `hold`}**, **`lib-swap` ∈ {`path-a`, `path-b`, `none`}**, **iOS interop verdict ∈ {`clean`, `blocked`, `degraded`}**, **`concurrency-semantics-sensitive` ∈ {`yes`, `no`}**. Reject and re-run any subagent output that invents a value outside these sets.
 
 Per in-scope file:
 
@@ -105,6 +105,7 @@ Per in-scope file:
   - **`hold`** — at least one dep forces hold. File stays in `androidMain` after Phase B (post-relocation). Promotion deferred to a future session.
 - **`expect`/`actual` sketch** if any (for Phase D foundation).
 - **File-specific risks** — behavioral-divergence, concurrency, other (iOS interop has its own field below — don't duplicate here).
+- **`concurrency-semantics-sensitive`** ∈ {`yes`, `no`}. Set `yes` when this file's migration replaces a JVM-only concurrency type (`ConcurrentHashMap`, `Atomic*`, `Collections.synchronized*`, a `synchronized{}` block, `volatile`) with a commonMain primitive (`Mutex`, `atomicfu`, `@Synchronized`). The flag is `yes` **even when functional outputs are unchanged** — the swap can silently shift *parallelism level* (lock-free parallel → serialized, or independent calls → coalesced) while every single-caller output stays identical. A `yes` binds the seam to **preserve master's parallelism level, not just its outputs**, and arms the mandatory multi-caller baseline assertion in Phase B (B.4). *Failure mode this catches: an account-status store swapped a lock-free `ConcurrentHashMap` for `mutableMap` + a `Mutex` held across the network call — parallel fetches became serialized + coalesced, invisible to every single-caller baseline, and the migrated behavior was then frozen as "parity."*
 - **iOS Swift interop assessment** *(applies only to files with `Phase D plan: migrate`; `hold` files skip — they don't reach commonMain this session, so no Swift consumer exists yet).* Sourced from the cached iOS-axis search results (sub-phase 2), **never training recall**. Cite the specific `.kmm/searches/<hash>.md` row that motivates each finding.
   - **Swift consumer view of public surface** — for each public method/property, the expected Swift call site shape (return type, async/await vs completion, optional vs non-optional, exhaustive-switch availability for sealed returns, etc.).
   - **Interop verdict** — exactly one of `clean` / `blocked` / `degraded`:
@@ -177,7 +178,7 @@ Living document. Contains:
 - Cached live-search results (patterns, antipatterns, KMM-native API references)
 - Per-file analysis (one entry per file with the fields above, including `Phase D plan: migrate / hold`, `lib-swap: path-a / path-b / none`, and for `migrate` files the `iOS Swift interop assessment` block — verdict + Swift consumer view + must-needed refactor (if `blocked`) + rejected improvements — each with search-cache citations)
 - **Per-file iOS interop summary table** (only `migrate` files) — file → verdict (`clean`/`blocked`/`degraded`) → refactor (if any) → caller-count handling (n/a / defer / refactor-in-place / extend-scope / flip-to-hold). Cross-references the per-file entries.
-- **Per-file Phase D plan summary table** (file → `migrate` or `hold` → `lib-swap` → rationale) — feeds `coverage.md`'s Phase D plan column and the `phase-d-followups.md` deferred-baseline list.
+- **Per-file Phase D plan summary table** (file → `migrate` or `hold` → `lib-swap` → `concurrency-semantics-sensitive` → rationale) — feeds `coverage.md`'s Phase D plan column and the `phase-d-followups.md` deferred-baseline list.
 - **SUT test-classpath gaps** (aggregated) — deps that need `testImplementation` added at Phase B's B.0 source-set bootstrap. Surfaced here so B.0 preempts compile blockers.
 - **HTTP client parity tables** (only if an HTTP-client substitution is locked):
   - **Per-service timeout parity** — `<service-key>: connectTimeoutMillis, requestTimeoutMillis, socketTimeoutMillis` for every service, sourced verbatim from pre-migration code.
@@ -201,7 +202,8 @@ Beyond universals:
 - **Every locked substitution has a verified-existing, Kotlin-compatible version** (sub-phase 1) — no aspirational versions.
 - **Plan validation pass run** (sub-phase 1.7) when the plan is non-trivial, including the "what's new in 12 months" sweep — or an announced skip for a trivial pure-Kotlin move.
 - **Every "Android-only / non-portable" dep verdict cites its gradle-metadata check** (sub-phase 3 hard gate) — no inference from the `:app` call site.
-- Per-file entries use the enumerated output values only (`Phase D plan`, `lib-swap`, iOS verdict).
+- Per-file entries use the enumerated output values only (`Phase D plan`, `lib-swap`, iOS verdict, `concurrency-semantics-sensitive`).
+- **Concurrency-primitive swaps are flagged** (sub-phase 3) — any file replacing a JVM-only concurrency type with a commonMain primitive carries `concurrency-semantics-sensitive: yes`, binding its seam to preserve master's parallelism level (not just outputs) and arming the Phase B (B.4) multi-caller assertion. Phase F verifies; it does not discover this — Phase A flags it.
 - Every classification and seam strategy cites evidence (search finding, dep analysis, profile rule).
 - Every in-scope file has a recorded `Phase D plan` (`migrate` / `hold`) with rationale.
 - New interfaces meet the ≥2-consumer test or get inlined.

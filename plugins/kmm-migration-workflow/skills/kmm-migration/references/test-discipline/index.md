@@ -411,6 +411,25 @@ flow, the test must:
 - Never use real wall clock or real `Dispatchers.IO`.
 - For `mapLatest` / `conflate` / `debounce`: at least one test that fires twice within the window and asserts only one downstream effect.
 
+**Concurrency-semantics parity (migration baselines).** When a file is flagged `concurrency-semantics-sensitive` in Phase A — a JVM-only concurrency primitive (`ConcurrentHashMap`, `Atomic*`, `synchronized`, `volatile`) being swapped for `Mutex` / `atomicfu` / `@Synchronized` — the baseline must pin master's **parallelism level**, not just its outputs. A single-caller test cannot see a parallel→serialized or independent→coalesced shift; every output looks identical. Write a **multi-caller** assertion deriving the expected count from master:
+
+- Fire N concurrent same-key operations that all miss the cache.
+- Assert how many times the underlying work (e.g. the network call) actually ran: **N** if master was lock-free, **1** only if master *genuinely* coalesced.
+- The expected count comes from master's observed behavior — **never** from the migrated code. Freezing the migrated count as "parity" is the silent-equivalence-break this catches (a `Mutex` held across a network call turns lock-free parallel fetches into serialized + coalesced ones).
+
+```kotlin
+// master: lock-free ConcurrentHashMap cache → parallel callers each hit the network
+@Test
+fun `N concurrent same-key misses each reach the network (master parallelism)`() = runTest {
+    val api = RecordingApiClient()                  // counts calls per key
+    val sut = AccountStatusStore(api)
+    List(5) { launch { sut.fetch(KEY) } }.joinAll() // same key, all miss
+    assertEquals(5, api.callCountFor(KEY))          // lock-free → 5, not 1
+}
+```
+
+**Prefer a clean-assertion discriminator over a timeout RED.** When proving this baseline red-on-breakage (Phase B.5), a `runTest` *timeout* (the serialized version deadlocks/hangs) is acceptable proof but weak — a timeout can also mask an unrelated hang. Where the interleaving allows, prefer a mutation that fails as a clean **count/assertion mismatch** (asserted 5, got 1), not a timeout.
+
 ### Time
 
 If your code reads `System.currentTimeMillis()`, `Instant.now()`
