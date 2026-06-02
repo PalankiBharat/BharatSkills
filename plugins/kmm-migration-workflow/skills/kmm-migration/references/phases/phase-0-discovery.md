@@ -35,6 +35,7 @@ If user is on `main` or any non-`kmm/` branch:
 - Propose worktree path: `../<repo>-<branch-suffix>/` (default; configurable in `project.md`).
 - User confirms (one line) → run `git worktree add <path> -b <branch>`.
 - Skill runs `cd <path>` (Bash, sticks for the rest of the session) and announces *"Worktree at `<path>`. Continuing Phase 0 here."*
+- **Verify `local.properties` exists (`sdk.dir`) before any gradle gate.** A fresh worktree doesn't inherit it; if absent, create it from `$ANDROID_HOME` or copy the primary worktree's — a missing `sdk.dir` blocks the entire Phase B entry gate (it cost a whole gate-failure cycle in a prior session).
 - **Phase 0 continues in this same conversation** at step 4.5. No re-invocation needed.
 
 ### 4.5. `.gitignore` bootstrap
@@ -58,11 +59,21 @@ Parallel Sonnet subagents from each seed. Bounds:
 
 **Walk reports confidence and unresolved bindings.** Example output: *"30 files via static + Hilt graph; 3 Koin DSL modules with dynamic logic — 2 unresolved bindings flagged for sanity check."* Skill admits limits; user sanity-checks before confirming. Koin DSL with dynamic logic / Hilt+Koin coexistence can hide bindings.
 
-**Standard sweeps in the dep-walk output (all four mandatory — surfaced late in prior sessions, so they're now standard, not discovery-on-demand):**
+**Standard sweeps in the dep-walk output (all five mandatory — surfaced late in prior sessions, so they're now standard, not discovery-on-demand):**
 - **Platform-specific logger sweep.** Catalogue `Timber` / `Log` / Logcat / `NSLog` usage across the reachable set, alongside ObjectBox/Firestore/DataStore, as a standard Android-only blocker. (Timber surfaced only on a third pass in *both* sessions.)
 - **DI-qualifier enumeration.** List the Hilt/Koin qualifier annotations on the reachable graph (e.g., `@Live`, `@Practice`, `@*Sync`) — they shape Phase A's seam/DI design and the platform-ownership decision (SKILL.md / Phase A 1.6).
 - **Final-class-without-interface flag.** Flag in-scope files whose dependencies are concrete `final` classes with no interface (grep `class X(` not `open`/`interface`/`abstract`) — these block clean baselining of their consumers and need a pre-baseline interface seam. (Caught two consumers at Phase B-time in a prior session.)
+- **Static-singleton reachability sweep.** Grep in-scope SUTs for static / service-locator access (`BaseApplication.instance`, `*.getInstanceId`, `UserModel.<static>`) reachable from **public entry points or top-level functions** — not just constructor deps. A hidden `BaseApplication.instance` reached via a top-level `track()` call slipped past triage and surfaced only at runtime in a prior session. These statics block clean baselining and need an inject-the-collaborator seam.
 - **Transitive display-model blocker scan.** When a business-logic file references a VM-co-located or view-data type, flag embedded domain models (Chart-style: mutable cached state, `@Stable` misuse, `java.util.Date` entanglement) that would block iOS-readiness — don't wait for the user to ask "what is X doing?".
+
+### 6.5. Ground-truth live-vs-dead reachability (before locking scope)
+A Phase-0 dead-code misclassification is expensive: a live OTP ViewModel chain wrongly excluded forced a mid-Phase-A re-scope that roughly doubled the analysis. Settle live-vs-dead **here**, not at Phase A.
+
+- **Trace the nav graph to confirm each seed-reachable file is actually live** (a real navigation path reaches it), not orphaned/legacy code that merely still compiles.
+- **When two dep-walks disagree on a path** (e.g. a live `:app` chain vs a dead `:library` store), run a dedicated verification subagent to resolve it **before** presenting the manifest — don't let a contested reachability claim corrupt scope.
+- **For seeds with known legacy variants** (auth/login, checkout, onboarding — areas that commonly accrue multiple historical flows), explicitly ask the user *"which of these flows are dead?"* up front. Dead code routinely dominates the first walk; the user knows which paths were retired.
+
+Resolved live/dead status feeds the manifest (sub-phase 11) and the per-ripple decisions (sub-phase 9).
 
 ### 7. Classification
 Haiku subagent. Each discovered file → one type per `test-discipline` taxonomy (see `test-discipline/index.md`):
@@ -76,7 +87,7 @@ Per file:
 - Already frozen elsewhere — scan sibling `.kmm/migrations/*/coverage.md` for matches. If found → flag *"already frozen by `<other-session>`; reuse the baseline rather than re-writing."*
 
 **Target test source-set health check** (one-time, per session):
-- **Test-compile state of `<dest>/androidUnitTest`.** All baselines land here in Phase B (uniform routing). Quick compile check; report clean / N broken (file list). Broken pre-existing tests are **quarantined via `@Ignore` in Phase B** (per `test-discipline/migration-baselines.md` (Quarantine section)), not fixed as part of this migration. `<dest>/commonTest` is not checked at Phase 0 — Phase E does its own pre-promotion check if any baseline migrates there.
+- **Compile BOTH candidate baseline source sets — `<dest>/androidUnitTest` AND `:app/src/test/`.** The B-strategy (relocate-first vs baseline-in-place) isn't chosen until Phase B, and baseline-in-place writes to `:app/src/test/` — so checking only `<dest>/androidUnitTest` misses pre-existing breakage in the other candidate. **Run the actual test-source-set compile** (e.g. `:app:compileProductionDebugUnitTestKotlin` for the flavored app set + the `<dest>` equivalent), not just an import scan; report clean / N broken (file list) per set. This surfaces pre-existing compile-broken tests **and** a missing `local.properties` at discovery — both blocked the Phase B entry gate in a prior session because the compile was deferred to it. Broken pre-existing tests are **quarantined via `@Ignore` (run-broken) or a build-level exclude (compile-broken) in Phase B** (per `test-discipline/migration-baselines.md` (Quarantine section)), not fixed as part of this migration. `<dest>/commonTest` is not checked at Phase 0 — Phase E does its own pre-promotion check if any baseline migrates there.
 
 ### 9. Cross-feature ripple detection
 For each in-scope file, count back-references from out-of-scope project files. Shared models / utilities used widely → flag prominently. **Subagent-mediated** (Haiku, parallel) — raw `grep` output stays in the subagent; main thread receives only the per-file back-reference count + flagged shared deps (per SKILL.md Subagent-mediated exploration).

@@ -64,6 +64,8 @@ For each layer-batch — files committed individually within the batch:
 
 3. **Apply known plan.md substitutions before first build** (Sonnet). Predetermined fixes (`Locale.US` → injected `NumberFormatter` interface, `Instant.now()` → `Clock.System.now()`, Moshi adapter → `kotlinx.serialization`, Android-specific imports → commonMain-portable equivalents) applied as part of the move — **eliminates ~half the compile-fix iterations** because predetermined fixes aren't rediscovered via compile errors.
 
+   **Verbatim-old-behavior pre-flight (mandatory for library-substitution / `lib-swap: path-a` files).** Before authoring the substituted version, read the **OLD** implementation's exact behavior and reproduce it literally — never trust a target-shape-only pre-flight. The traps a shape-only read ships are real: HTTP status mapping (`status == 200` *exact*, NOT a 2xx `isSuccess()` helper), try/catch vs exception-propagation, fallback branches, default values. Both caught real money-flow divergences in a prior session. Cite the old source path + line for each behavior reproduced, in `migration.md`.
+
 4. **Build → fix compile errors loop.**
    - **Haiku subagent** runs gradle, parses errors.
    - **Sonnet subagent** selects routine fixes; **Opus subagent** (not the orchestrator) handles complex substitutions where live-search is needed. The loop is sequential by build dependency, but **each iteration's edit is a dispatched subagent** — the orchestrator never edits the file directly. Subagent failure → another subagent, per SKILL.md NON-NEGOTIABLE.

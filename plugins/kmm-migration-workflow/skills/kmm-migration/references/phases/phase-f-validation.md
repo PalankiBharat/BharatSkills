@@ -1,8 +1,8 @@
 # Phase F — Validation
 
-**Purpose.** Prove the migration is structurally sound and behavior-preserving *as far as automated checks can show*, then hand a clean, installable build to Phase G (PR) and Phase H (parity QA). Multi-layered automated sanity check: code, docs, build, tests, pre-merge integration — plus a runtime-crash smoke. **Behavioral parity QA is NOT in this phase** — it runs after the PR via the `kmm-qa-autopilot` skill (Phase H). Any blocker here → loop back through the relevant prior phase → re-validate.
+**Purpose.** Prove the migration is structurally sound and behavior-preserving *as far as automated checks can show*, then hand a clean, installable build to Phase G (PR), Phase H (code-review intake), and Phase I (parity QA). Multi-layered automated sanity check: code, docs, build, tests, pre-merge integration — plus a runtime-crash smoke. **Behavioral parity QA is NOT in this phase** — it runs after the PR via the `kmm-qa-autopilot` skill (Phase I). Any blocker here → loop back through the relevant prior phase → re-validate.
 
-**What moved out of Phase F.** The old F.6 user-driven manual-QA gate and F.7 "migration complete" sign-off are gone. Parity QA now happens post-PR, off the PR git diff + heatmap, in a separate skill. Phase F's job is: *does it build on both platforms, are the baselines green, does it integrate with the latest base branch, and does it launch without crashing?* The heatmap is still **drafted** here (F.5) because Phase G embeds it into the PR body and Phase H / autopilot consume it.
+**What moved out of Phase F.** The old F.6 user-driven manual-QA gate and F.7 "migration complete" sign-off are gone. Parity QA now happens post-PR, off the PR git diff + heatmap, in a separate skill. Phase F's job is: *does it build on both platforms, are the baselines green, does it integrate with the latest base branch, and does it launch without crashing?* The heatmap is still **drafted** here (F.5) because Phase G embeds it into the PR body and Phase I / autopilot consume it.
 
 **The smoke test stays — as a runtime-crash gate, not a QA walk.** Its only job is to confirm the build installs and runs without crashing, so we don't hand a dead build to autopilot and burn a full parity cycle (two APKs + two emulators + a manual prod login) only to crash on launch. It is not a behavioral walk and does not gate on user-visible behavior.
 
@@ -54,6 +54,8 @@ Held files (`androidMain`) skip the SKIE surface review — they're not exposed 
   - `<dest>/commonTest` (if Phase E ran) — baselines for promoted files.
   - `<dest>/iosSimulatorArm64Test` (or equivalent, if host supports) — same commonTest baselines on iOS runtime. **Requires a provisioned + booted simulator device** (see F.5 note) — a cold/missing sim yields a misleading "Xcode does not support simulator tests" error, not a code failure.
 - Full `:app/src/test/` unit test suite (regression check — pre-existing tests untouched apart from Phase B import updates).
+  - **Baseline against the MERGE-BASE (fork point), not `origin/<base>`.** `origin/master` may itself be non-compiling or red — diffing against it manufactures phantom regressions. Use `git merge-base HEAD origin/<base>` as the comparison point. **If the base can't compile its tests, replicate the branch's known compile-exclusions on the baseline before diffing** so it's apples-to-apples (a prior session found both `origin/master` and the fork-base failed `:app:compileProductionDebugUnitTestKotlin`, so the suite was non-compilable *before* this branch — only after replicating the exclusion did a clean HEAD-vs-fork diff prove 0 regressions). Generalize this "the baseline may itself be broken" handling.
+  - **When the full suite hangs on a pre-existing pathological test, bound the run** to the enumerated failing/relevant set + a structural diff argument — don't fight a hang that predates the branch (one app test pegged a worker at ~100% CPU for 27 min with no output). Pair with the gradle timeout-with-grace wrapper (SKILL.md Tooling discipline) so a hang can't run for hours.
 - **Confirm tests actually executed (not cached).** "BUILD SUCCESSFUL" is emitted on an `UP-TO-DATE` no-op too. For each test task above, read `build/test-results/<task>/*.xml` and confirm the testsuite ran with the expected `tests` count and `failures=0` (per SKILL.md Tooling discipline). A green that never ran is not a green.
 - **Visual regression** (Paparazzi/Roborazzi) against pre-migration goldens if UI was indirectly touched.
 - **Telemetry parity scan** — analytics events preserved through migrated code paths (Sonnet scans for analytics-relevant changes).
@@ -90,7 +92,7 @@ If conflicts surface: user resolves; skill assists with diff-confirm. Recon firs
 
 **Heatmap draft (Opus subagent, in parallel).**
 
-Drafted as a **pre-QA checklist** that Phase G embeds into the PR body and Phase H / `kmm-qa-autopilot` consume. Result column starts empty (`TBD`) and is **never** pre-filled — it's filled during the post-PR parity QA, not here.
+Drafted as a **pre-QA checklist** that Phase G embeds into the PR body and Phase I / `kmm-qa-autopilot` consume. Result column starts empty (`TBD`) and is **never** pre-filled — it's filled during the post-PR parity QA, not here.
 
 Sources:
 - Phase 0 navigation flow
@@ -125,7 +127,7 @@ Any failure in F.1–F.5 → **Opus** categorizes:
 
 Skill announces which scope it's using before re-running, with one-line justification (e.g., *"Surgical: 1-line socket timeout swap, re-running F.3 + F.5 only"*). User can override with `re-run fully` or `re-run targeted`. **The threshold is mechanical, derivable from the diff** — not a judgment call to be made under fatigue.
 
-When all F passes → `validation.md` status complete → proceed to Phase G (PR). **There is no manual-QA sign-off here** — parity QA is Phase H, post-PR. (Provenance note: also run the exception-provenance check now, so orphan exceptions surface before Phase G composes the body — see phase-g.)
+When all F passes → `validation.md` status complete → proceed to Phase G (PR). **There is no manual-QA sign-off here** — parity QA is Phase I, post-PR. (Provenance note: also run the exception-provenance check now, so orphan exceptions surface before Phase G composes the body — see phase-g.)
 
 ### F.7 — Phase F retro
 Amend `retro.md` with `## Phase F — Validation (captured YYYY-MM-DD)`. Five-bullet structure. **Blocking, non-skippable** (per SKILL.md Retro gate).
@@ -146,5 +148,5 @@ Beyond universals:
 - Every F sub-phase passes (or has documented exception).
 - Test green-ness is confirmed via JUnit-XML execution + counts, not "BUILD SUCCESSFUL" alone.
 - F.4 integration uses the operation dictated by `project.md.git.pr_merge_policy` (merge for squash-merge repos), and conflict detection uses that same operation.
-- Smoke confirms the ProductionRelease build installs + launches **crash-free**; `heatmap.md` is drafted with `TBD` cells and never pre-filled (it's filled during Phase H parity QA).
-- `validation.md` status `complete` before Phase G. **No manual-QA sign-off gate** — parity QA is Phase H, post-PR.
+- Smoke confirms the ProductionRelease build installs + launches **crash-free**; `heatmap.md` is drafted with `TBD` cells and never pre-filled (it's filled during Phase I parity QA).
+- `validation.md` status `complete` before Phase G. **No manual-QA sign-off gate** — parity QA is Phase I, post-PR.

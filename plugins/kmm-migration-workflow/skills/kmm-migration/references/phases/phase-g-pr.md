@@ -1,8 +1,8 @@
 # Phase G — PR Creation
 
-**Purpose.** Produce a PR ready for review **and ready for parity QA** — the PR is the input the next phase (H) feeds to `kmm-qa-autopilot`. **PR body is about WHAT, not HOW.** Migration workflow internals stay in the session folder; the PR communicates user-visible changes only.
+**Purpose.** Produce a PR ready for review **and ready for parity QA** — the PR is what Phase H (receive & resolve code review) and Phase I (parity QA via `kmm-qa-autopilot`) operate on. **PR body is about WHAT, not HOW.** Migration workflow internals stay in the session folder; the PR communicates user-visible changes only.
 
-**The PR opens with parity QA still pending — by design.** QA is no longer a gate before the PR; it runs after, off this PR's git diff + heatmap (Phase H). So the body carries the heatmap as an explicit **pre-merge QA checklist** (embedded, not linked — `.kmm/migrations/` is gitignored, so there's no repo path to point at). This is the supported flow, not a waiver.
+**The PR opens with parity QA still pending — by design.** QA is no longer a gate before the PR; it runs after, off this PR's git diff + heatmap (Phase I). So the body carries the heatmap as an explicit **pre-merge QA checklist** (embedded, not linked — `.kmm/migrations/` is gitignored, so there's no repo path to point at). This is the supported flow, not a waiver.
 
 **Body discipline: concise and value-driven.** The current structure is good; keep it lean. Lead with the value (what changed, user-visible impact), abstract over detail, cut anything a reviewer doesn't need to decide "is this safe to merge?". No jargon, no process narrative, no padding.
 
@@ -14,7 +14,7 @@
 
 ### G.1 — PR body composition (Sonnet subagent)
 
-**Exception provenance check (mandatory pre-step; ideally already run at end of Phase F).** Before listing any migration exceptions in the body, the G.1 subagent runs `git log <base-branch>..HEAD --grep '<exception-id>' --oneline` for every candidate exception under `.kmm/exceptions/`. The base branch is read from `project.md.git.base_branch` if present; else detected via `git symbolic-ref refs/remotes/origin/HEAD`. If a candidate exception has **zero** referencing commits in the range, it belongs to a prior PR and is **excluded** from this body — listing it would mislead the reviewer. Subagent returns a structured table `id | provenance commits | include? (Y/N)`. (Phase F.6 also runs this check so orphan exceptions surface before composition.)
+**Exception provenance check (mandatory pre-step; ideally already run at end of Phase F).** Before listing any migration exceptions in the body, the G.1 subagent runs `git log <base-branch>..HEAD --grep '<exception-id>' --oneline` for every candidate exception under `.kmm/exceptions/`. The base branch is read from `project.md.git.base_branch` if present; else detected via `git symbolic-ref refs/remotes/origin/HEAD`. If a candidate exception has **zero** referencing commits in the range, it belongs to a prior PR and is **excluded** from this body — listing it would mislead the reviewer. Subagent returns a structured table `id | provenance commits | include? (Y/N)`. (Phase F.6 also runs this check so orphan exceptions surface before composition.) **The orchestrator already knows this session's exception-ids — pass that list to the G.1 subagent in its prompt** so it provenance-checks the known set rather than re-scanning every file under `.kmm/exceptions/` (minor speedup; the subagent still confirms each via `git log`).
 
 **Structure (concise — each section is the minimum a reviewer needs):**
 - **What changed** — the feature/module migrated, in reviewer-facing terms. Not "we ran Phase D" — "migrated funds business logic to the shared module."
@@ -81,7 +81,7 @@ G.4 reads this report and chooses the right push invocation without improvising.
 
 After PR is open (or body output), amend `retro.md` with `## Phase G — PR Creation (captured YYYY-MM-DD)` — five-bullet structure (recap / smooth / stuck / could-improve / user steering log). **Blocking, non-skippable** (per SKILL.md Retro gate).
 
-Phase G is **no longer the final phase** — Phase H (parity-QA hand-off) follows, and the session-end consolidation runs after the Phase H retro. Proceed to Phase H with the PR URL.
+Phase G is **no longer the final phase** — Phase H (receive & resolve code review) follows, then Phase I (parity-QA + bug-fixing); the session-end consolidation runs after the Phase I retro. Proceed to Phase H with the PR URL.
 
 ---
 
@@ -99,7 +99,7 @@ Both stored in session folder so the PR can be regenerated or referenced post-me
 
 Beyond universals:
 
-- Phase F complete (`validation.md` status `complete`) — automated checks + crash-free smoke. (No manual-QA sign-off gate; parity QA is Phase H.)
+- Phase F complete (`validation.md` status `complete`) — automated checks + crash-free smoke. (No manual-QA sign-off gate; parity QA is Phase I.)
 - PR body has no process bleed (workflow internals invisible), is concise/value-driven, and **embeds the heatmap as a pre-merge QA checklist** in the QA section.
 - User confirms before PR opens.
 - `pr-body.md` (never `pr.md`) is the `--body-file` source.

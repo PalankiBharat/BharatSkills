@@ -14,6 +14,8 @@ Phase B opens by choosing where baselines are written this session. **Both are b
 
 **Both prior sessions chose baseline-in-place** (ObjectBox plugin hostility / Holdings precedent). Recording the choice in `audit.md` is mandatory; it drives B.1/B.2 routing below and downstream Phase C (detekt-smoke target), the `frozen_baseline_guard` hook (baseline-path resolution from coverage.md), and Phase E (`git mv` source).
 
+**Flag the detekt-scope gap here if baseline-in-place is chosen.** If this session picks baseline-in-place AND detekt's configured scope excludes `:app/src/test/`, the session's baselines fall **outside** detekt enforcement — surface that **now**, at the strategy choice, not as a late surprise at C.3.0. It's fully predictable the moment the path is chosen. Phase C.3.0 remains the resolution point (extend detekt scope, or document the residual gap + compensating guards), but the user shouldn't first hear about it there.
+
 Whichever path, baselines use the **KMM-portable stack only** (kotlin.test + hand-rolled fakes + Turbine) so the eventual promotion to `commonTest` is a mechanical `git mv`.
 
 **Inputs:** `scope.md`, `plan.md`, `audit.md` (if resuming), `project.md`, `coverage.md`, **`references/test-discipline/index.md` and `references/test-discipline/migration-baselines.md` (mandatory — load at Phase B startup)**, plus **`references/test-discipline/<type>.md` per in-scope file type** (loaded on demand as each batch is processed — never bulk-load all per-type files).
@@ -133,7 +135,7 @@ For each new or rewritten test:
 | Presenter | Wrong color/label for a state; conflate distinct states |
 
 2. Run the test → must go **RED**.
-3. Revert breakage via `git restore` → must go **GREEN**.
+3. Revert breakage via `git restore` → must go **GREEN**. **Caveat for a git-mv'd SUT (relocate-first path):** `git restore`/`git checkout` on a staged-rename-with-unstaged-edits restores the **old pre-move blob**, silently corrupting the file (per SKILL.md Tooling discipline). On a relocated SUT, snapshot the working-tree content first (`cp` / `git stash`) and restore **that** — never `git checkout` the migrated file.
 4. Record proof in audit.md (mutation, failure output, revert, success).
 
 Reviewer can reproduce by re-applying the standard mutation. No vibes.
