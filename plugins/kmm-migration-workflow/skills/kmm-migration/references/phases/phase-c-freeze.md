@@ -21,6 +21,7 @@ Refuses to proceed on any gap:
 - Missing red-on-breakage proof — any new or rewritten test without recorded mutation + revert.
 - Baseline failure — `<dest>/androidUnitTest` not green.
 - Feature-surface baseline absent without opt-out rationale.
+- Unverified concurrency-parity claim — any baseline for a `concurrency-semantics-sensitive` file (Phase A) whose name or comment asserts a concurrency "parity model" (a coalescing / serialization count) that has **not** been verified against master. A baseline documenting the *migrated* behavior as parity is the silent-equivalence-break; verify the claim against master before freezing — never freeze it on faith. (This was caught only by external review on a prior migration.)
 
 ### C.2 — Enforcement bootstrap (first-time per repo only)
 
@@ -151,4 +152,5 @@ Beyond universals:
 
 - Phase B complete (`audit.md` status = complete; baselines green per B.7).
 - **Detekt enforcement** verified working via smoke test — **no exceptions**.
+- **No concurrency "parity" claim frozen on faith** — for `concurrency-semantics-sensitive` files (Phase A), any baseline asserting a concurrency parity model is verified against master before the freeze commit (C.1).
 - Frozen-at SHA recorded in both `freeze.md` and `coverage.md` before Phase D can start.

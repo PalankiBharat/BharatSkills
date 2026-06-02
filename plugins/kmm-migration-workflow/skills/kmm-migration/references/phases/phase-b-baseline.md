@@ -110,6 +110,7 @@ Per file:
 - Write the baseline in `<dest>/src/androidUnitTest/.../XTest.kt` using **kotlin.test + hand-rolled fakes + Turbine** (per `test-discipline/migration-baselines.md` — MockK is banned; fakes only).
 - For `lib-swap: path-a` files, write the baseline against SUT output **without referencing the old-lib types** (MockWebServer for HTTP, hand-rolled fakes for date/time, round-tripped objects for serializers — see `test-discipline/migration-baselines.md` §Library-substitution).
 - **Apply principle #2 (clean code):** no test-only `*Holder` / `*Manager`; fakes earn their existence (≥2 consumers or required for KMM portability).
+- **Concurrency-semantics assertion (mandatory for `concurrency-semantics-sensitive: yes` files — per Phase A).** A single-caller baseline cannot see a serialization/coalescing change. For each flagged file, the baseline MUST include a **multi-caller** assertion that pins master's actual parallelism level — e.g. "N concurrent same-key cache misses → N network calls" if master was lock-free, or "→ 1 call" **only if master actually coalesced**. **Derive the expected count from master's observed behavior, never from the migrated code** — asserting the post-migration count is the exact silent-equivalence-break this exists to catch. See `test-discipline/index.md` §Concurrency (concurrency-semantics parity) for the pattern and the timeout-RED caveat.
 - **Self-review before presenting.** Notes captured.
 
 **Do not print test bodies into the session.** Write the file, then point at the path in one line (`Wrote XTest.kt — 4 cases, all red`). Trust comes from the test running red (B.5), not from user inspection of the body in chat. If the user wants to inspect, they open the file. Same for mutations (B.5): summarize what mutated and the failure message, never paste diff or test code.
@@ -203,6 +204,7 @@ Beyond universals:
 - Every new or rewritten test has **red-on-breakage proof** — no shortcuts.
 - Every test in `<dest>/androidUnitTest` uses the KMM-portable stack with **hand-rolled fakes only** — **no exceptions** (no MockK, no Mockito, no Truth, no Robolectric, no `java.time.*`). JVM-stack tests (MockK or Mockito) stay in `:app/src/test/` as regression cover only.
 - Feature-surface baselines exist, or explicit opt-out with rationale recorded.
+- Every `concurrency-semantics-sensitive: yes` file (Phase A) has a **multi-caller concurrency assertion** in its baseline, with the expected parallelism count derived from master — not the migrated code.
 - Full baseline suite green before Phase C.
 - `coverage.md` shows zero rows at `relocated` status at B.7 close (per-batch flips during B.4).
 - All Path B / static-service-locator / pure-iface skips have `phase-d-followups.md` entries.
