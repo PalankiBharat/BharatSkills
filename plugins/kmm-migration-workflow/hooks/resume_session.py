@@ -42,7 +42,8 @@ PHASES = [
     ("E", "move.md",        "Baseline promotion"),
     ("F", "validation.md",  "Validation"),
     ("G", "pr.md",          "PR Creation"),
-    ("H", "qa.md",          "Parity-QA hand-off"),
+    ("H", "review.md",      "Receive & Resolve Review"),
+    ("I", "qa.md",          "Parity-QA + Bug-fixing"),
 ]
 
 
@@ -134,14 +135,29 @@ def parse_phase_file(path: Path) -> dict | None:
 
 
 def active_phase(states: dict[str, dict | None]) -> tuple[str, str, str] | None:
-    """Pick the active phase: first non-complete in order; complete sentinel if all done."""
-    for phase_id, filename, name in PHASES:
+    """Pick the active phase: the first non-complete phase AFTER the
+    furthest-progressed complete one; complete sentinel if all done.
+
+    Inferring from the furthest-progressed phase (not just the first
+    non-complete) tolerates a stale earlier status. A prior session left
+    Phase 0's scope.md `in-progress` while A/B were complete; the naive
+    first-non-complete scan then wrongly reported "Active phase: 0". An
+    earlier phase that is non-complete while a LATER phase is complete is
+    treated as a stale status and skipped past.
+    """
+    last_complete_idx = -1
+    for idx, (phase_id, _filename, _name) in enumerate(PHASES):
         s = states.get(phase_id)
-        if s is None:
+        if s is not None and s["status"] == "complete":
+            last_complete_idx = idx
+
+    for idx, (phase_id, filename, name) in enumerate(PHASES):
+        if idx <= last_complete_idx:
+            continue  # at or before the furthest-progressed complete phase
+        s = states.get(phase_id)
+        if s is None or s["status"] != "complete":
             return (phase_id, filename, name)
-        if s["status"] != "complete":
-            return (phase_id, filename, name)
-    return None  # everything complete
+    return None  # everything through the final phase complete
 
 
 def git_dirty() -> bool | None:
@@ -246,10 +262,11 @@ def format_report(branch: str, folder: Path, states: dict[str, dict | None]) -> 
         lines.append("### Active phase: **none — all phases complete**")
         lines.append("")
         lines.append(
-            "All phases through H report `complete` — PR opened and parity QA "
-            "handed off to kmm-qa-autopilot. If the PR has not yet merged, the "
-            "next action is the autopilot QA run / merge. If the session is "
-            "post-merge, offer worktree cleanup per Phase E post-session steps."
+            "All phases through I report `complete` — PR opened, code review "
+            "resolved, and parity QA handed off to kmm-qa-autopilot. If the PR "
+            "has not yet merged, the next action is the autopilot QA run / "
+            "merge. If the session is post-merge, offer worktree cleanup per "
+            "Phase E post-session steps."
         )
     else:
         phase_id, filename, name = active
