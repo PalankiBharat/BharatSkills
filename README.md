@@ -20,7 +20,6 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `review-pr` | 1.0.0 | Multi-agent PR review — 25 focused agents in parallel per file type, inline GitHub comments, calibration (human-in-loop) and autopilot (`--auto`) modes |
 | `preview-compose` | 0.1.0 | Renders Jetpack Compose `@Preview` composables on a connected Android emulator from the terminal — installs the debug APK and launches a bundled PreviewActivity with the target preview's FQN |
 | `kmm-migration-workflow` | 1.8.0 | Android-to-KMM migration orchestrator with behavioral-equivalence safety — discovery, diagnostic, baseline tests, freeze, `git mv` + surgical edits, validation, PR, then a parity-QA hand-off to `kmm-qa-autopilot`. Live API knowledge via web + Context7, project conventions in `.kmm/project.md`, diff-confirm scoped to project.md, commit autopilot, **blocking per-phase retro + state-serialization gates**. **Phase A carries an iOS Swift interop lens per file** (search-cited, must-vs-want rubric) and **resolves platform-ownership + verifies SDK iOS-availability from gradle metadata** before Phase D; **iOS klib + cold-KSP compile gates every commonMain touch** |
-| `kmm-pr-review` | 1.1.1 | PR review for KMP repos — spawns specialist subagents per file (correctness, idiom, master-grounded) against canonical docs, every finding cites a source or gets dropped, P0–P3 with PR-induced vs pre-existing attribution, iOS-readiness auto-promotes to P0 on migration PRs |
 | `kmm-debugger` | 1.1.0 | Deep-investigation workflow for post-migration KMM regressions — hard-gated A/B subagent pair dispatch per topic before any plan or fix, bias guard against defending existing implementation, "is this even our bug?" as first question (catches upstream contract violations), Doctrine 3 (always prefer clean long-term solutions over hotfixes / iterative patches), auto-firing retro after each push/PR/publish |
 | `sniper-ops` | 1.3.0 | Ops shortcuts for the sniper-v2-android repo — `share-prod` / `share-staging` (commit + push + release-notes pre-flight then trigger CircleCI build), `install-prod` / `install-staging` (local install to a connected device, then auto-launch the app and tail a crash-only logcat `*:E` scoped to the app's PID in the background), `heap-dump-pair` (option-driven interview to capture a baseline + t+5min `.hprof` pair so you can diff retained objects in Android Studio Profiler), and `heap-dump-compare` (diff two Android `.hprof` files and present a side-by-side comparison table — data only, no diagnosis) |
 | `kmm-qa-autopilot` | 0.3.0 | Parity QA for Android-to-KMM migration PRs — proves a migration is behavior-preserving by running the baseline `master` and the PR head head-to-head. From a PR link: builds two ProductionRelease APKs (the shipped R8-minified artifact, same package; auto-baselines a merged PR to pre-migration master), boots + locks two visible emulators (master→A, PR→B), one manual prod login each, a no-exclusions heatmap from the master-vs-PR diff, the SAME Maestro flows on both devices, and a view-hierarchy structure + stable-value diff (live prices/charts auto-masked by double-sampling) → per-journey parity verdict. Evidence-backed verdict (exception docs are context only); ends with a session retro. Real-prod-state safety gate holds order/funds/kill-switch flows behind explicit confirmation |
@@ -51,7 +50,6 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install review-pr@punchhq-skills
 /plugin install preview-compose@punchhq-skills
 /plugin install kmm-migration-workflow@punchhq-skills
-/plugin install kmm-pr-review@punchhq-skills
 /plugin install kmm-debugger@punchhq-skills
 ```
 
@@ -243,16 +241,6 @@ claude-code-skills/
 │   │           └── references/
 │   │               ├── test-discipline.md
 │   │               └── phases/        # phase-0-discovery through phase-g-pr
-│   ├── kmm-pr-review/
-│   │   ├── .claude-plugin/
-│   │   │   └── plugin.json
-│   │   └── skills/
-│   │       └── kmm-pr-review/
-│   │           ├── SKILL.md
-│   │           ├── prompts/           # specialist + aggregator prompts
-│   │           ├── references/        # rules/, canonical-sources, derivative-map
-│   │           ├── schemas/           # finding + plan JSON schemas
-│   │           └── scripts/           # ingest, classify, dedupe, verify
 │   ├── kmm-debugger/
 │   │   ├── .claude-plugin/
 │   │   │   └── plugin.json

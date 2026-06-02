@@ -43,3 +43,6 @@ venv/
 
 # kmm-pr-reviewer per-PR state and reports
 kmm_pr_review/
+
+# Git worktrees
+.worktrees/
