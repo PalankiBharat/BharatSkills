@@ -34,9 +34,10 @@ the comparison gets stricter (which is fine — static values *should* match exa
 | Tagged diff but the id is volatile | masked | reported under `masked`, not a verdict |
 | Untagged class-count differs | class multiset | 🟡 DRIFT hint only |
 | One device on an auth surface, other not | auth markers | ⚠️ EVICTION (precedence) |
+| Required `--anchor` absent on **both** devices | anchor presence | ⚪ INDETERMINATE (subject not reached) |
 
-Per-checkpoint verdict: **EVICTION** > **DIVERGENCE** (any hard signal) > **DRIFT** (only soft
-hints) > **PARITY**. Exit codes: PARITY/DRIFT=0, DIVERGENCE=1, EVICTION=2.
+Per-checkpoint verdict: **EVICTION** > **INDETERMINATE** > **DIVERGENCE** (any hard signal) > **DRIFT**
+(only soft hints) > **PARITY**. Exit codes: PARITY/DRIFT=0, DIVERGENCE=1, EVICTION=2, INDETERMINATE=3.
 
 **On untagged value-table screens (reports/ledgers/statements), the visible-text signal IS the
 primary oracle** — the on-screen amounts/dates are the migrated logic's output, so a stable text that
@@ -96,16 +97,29 @@ Before reporting any single 🔴, also rule out the known false-positive classes
 - A genuine 🔴 on a *value* (`order_count`, a P&L total, a formatted price that's stable) is the
   headline finding — that's a migration that changed behavior. Quote both values.
 
+The mirror-image false positive is a false **🟢**: matching-failure ≠ parity. If a subject checkpoint
+compares two screens that are *both wrong* — both flows landed on the wrong route, or the migrated
+widget stayed below the fold and was never scrolled-to — the hierarchies match perfectly and the
+comparator reports 🟢, but it proved nothing (a **vacuous parity**). Guard it with an **anchor**: a
+subject checkpoint declares a required resource-id (preferred) or exact visible text that *proves the
+subject screen/widget was on screen*, passed as `compare-parity.py --anchor RID…`. If the anchor is
+absent on **both** devices the comparison is vacuous → ⚪ **INDETERMINATE** (exit 3), not 🟢 — re-run
+after scrolling/navigating the subject into view. Absent on exactly one device is already a normal
+presence 🔴 (no special case). This operationalizes the below-the-fold scroll-determinism case above.
+
 ## Aggregating to a journey verdict
 
 A journey = its ordered checkpoints. Roll up:
-- Any **EVICTION** → journey is **inconclusive** until re-run.
-- Any confirmed **DIVERGENCE** → journey **🔴 DIVERGENCE**.
+- Any confirmed **DIVERGENCE** → journey **🔴 DIVERGENCE** (a real 🔴 outranks ⚪/⚠️ in the headline).
+- Else any **EVICTION** or **INDETERMINATE** → journey is **inconclusive** until re-run (re-login for
+  ⚠️; scroll/navigate the subject into view for ⚪ — its anchor never appeared).
 - Only **DRIFT** hints → **🟡 DRIFT** (note them; usually live/timing).
 - All **PARITY** → **🟢 PARITY HOLDS**.
 
 ## Overall run verdict
 
-- 🟢 **PARITY HOLDS** — every affected journey is 🟢 (mutating journeys the user declined are listed as untested, not green).
-- 🟡 **REVIEW DRIFT** — no hard divergences, but drift hints worth a glance.
+Divergence-dominant — a single confirmed 🔴 outranks any number of ⚪/⚠️:
 - 🔴 **DIVERGENCE FOUND** — at least one confirmed structural/value divergence. The migration changed observable behavior; do not treat it as a no-op.
+- ⚪ **INCONCLUSIVE** — no 🔴, but at least one ⚪ INDETERMINATE or ⚠️ EVICTION journey. List which and why (anchor absent on both / session bumped); these need a re-run, not a pass.
+- 🟡 **REVIEW DRIFT** — no hard divergences, but drift hints worth a glance.
+- 🟢 **PARITY HOLDS** — every affected journey is 🟢 (mutating journeys the user declined are listed as untested, not green).

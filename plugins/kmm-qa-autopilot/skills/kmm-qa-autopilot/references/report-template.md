@@ -4,57 +4,49 @@ Save to the **persistent** run dir (survives any cleanup of the worktrees):
 `$RUN_DIR/parity-report-pr<num>-<YYYY-MM-DD>.md`. Artifacts (screenshots, hierarchies,
 per-checkpoint `verdict.json`) live under `$RUN_DIR/artifacts/<journey>/<checkpoint>/`.
 
-Use this structure:
+Use this structure — **same compact shape for the local report AND the PR comment.** A reviewer
+must see verdict + per-journey table + the one roll-up line **without expanding anything**; all
+detail lives one click away in `<details>`.
 
 ```markdown
-# Parity Report — PR #<num> "<title>"
+## <overall-emoji> Parity QA — PR #<num> "<title>"
+master <sha> ⇄ pr <sha> · ProductionRelease · <YYYY-MM-DD> · acct <market>
 
-- **Candidate (B):** <branch> @ <pr-sha>
-- **Baseline (A):** <baseline ref> @ <master-sha>   ← source of truth (pre-migration commit if the PR is merged)
-- **Build variant:** ProductionRelease (R8-minified — the shipped artifact users run)
-- **Verdict:** 🟢 PARITY HOLDS | 🟡 REVIEW DRIFT | 🔴 DIVERGENCE FOUND
-- **Date:** <YYYY-MM-DD>   **Devices:** A=<serial> (master)  B=<serial> (PR)
-- **Account / market:** <test acct?> / <market open|closed>
+| Journey | Verdict | Evidence |
+|---|---|---|
+| <journey> | 🟢 Parity | 14 elems · 6 values · 3 masked |
+| <journey> | 🔴 Divergence | `txt_total` ₹1,200→₹1,020 |
+| <journey> | ⚪ Indeterminate | anchor `widget_pnl` absent on both — flow didn't reach subject |
+| <journey> | ⚠️ Eviction | session bumped — re-login & re-run |
 
-## Summary
-<2–3 sentences: what the PR migrates, how many journeys were affected, the headline result.>
+**Verdict: <overall-emoji> <HEADLINE>** — 🔴 N · ⚪ N · ⚠️ N · 🟡 N · 🟢 N  (coverage: <mutating journeys tested/declined>)
 
-## Heatmap (what was tested)
-| Journey | Risk | Mutating | Flow | Checkpoints | Result |
-|---|---|---|---|---|---|
-| Watchlist add/remove | 🟠 | no | maestro/... | 4 | 🟢 |
-| Cancel normal order | 🔴 | YES (you confirmed) | order_modify_cancel/01 | 5 | 🔴 |
-| Funds add | 🔴 | YES — **declined**, not tested | — | — | ⏭️ untested |
+<details><summary>Divergences & evidence</summary>
 
-## Divergences (🔴)
-For each confirmed divergence:
-### <journey> / <checkpoint> — <presence|value> on `<resource-id>`
-- **master (A):** `<value>`
-- **PR (B):** `<value>`
-- **Evidence:** artifacts/<journey>/<checkpoint>/{a.s0,b.s0}.png
-- **Why it matters:** <what the user sees / which migrated symbol likely caused it>
+For each confirmed 🔴 — **<journey> / <checkpoint> — <presence|value> on `<resource-id>`**:
+master (A) `<value>` ⇄ PR (B) `<value>` · artifacts/<journey>/<checkpoint>/{a.s0,b.s0}.png ·
+why it matters: <what the user sees / which migrated symbol likely caused it> · root cause: <audit subagent>.
+Evictions (⚠️) and how they resolved after re-login go here too.
 
-## Drift (🟡 — live/timing-explainable)
-<bullet list of checkpoints with only soft hints; one line each, why benign.>
+</details>
 
-## Evictions / re-runs
-<any checkpoints that hit EVICTION and how they resolved after re-login.>
+<details><summary>Masking · coverage · untested</summary>
 
-## Untested (gaps)
-<affected journeys with no flow that couldn't be generated, and mutating journeys the user
-declined — be explicit; "no exclusions" means gaps are named, not hidden.>
+- **Masking:** auto-masked volatile fields <count typical per screen>; seed mask <list>;
+  server-state copy masked (if any) <phrases via --server-state-text>.
+- **Confidence per journey** (a 🟢 is only as good as what it exercised): <journey> — interactions
+  exercised (open, date-range, scroll, expand, submit), <N> values compared, <N> masked, text/tag signal.
+  Every confirmed false positive (scroll-offset, stateful server copy, eviction, absent anchor) listed with HOW it was confirmed.
+- **Untested / declined:** affected journeys with no generatable flow + mutating journeys the user
+  declined, each as `⏭️ untested` with a reason. "No exclusions" means gaps are named, not hidden;
+  unreachable documented exceptions are named gaps.
 
-## Confidence / coverage (a 🟢 is only as good as what it exercised)
-| Journey | Interactions exercised | Values compared | Masked | Signal | Verdict |
-|---|---|---|---|---|---|
-| <j> | open, date-range, scroll, expand, submit | <N> | <N> | text / tag | 🟢 |
-Every confirmed false positive (scroll-offset, stateful server copy, eviction) is listed with HOW it
-was confirmed — explained, never hidden. Documented exceptions that were not UI-reachable are named gaps.
-
-## Masking note
-Auto-masked volatile fields this run: <count typical per screen>. Seed mask used: <list>.
-Server-state confirmation copy masked (stateful actions, if any): <phrases via --server-state-text>.
+</details>
 ```
+
+(Full run metadata — baseline ref @ master-sha source of truth, candidate branch @ pr-sha,
+device serials A/B, build-variant note — belongs in the local `.md` header; the compact comment's
+title line carries the load-bearing bits.)
 
 ## Publishing to the PR (automatic — the PR is the deliverable, not a local .md)
 
@@ -69,8 +61,9 @@ Don't wait to be asked (PR #420 left the body's QA table all `—` until prompte
    # update each QA row's Result cell (🟢/🔴/🟡/⏭️ untested) + flip the QA section header to the verdict
    gh pr edit "$PR_NUM" --body-file /tmp/pr-body.md
    ```
-2. **Flip the QA section header** to the overall verdict (🟢 PARITY HOLDS / 🔴 DIVERGENCE FOUND / 🟡 REVIEW DRIFT).
-3. **Post the divergence writeup as a comment** (the per-🔴 detail + both values + the audit-subagent root cause):
+2. **Flip the QA section header** to the overall verdict (🟢 PARITY HOLDS / 🔴 DIVERGENCE FOUND / 🟡 REVIEW DRIFT / ⚪ INCONCLUSIVE).
+3. **Post the compact report as a comment** (the shape above — verdict + per-journey table + roll-up
+   line scannable, divergence/masking detail folded into `<details>`):
    ```bash
    gh pr comment "$PR_NUM" --body-file "$RUN_DIR/parity-report-pr$PR_NUM-<date>.md"
    ```
@@ -81,8 +74,15 @@ A declined/untested row stays `⏭️ untested` in the table — published gaps,
 A session retro is saved to `$RUN_DIR/retro.md` (Phase 8) — friction + proposed skill improvements
 from this run, for triage into the skill in a separate session.
 
-## Verdict rules
+## Verdict rules (DIVERGENCE-dominant roll-up)
+Per-checkpoint precedence is **⚠️ EVICTION > ⚪ INDETERMINATE > 🔴 DIVERGENCE > 🟡 DRIFT > 🟢 PARITY**,
+but the overall headline is divergence-dominant — a single real 🔴 outranks any number of ⚪/⚠️:
 - One confirmed 🔴 anywhere → overall **🔴 DIVERGENCE FOUND**. Don't average it away.
-- Only 🟡 hints → **🟡 REVIEW DRIFT**.
-- All 🟢 (and any mutating journeys were either tested-green or explicitly declined) → **🟢 PARITY HOLDS**.
+- Else any ⚪ INDETERMINATE or ⚠️ EVICTION → overall **⚪ INCONCLUSIVE** — list which journeys and why
+  (anchor absent on both / session bumped); these need a re-run, they are NOT passes.
+- Else only 🟡 hints → **🟡 REVIEW DRIFT**.
+- Else all 🟢 (and any mutating journeys were either tested-green or explicitly declined) → **🟢 PARITY HOLDS**.
+- ⚪ INDETERMINATE = a subject checkpoint's required anchor (resource-id/text proving the subject was
+  reached) was absent on **both** devices → the comparison is vacuous (flow didn't reach the subject;
+  matching-failure ≠ parity), exit code 3. Present on exactly one device is a normal presence 🔴.
 - Be honest about untested journeys — a green verdict with three declined mutating journeys is "🟢 for what was tested," and the report must say so.

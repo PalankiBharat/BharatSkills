@@ -17,6 +17,8 @@ Signal hierarchy:
 Verdicts (per checkpoint):
   EVICTION   ⚠  one device sits on an auth/login screen and the other doesn't (session got
                 bumped — NOT a parity bug; re-login and re-run).  Takes precedence.
+  INDETERMINATE ⚪ a declared --anchor proving the subject was reached is absent on BOTH devices
+                — neither flow got there, so the comparison is vacuous (not parity). Fix the flow.
   DIVERGENCE 🔴 a non-volatile tagged element is missing/extra, or a stable value differs.
   DRIFT      🟡 only soft/structure hints or volatile-presence differences (timing/live data).
   PARITY     🟢 stable structure + values match once live fields are masked.
@@ -24,7 +26,8 @@ Verdicts (per checkpoint):
 Usage:
   compare-parity.py --a0 a.s0.hierarchy.json --a1 a.s1.hierarchy.json \
                     --b0 b.s0.hierarchy.json --b1 b.s1.hierarchy.json \
-                    [--checkpoint NAME] [--seed-mask price ltp pnl ...] [--out verdict.json]
+                    [--checkpoint NAME] [--seed-mask price ltp pnl ...] [--anchor RID ...] \
+                    [--out verdict.json]
 
 Accepts Maestro hierarchy JSON or uiautomator XML (by file content/extension).
 """
@@ -148,6 +151,14 @@ def is_auth_surface(nodes):
     return hits
 
 
+def anchor_present(nodes, rids, anchor):
+    """True if anchor proves this device reached the subject — matches a resource-id (exact)
+    or a visible text (exact, after _norm)."""
+    if anchor in rids:
+        return True
+    return any(n["text"] == anchor for n in nodes)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--a0", required=True); ap.add_argument("--a1", required=True)
@@ -165,6 +176,10 @@ def main():
                          "sub-value offset and differ across devices though the real value matches. "
                          "Distinct from --server-state-text (which is for backend confirmation copy); "
                          "use this for on-screen-render jitter that has no stable resource-id to seed-mask.")
+    ap.add_argument("--anchor", nargs="*", default=[],
+                    help="resource-ids or exact visible texts proving the subject was reached; if "
+                         "declared and NONE appear on EITHER device, the checkpoint is INDETERMINATE "
+                         "(the flow didn't reach the subject; comparison is vacuous).")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
 
@@ -186,6 +201,23 @@ def main():
         }
         emit(result, args.out)
         return
+
+    # --- anchor gate: if declared anchors prove the subject was reached and NONE appear on
+    #     EITHER device, neither flow got there and the comparison is vacuous (not parity). ---
+    if args.anchor:
+        on_a = any(anchor_present(a0n, set(a0), x) for x in args.anchor)
+        on_b = any(anchor_present(b0n, set(b0), x) for x in args.anchor)
+        if not (on_a or on_b):
+            anchors = list(args.anchor)
+            result = {
+                "checkpoint": args.checkpoint, "verdict": "INDETERMINATE", "emoji": "⚪",
+                "detail": f"anchor(s) {anchors} absent on both devices — neither flow reached the "
+                          f"subject; this comparison is vacuous (not parity). Fix the flow to "
+                          f"reach/scroll-to the subject, then re-run.",
+                "divergences": [], "masked": [], "hints": [], "anchors": anchors,
+            }
+            emit(result, args.out)
+            return
 
     # --- auto-detected volatile set (+ seed) ---
     vol = volatile_rids(a0, a1) | volatile_rids(b0, b1)
@@ -280,12 +312,15 @@ def emit(result, out_path):
         line += f" — {len(result['hints'])} structure hint(s) (live/timing-explainable)"
     elif result["verdict"] == "EVICTION":
         line += " — " + result["detail"]
+    elif result["verdict"] == "INDETERMINATE":
+        line += " — " + result["detail"]
     print(line)
     if out_path:
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
     # exit code encodes the verdict so the SKILL can branch in bash if it wants
-    sys.exit({"PARITY": 0, "DRIFT": 0, "DIVERGENCE": 1, "EVICTION": 2}[result["verdict"]])
+    sys.exit({"PARITY": 0, "DRIFT": 0, "DIVERGENCE": 1, "EVICTION": 2,
+              "INDETERMINATE": 3}[result["verdict"]])
 
 
 if __name__ == "__main__":

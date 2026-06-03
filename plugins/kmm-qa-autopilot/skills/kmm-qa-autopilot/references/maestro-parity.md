@@ -28,7 +28,8 @@ for seg in $(ls maestro/<journey>/*.yaml | sort); do
   python3 scripts/compare-parity.py \
     --a0 .../a.s0.hierarchy.json --a1 .../a.s1.hierarchy.json \
     --b0 .../b.s0.hierarchy.json --b1 .../b.s1.hierarchy.json \
-    --checkpoint "<journey>/$name" --out "$RUN_DIR/artifacts/<journey>/$name/verdict.json"
+    --checkpoint "<journey>/$name" ${PARITY_ANCHOR:+--anchor $PARITY_ANCHOR} \
+    --out "$RUN_DIR/artifacts/<journey>/$name/verdict.json"
 done
 ```
 (Put the `sleep 2` between the `.s0` and `.s1` captures. If a screen has proven static — its
@@ -59,6 +60,14 @@ rest a row apart, producing a FALSE presence 🔴 at the boundary. Prefer `scrol
 end marker, or scroll **both to the list bottom**, then compare — offsets converge there. On a
 boundary-only presence diff mid-scroll, converge and re-compare before recording a 🔴 (observed: a
 ledger scroll flagged one extra row that vanished once both devices reached the bottom).
+
+**Every SUBJECT checkpoint must declare a required ANCHOR.** The flip side of the above: a migrated
+widget that was *never scrolled-to* is below the fold on **both** devices, so the hierarchies match
+and the comparator returns a false 🟢 (it compared two screens that both missed the subject). So name
+the anchor that proves the migrated widget/screen was actually on screen — its tagged resource-id
+(preferred) or exact visible text — and the runner forwards it via `PARITY_ANCHOR` (space-separated)
+to `compare-parity.py --anchor`. Absent on both → ⚪ INDETERMINATE, not 🟢; the segment should
+`scrollUntilVisible` that anchor before the capture so the subject is genuinely reached.
 
 ## Robust navigation — relaunch, never blind-Back
 

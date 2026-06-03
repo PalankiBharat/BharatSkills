@@ -5,6 +5,11 @@ the diff can touch gets a flow. The art is mapping a business-logic diff to *use
 because that's what we replay on both builds. Coverage is the **union of two sources** — the
 git diff (below) *and* the PR's own QA checklist (§1b) — not the diff alone.
 
+This diff→journeys analysis (Phase 2) and the per-journey Maestro flow authoring (Phase 3) run in a
+**subagent** that returns a short structured result — journeys, risk, anchors, masks — so the main
+context stays clean and the work overlaps the APK build wait. Hand the subagent the diff + PR body;
+get back the heatmap rows, not the raw trace.
+
 ## 1. Diff against LATEST master (not the PR's recorded base)
 
 "master latest is the source of truth." The PR's GitHub base can lag behind master, so always
