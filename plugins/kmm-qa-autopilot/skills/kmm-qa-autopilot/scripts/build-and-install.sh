@@ -21,6 +21,8 @@
 #   is the canary / non-R8 build, so it can HIDE R8-only regressions — most dangerously serialization
 #   (a Gson->kotlinx.serialization migration can be green on debug yet broken under R8). Override to
 #   ProductionDebug only if you knowingly want a fast non-R8 build. Both builds MUST use the same variant.
+#   ProductionDebug is also the build to use for a separate root-cause investigation pass (faster, with
+#   readable stacktraces under continuous logcat) — but the parity verdict always stands on ProductionRelease.
 # Prints: APP_ID=<resolved applicationId>   (also echoes a testTagsAsResourceId warning if off)
 
 set -euo pipefail
@@ -58,6 +60,21 @@ fi
 UNINSTALL_PKG="${PARITY_APP_ID:-com.marketpulse.sniper.vte}"
 echo "[$LABEL] uninstalling any prior $UNINSTALL_PKG on $SERIAL (clean slate)..."
 "$ADB" -s "$SERIAL" uninstall "$UNINSTALL_PKG" >/dev/null 2>&1 || echo "[$LABEL]   (none installed — ok)"
+
+# Android Studio preflight (warn only, never fatal): AS owns the default ~/.gradle daemon and was
+# observed killing parity builds mid-run with "stop command received". We isolate the Gradle home
+# below, but the safest move is still to quit AS while parity runs.
+if pgrep -f "Contents/MacOS/studio" >/dev/null 2>&1 || pgrep -f "Android Studio" >/dev/null 2>&1; then
+  echo "[$LABEL] ⚠ Android Studio appears to be running — despite the isolated Gradle home below, quitting AS is still the safest way to avoid daemon contention (AS can stop the shared ~/.gradle daemon mid-build)."
+fi
+
+# Isolated, PERSISTENT Gradle user home for parity builds. AS controls the DEFAULT ~/.gradle daemon and
+# was seen stopping our builds mid-run ("stop command received"); a dedicated home gives the parity builds
+# their own daemon + caches that AS can't reach. Persistent (not per-run temp) so only the first-ever run
+# is cold — every run after that is warm.
+PARITY_GRADLE_USER_HOME="${PARITY_GRADLE_USER_HOME:-$HOME/.gradle-kmm-qa}"
+mkdir -p "$PARITY_GRADLE_USER_HOME"
+export GRADLE_USER_HOME="$PARITY_GRADLE_USER_HOME"
 
 # Step 1 — ObjectBox prepare, no config cache.
 ./gradlew :app:objectboxPrepareBuild --no-configuration-cache --build-cache

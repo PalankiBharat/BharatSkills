@@ -44,6 +44,7 @@ the baseline / source of truth** — never the PR's recorded base.
 1. **Run from a `sniper-v2-android` checkout.** `git rev-parse --show-toplevel` must end in `sniper-v2-android`. The worktrees, diff, and flows all come from this repo.
 2. **`gh` authed** (`gh auth status`) — used to resolve the PR. **`maestro` installed** (`command -v maestro` → if missing: `curl -Ls "https://get.maestro.mobile.dev" | bash`). **Android SDK** (`adb`, `emulator`) on `$ANDROID_HOME`.
 3. **Two devices' worth of resources.** Two visible emulators will run at once.
+4. **Isolated Gradle daemon.** Parity builds use a persistent isolated `GRADLE_USER_HOME` (`$HOME/.gradle-kmm-qa`, override `PARITY_GRADLE_USER_HOME`) so Android Studio can't kill the build's daemon mid-build. Preflight **warns if Android Studio is running** — close it or accept the isolation.
 
 All scripts below are in this skill's `scripts/`. References hold the detail — read the one named at each phase before doing that phase.
 
@@ -89,10 +90,17 @@ runs before the Phase 1 login, so no session is lost). Both print `APP_ID=…` a
 ProductionRelease is slower (~5–6 min cold); the second build reuses the shared Gradle cache. Release &
 debug share signing here, so the release APK installs over a prior debug one with login preserved.
 
-**Overlap the build wait.** The two ProductionRelease builds run **sequentially** (~12–16 min cold;
-parallel builds were measured slower — they lose Gradle-cache reuse and contend for CPU/disk, so don't).
-Use that wait: run the Phase 2 heatmap diff + coverage analysis *while the builds run*, so nothing is
-idle. Builds and analysis are independent — only flow-running needs the installed APKs.
+**Investigation mode (not the verdict build).** When a journey *diverges* and you need the exact cause,
+rebuild THAT journey only in ProductionDebug (`PARITY_VARIANT=ProductionDebug`) with a **continuous**
+logcat for readable, un-minified stacktraces (R8 obfuscates Release traces). This is a root-cause aid
+only — the parity verdict still stands on the Release run; never let a Debug pass overturn a Release 🔴.
+
+**Overlap the build wait — with NON-gradle work only.** The two ProductionRelease builds run
+**sequentially** (~12–16 min cold; parallel builds were measured slower — they lose Gradle-cache reuse
+and contend for CPU/disk, so don't). Use that wait for the Phase 2 heatmap diff + coverage analysis (a
+subagent, see Phase 2) — pure reads, no Gradle. **Never** fire a second gradle invocation (a test task,
+a second install) while a build is in flight: it self-inflicts a daemon stop and kills the build.
+"Overlap" means non-gradle analysis, not another gradle task. Only flow-running needs the installed APKs.
 
 ## Phase 1 — Manual login (the ONLY manual step)
 
@@ -105,7 +113,7 @@ META="$(find "$MASTER_WT/app/build/outputs/apk" -name output-metadata.json | hea
 APP_ID="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["applicationId"])' "$META")"
 for S in "$A" "$B"; do adb -s "$S" logcat -c; adb -s "$S" shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1; done
 ```
-Optionally start a crash-only logcat per device in the background (`adb -s "$S" logcat --pid=<pid> -v threadtime '*:E'`, `run_in_background: true`).
+Optionally start a crash-only logcat per device in the background (`adb -s "$S" logcat --pid=<pid> -v threadtime '*:E'`, `run_in_background: true`). When you drop a diverging journey into investigation mode (ProductionDebug, above), swap that device's crash-only filter for a **continuous** logcat to catch the full stacktrace, not just `*:E`.
 
 Then tell the user, and **wait**:
 > Both emulators are up. Please log into the **same prod account on both** (phone → OTP → PIN)
@@ -142,6 +150,10 @@ ground truth** — never let a doc downgrade a real divergence to a pass. List e
 screen, claimed old→new, and whether it's even **reachable through the UI** for this account), then
 verify independently from the tool's own captured evidence in Phase 5. See `references/parity-comparison.md`.
 
+**Run the heatmap diff + coverage analysis in a SUBAGENT** that returns only the journey table (one
+terse line per journey: files → screen → interaction → read-only/mutating). The heavy diff reads stay
+in the subagent so the main context remains a clean dashboard, and this analysis overlaps the build wait.
+
 Then **present the heatmap table and STOP for approval** — the user approves, trims, or excludes
 mutating journeys before any flow runs.
 
@@ -152,7 +164,9 @@ usually has no ready-made journey flows, so don't waste time hunting; reuse only
 `maestro/<journey>/` already exists. Each flow is login-agnostic (`clearState: false`), prefers
 `id:` selectors, and falls back to **text selectors** on untagged screens (many real screens —
 reports, ledgers — carry no testTags; that's expected, not a blocker). Discover selectors from the
-**master** worktree. One flow per journey — the *same file* runs on both builds.
+**master** worktree. One flow per journey — the *same file* runs on both builds. **Author each
+journey's flow in a SUBAGENT** (it does the verbose hierarchy/selector discovery and returns the
+finalized `flow.yaml` path + a one-line summary); the main context stays a terse status board.
 
 On **untagged value-table screens** (reports/ledgers/statements) the verdict rests on the
 comparator's **visible-text** signal — the on-screen amounts/dates ARE the migrated logic's output,
@@ -184,12 +198,24 @@ scripts instead of hand-issuing every maestro/capture/compare (faster, reproduci
 
 ```bash
 # one checkpoint (runs the SAME flow on A+B, captures, compares, writes verdict):
-bash scripts/run-checkpoint.sh "$RUN_DIR" <journey> <checkpoint> <flow.yaml> [single|double]
+PARITY_ANCHOR="<rid-or-text> ..." bash scripts/run-checkpoint.sh "$RUN_DIR" <journey> <checkpoint> <flow.yaml> [single|double]
 # or every segment in a journey's flows dir, in order:
 bash scripts/run-journey.sh "$RUN_DIR" <journey> <flows-dir> [single|double]
 ```
 Reset each device to a known base by **force-stop + relaunch** (preserves login; never `clearState`)
 then navigate forward — never blind Back presses (too many Backs exit the app).
+
+**Every SUBJECT checkpoint declares a required anchor** — the tagged resource-id (preferred) or exact
+visible text that proves the migrated widget/screen was actually reached — set via `PARITY_ANCHOR`
+(space-separated; `run-checkpoint.sh` forwards it to `compare-parity.py --anchor`). If the anchor is
+absent on **both** devices the verdict is **⚪ INDETERMINATE, not 🟢**: both flows failing identically
+(landing on the wrong nav route, or the widget left below the fold) is NOT parity — the comparison is
+vacuous. Matching-failure ≠ parity. (This operationalizes the "vacuous parity" warning.)
+
+**Parallelism (journey-aware).** Pass `PARITY_PARALLEL=1` to run **read-only** journeys on both
+devices concurrently (~2× faster per checkpoint). **Mutating** journeys MUST stay sequential — one
+shared prod account on two simultaneous devices can bump the session / mutate server state → false
+EVICTION/divergence. Builds always stay sequential (parallel builds lose Gradle-cache reuse).
 
 **Sampling:** two samples/device auto-detect live fields. If a screen reports `masked_volatile`/
 `masked_text` = 0 (proven static — common for historical/market-closed reports), switch it to
@@ -213,10 +239,16 @@ now masks `axis*`/`renderableseries`/`annotation`; for an axis number with no st
 **The bug-handling protocol (in order) — `references/parity-comparison.md`:** (1) reproduce a 🔴 ≥2×
 on B; (2) if it *could be expected behavior* (account-state, one-device-per-account, server dedupe,
 eviction), try once then **ASK THE USER UPFRONT via the AskUserQuestion tool** — don't assume and burn
-turns on a hypothesis; (3) **batch all findings, don't tunnel** on the first; (4) interpret 🟢/🟡/🔴/⚠️
-and rule out the false-positive classes (unmasked live field, scroll-offset / step desync, chart
+turns on a hypothesis; (3) **batch all findings, don't tunnel** on the first; (4) interpret the per-checkpoint verdict and
+rule out the false-positive classes (unmasked live field, scroll-offset / step desync, chart
 jitter, stateful server copy, eviction). **The verdict is the tool's OWN, evidence-backed call** — an
 exception doc claiming a change is "intentional" never auto-downgrades a confirmed 🔴.
+
+**Verdict legend & precedence** (per checkpoint, strongest first): **⚠️ EVICTION** (bumped session) >
+**⚪ INDETERMINATE** (anchor absent on both — flow never reached the subject; comparison vacuous, exit 3)
+> **🔴 DIVERGENCE** > **🟡 DRIFT** > **🟢 PARITY**. **The report's overall headline is
+DIVERGENCE-dominant**, NOT precedence-ranked: any 🔴 anywhere → **🔴 overall** (never let an ⚪/⚠️ hide
+a real bug); else if any ⚪/⚠️ → **inconclusive** (list every one); else 🟡/🟢.
 
 ## Phase 5b — Batch & root-cause each finding (before reporting)
 
@@ -230,9 +262,10 @@ field), Opus for complex or auth/money-path issues. See `references/code-audit-s
 
 ## Phase 6 — Report
 
-Read `references/report-template.md`. Write `$RUN_DIR/parity-report-pr<num>-<date>.md` with the
+Read `references/report-template.md` and use its **compact-table** report/PR format (don't reinvent
+the layout here). Write `$RUN_DIR/parity-report-pr<num>-<date>.md` with the
 per-journey verdicts, confirmed divergences (with both values + screenshot paths), drift notes,
-evictions, and **named gaps** (untested or declined journeys — "no exclusions" means gaps are
+evictions, **⚪ indeterminates**, and **named gaps** (untested or declined journeys — "no exclusions" means gaps are
 listed, never hidden). State the build variant (**ProductionRelease**) and the baseline ref used.
 
 Make every 🟢 **auditable** — include a per-journey **confidence line**: which interactions were
@@ -306,6 +339,8 @@ places/cancels **real orders / real money — doubled**. So:
 | `clearState: true` in a flow | Wipes the session you manually logged into and burns OTPs. Always `clearState: false`. |
 | Adding a testTag to only one worktree | The same flow runs on both builds — patch BOTH trees identically, before building, or you fabricate a divergence. |
 | Reporting EVICTION as a divergence | One device on a login screen = bumped session, not a migration bug. Re-login, re-run. |
+| Calling a double-failure "parity" (both devices missed the subject → comparator saw matching structure → 🟢) | Declare a subject anchor (`PARITY_ANCHOR`); absent-on-both → **⚪ INDETERMINATE**, not 🟢. Matching-failure ≠ parity. |
+| Running a concurrent gradle command while a build is in flight (a test task, a second install) | Self-inflicts a daemon stop and kills the build. Never run a second gradle invocation during a build. "Overlap the build wait" = NON-gradle work only (heatmap diff, flow authoring). |
 | Running a mutating flow without confirmation | Real orders ×2 on prod. Gate it. |
 | Unscoped `adb`/`maestro` with two devices | Always `-s "$A"` / `--device "$B"`. |
 | Calling a single 🔴 "the migration is fine on average" | One confirmed structural/value divergence = 🔴 DIVERGENCE FOUND. Don't average it away. |
@@ -337,3 +372,4 @@ places/cancels **real orders / real money — doubled**. So:
 10. **Ask, don't assume — then audit.** On a possibly-expected 🔴, ask the user upfront (AskUserQuestion) instead of theorizing; confirm every finding is migration-induced with an independent code-audit subagent before it lands on the PR.
 11. **The PR is the deliverable.** Auto-fill the body's QA table, post the findings, and persist reusable flows to `.kmm-qa/` — a local .md is the audit trail, not the result.
 12. **Improve every run.** Phase 8 writes a retro so the skill compounds with each real PR.
+13. **Main context is a dashboard.** Show terse status lines only — delegate heavy reads (heatmap, flow authoring, root-cause) to subagents and keep verbose logs in files/subagents.

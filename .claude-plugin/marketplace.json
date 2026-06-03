@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",
-    "version": "1.21.0",
+    "version": "1.22.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -446,7 +446,7 @@
       "name": "kmm-qa-autopilot",
       "source": "./plugins/kmm-qa-autopilot",
       "description": "Parity QA for Android-to-KMM migration PRs — proves a migration changed nothing the user can see by running master and the PR head head-to-head. Given a PR link, it builds latest origin/master and the PR head as two ProductionRelease APKs (the shipped R8-minified artifact, same package), boots and locks two visible emulators (master→A, PR→B), waits for one manual prod login on each, derives a no-exclusions test heatmap from the master-vs-PR git diff, runs the SAME Maestro flows on both devices, and diffs view-hierarchy structure + stable values (live prices/charts auto-masked by double-sampling) into a per-journey parity verdict. Real-prod-state safety gate holds order/funds/kill-switch flows behind explicit confirmation. Distinct from single-build qa-autopilot.",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "category": "testing",
       "tags": [
         "kmm",

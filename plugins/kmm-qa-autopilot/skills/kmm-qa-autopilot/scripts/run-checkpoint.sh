@@ -10,7 +10,16 @@
 #                  i.e. a prior checkpoint reported masked_volatile/masked_text = 0)
 #
 # Writes <run-dir>/artifacts/<journey>/<checkpoint>/{a,b}.s0[,.s1].{png,hierarchy.json} + verdict.json
-# Exit code mirrors compare-parity.py: 0 = PARITY/DRIFT, 1 = DIVERGENCE, 2 = EVICTION.
+# Exit code mirrors compare-parity.py: 0 = PARITY/DRIFT, 1 = DIVERGENCE, 2 = EVICTION, 3 = INDETERMINATE.
+#
+# Env:
+#   PARITY_PARALLEL=1  run device-A and device-B Maestro + captures CONCURRENTLY (~2x). Safe ONLY for
+#                      READ-ONLY journeys — NEVER for mutating journeys: two simultaneous devices on a
+#                      shared prod account bump the session / mutate server state → false EVICTION.
+#                      Unset (default) = sequential, the safe default.
+#   PARITY_ANCHOR      space-separated resource-ids/texts proving the subject screen was reached.
+#                      Forwarded to compare-parity.py as --anchor; if absent on BOTH devices the
+#                      verdict is INDETERMINATE (⚪, exit 3). Empty = no anchor check (backward compat).
 #
 # SCROLL/paging (#7): a scrolling flow MUST scroll to a deterministic anchor (list bottom /
 # scrollUntilVisible) before this captures — comparing an arbitrary mid-scroll offset across two
@@ -26,20 +35,39 @@ SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"   # .../skills/kmm-qa-autopilot
 A="$(cat "$RUN_DIR/locks/lock-a")"; B="$(cat "$RUN_DIR/locks/lock-b")"
 OUT="$RUN_DIR/artifacts/$J/$CP"; mkdir -p "$OUT"
 echo "[$J/$CP] flow=$(basename "$FLOW") mode=$MODE  A=$A B=$B"
-maestro --device "$A" test "$FLOW" >"$OUT/a.maestro.log" 2>&1; ra=$?
-maestro --device "$B" test "$FLOW" >"$OUT/b.maestro.log" 2>&1; rb=$?
+if [ -n "${PARITY_PARALLEL:-}" ]; then
+  # READ-ONLY journeys only: run both devices' flows concurrently, wait on each PID for its exit.
+  maestro --device "$A" test "$FLOW" >"$OUT/a.maestro.log" 2>&1 & pid_a=$!
+  maestro --device "$B" test "$FLOW" >"$OUT/b.maestro.log" 2>&1 & pid_b=$!
+  wait "$pid_a"; ra=$?
+  wait "$pid_b"; rb=$?
+else
+  maestro --device "$A" test "$FLOW" >"$OUT/a.maestro.log" 2>&1; ra=$?
+  maestro --device "$B" test "$FLOW" >"$OUT/b.maestro.log" 2>&1; rb=$?
+fi
 echo "  maestro exit: A=$ra B=$rb"
 [ "$ra" -ne 0 ] && { echo "  ! A flow non-zero (tail):"; tail -3 "$OUT/a.maestro.log"; }
 [ "$rb" -ne 0 ] && { echo "  ! B flow non-zero (tail):"; tail -3 "$OUT/b.maestro.log"; }
 cap() { bash "$SKILL_DIR/scripts/capture-checkpoint.sh" "$1" "$2" >/dev/null 2>&1; }
-cap "$A" "$OUT/a.s0"; cap "$B" "$OUT/b.s0"
-if [ "$MODE" = "double" ]; then
-  sleep 2; cap "$A" "$OUT/a.s1"; cap "$B" "$OUT/b.s1"
+if [ -n "${PARITY_PARALLEL:-}" ]; then
+  cap "$A" "$OUT/a.s0" & cap "$B" "$OUT/b.s0" & wait
+  if [ "$MODE" = "double" ]; then
+    sleep 2; cap "$A" "$OUT/a.s1" & cap "$B" "$OUT/b.s1" & wait
+  fi
 else
+  cap "$A" "$OUT/a.s0"; cap "$B" "$OUT/b.s0"
+  if [ "$MODE" = "double" ]; then
+    sleep 2; cap "$A" "$OUT/a.s1"; cap "$B" "$OUT/b.s1"
+  fi
+fi
+if [ "$MODE" != "double" ]; then
   cp "$OUT/a.s0.hierarchy.json" "$OUT/a.s1.hierarchy.json" 2>/dev/null
   cp "$OUT/b.s0.hierarchy.json" "$OUT/b.s1.hierarchy.json" 2>/dev/null
 fi
+# PARITY_ANCHOR is intentionally unquoted so a space-separated list becomes multiple --anchor args.
+# shellcheck disable=SC2086
 python3 "$SKILL_DIR/scripts/compare-parity.py" \
   --a0 "$OUT/a.s0.hierarchy.json" --a1 "$OUT/a.s1.hierarchy.json" \
   --b0 "$OUT/b.s0.hierarchy.json" --b1 "$OUT/b.s1.hierarchy.json" \
-  --checkpoint "$J/$CP" --out "$OUT/verdict.json"
+  --checkpoint "$J/$CP" --out "$OUT/verdict.json" \
+  ${PARITY_ANCHOR:+--anchor $PARITY_ANCHOR}
