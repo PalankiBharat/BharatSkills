@@ -19,13 +19,13 @@
 **Structure (concise — each section is the minimum a reviewer needs):**
 - **What changed** — the feature/module migrated, in reviewer-facing terms. Not "we ran Phase D" — "migrated funds business logic to the shared module."
 - **User-visible impact** — ideally *"none — behavioral + API equivalence preserved."* Be explicit about this.
-- **Files changed** — high-level summary by category. E.g., "8 files relocated to `:shared/funds/` (`androidMain`); 6 promoted to `commonMain`; 2 held in `androidMain` for a future session."
+- **Files changed** — high-level summary by category. E.g., "8 files relocated to `:shared/funds/` (`androidMain`); 6 promoted to `commonMain`; 2 held in `androidMain` for a future session." Cite an **exact consumer count** (e.g. "9 consumer ViewModels updated"), not "~9" — `coverage.md` should carry the precise enumeration so the body never falls back to an approximation; if it only has a category note, count from the diff before composing.
 - **Risk areas** — from `plan.md` risk register. What should the reviewer focus on?
 - **QA — pending (parity via `kmm-qa-autopilot`)** — state plainly that behavioral parity QA runs on this PR via the autopilot skill (master vs PR head), and **embed `heatmap.md` directly here as a checklist** (`- [ ]` rows per surface). `.kmm/migrations/` is gitignored, so embed the table inline — do not link to a path. Result cells stay unchecked; they're a pre-merge gate the QA run fills in.
 - **Migration exceptions (if any, provenance-verified above)** — listed with links to `.kmm/exceptions/` files + the referencing commits in this PR's range + brief rationale. Exceptions with zero provenance are NOT listed.
 - **Tests** — baseline counts per source set (held vs promoted), all-green confirmation, iOS verification status (or host-limitation note). One or two lines.
 - **Out-of-scope follow-ups** — pre-existing broken tests quarantined (`@Ignore` or build-level exclude, from Phase B.2 / E.0) and files flipped `migrate` → `hold` during Phase D (D.3), one line each. Reviewer-facing list, not a backlog dump.
-- **Footer (single line):** `Full migration context: .kmm/migrations/<branch>/ (local).`
+- **No gitignored-path footer.** Do NOT add a `Full migration context: .kmm/migrations/<branch>/ (local)` line — it points reviewers at a path they can't open and G.2's process-bleed pass only rewrites it. The migration's reviewer-facing artifacts (the tracked `.kmm/exceptions/` files) are already linked from the Migration-exceptions section; nothing else belongs in the body.
 
 **Two artifacts produced (G2 — pr.md vs pr-body.md split).** G.1 writes both files:
 

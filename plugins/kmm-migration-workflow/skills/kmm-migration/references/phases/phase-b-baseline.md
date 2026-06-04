@@ -87,6 +87,8 @@ Recorded per file in `audit.md`.
 
 ### B.4 — Write missing baselines
 
+**Re-verify Phase A's path-a/b + injectability against CURRENT ctor shapes — FIRST, before writing anything.** Phase A classified files by lib-swap path but can under-weight *self-construction*: a store built no-arg via a static `RetrofitBuilder`, an ObjectBox singleton, or a no-arg ctor isn't injectable today regardless of its lib-swap path, so a "baseline now" plan over-promises. Code-ground each in-scope file against its real constructor before baselining — a self-constructing SUT moves to the defer shortlist (baseline written against the migrated, injectable impl at Phase D) rather than wasting a baseline that can't be wired. (A prior session caught this only by a code-grounded re-read at B.4; do it as the first B.4 step, not by accident.)
+
 **Parallelism (per SKILL.md Smart subagent routing — NON-NEGOTIABLE):** parallel **Sonnet subagents**, one per file in the current batch, dispatched in a single orchestrator turn. Complex files in the shortlist below go to **Opus subagents** (still parallel across independent files; never the orchestrator). The orchestrator never authors a baseline test itself — subagent failure triggers another subagent, not a main-thread fallback.
 
 **Parallel-batch scope guard (NON-NEGOTIABLE — prevents the cross-subagent interference that nearly lost work in a prior session).**
@@ -99,6 +101,8 @@ Recorded per file in `audit.md`.
 - Pure data classes with no logic (per `test-discipline/models.md`), pure interfaces (per repositories.md / usecases.md), pure-factory UseCase impls.
 
 For each deferred file: write a `## Followup: <file>` entry to `phase-d-followups.md` with `**Source row:**` (audit row), `**Reason:**` (which deferral rule), `**Proposed action:**` (write baseline against migrated impl at Phase D / inject IUserQueryRepository / etc.), `**Status:**** open`. Skip baseline. coverage.md row flips to `audited` with `baseline-deferred-to-phase-d` in the baseline-path column.
+
+**`migrate(fold)` stores — capture master's OLD observable outputs in the followup, not the new store's.** When a Retrofit interface is *folded* into a new Ktor store, the deferred baseline is necessarily written against the new code and so cannot freeze master's behavior on its own. The followup entry MUST record the OLD store's observable outputs — emitted values **and exception message strings** (`error(Throwable(s))` and `error(s)` produce different `message`s) — read verbatim from master, so the Phase-D baseline pins master's contract rather than rubber-stamping the new store. (A 503 error-message divergence on a folded store slipped through B/C/F and only surfaced at human review because its baseline was born against the new store.)
 
 For files with audit verdict `Augment` / `Rewrite` or no existing test (and not on the defer shortlist):
 

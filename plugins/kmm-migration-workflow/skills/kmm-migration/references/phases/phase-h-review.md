@@ -25,6 +25,8 @@ Classify each review finding into exactly one bucket, in plain language (per SKI
 
 Present the triaged table to the user with the skill's recommended disposition per finding. **Batch the dispositions into one turn** (per SKILL.md Decision routing — don't serialize one finding per turn).
 
+**Self-verify any finding that turns on exception / `toString()` / error-message semantics against the OLD code before recording its verdict** (per SKILL.md Verify-before-offering). A single investigation subagent returned a self-contradictory verdict on a 503 message ("identical" then "different") this phase — settle it by reading master directly (`error(Throwable(s))` ≠ `error(s)`), never carry a subagent's contradiction into the triage.
+
 ### H.3 — Resolve blockers through the workflow (NON-NEGOTIABLE — no live-patching)
 
 For each blocker, route by what it actually is — never an ad-hoc edit:
@@ -40,7 +42,8 @@ No fix-looping through variants until something sticks; no "while we're here" ch
 
 - Present the resolution summary: blockers resolved (with test/exception evidence), nits done vs deferred, out-of-scope items logged.
 - **The user approves proceeding to Phase I**, or sends another review round (loop back to H.1 with the new feedback). Non-blockers the user declines are recorded as follow-ups, not silently dropped.
-- If H.3 changed code that ships in the PR, the PR body's "Out-of-scope follow-ups" / risk sections are updated (Sonnet subagent) and the new commits pushed.
+- **PR-update behavior is configurable, and defaults to leaving the PR body untouched.** When the user reviews via external GitHub (the common case), the default is **reply inline to each comment only** — self-contained replies that **never reference `.kmm/` local files** (reviewers can't open them) — and the PR body is **not touched**.
+- **NEVER wholesale-overwrite an existing PR body.** A prior phase replaced the entire PR body with a bug-review document — that is a defect, not an update. At most **append a clearly-delimited section**, and only with the user's explicit opt-in. If H.3 changed code that ships in the PR and the user opts into a body update, a Sonnet subagent edits *only* the "Out-of-scope follow-ups" / risk sections (append/edit-in-place, never replace) and pushes the new commits.
 
 ### H.5 — Phase H retro
 
@@ -72,4 +75,5 @@ Beyond universals:
 - **Every blocker resolved through the workflow** — behavioral fixes have a failing-test-first proof, baseline/behavior edits have a migration-exception, all edits via subagents, all committed. No live patches.
 - Re-validation run at the Phase F.6 scope appropriate to each fix's surface area.
 - **User approval recorded** before proceeding to Phase I. Another review round loops back to H.1; the phase doesn't close on an unresolved blocker.
+- **PR body never wholesale-overwritten** — default is inline replies only (self-contained, no `.kmm/` refs); any body change is an append/edit-in-place of specific sections, with explicit user opt-in.
 - Phase H retro captured (blocking).

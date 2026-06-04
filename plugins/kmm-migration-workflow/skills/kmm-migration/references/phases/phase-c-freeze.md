@@ -115,6 +115,14 @@ The skill's behavioral refusal to edit frozen baselines is not smoke-testable me
 - All baseline test files for in-scope files (in `<dest>/src/androidUnitTest/`) committed atomically.
 - **Sonnet** composes the commit message — references the session, lists files frozen, aggregates trust scores from audit.md.
 - **Resulting commit SHA = frozen-at marker** for this session.
+- **Freeze-marker decision table (don't re-derive it each Phase C):**
+
+  | Situation | Frozen-at marker |
+  |---|---|
+  | Baselines uncommitted at C entry | This freeze commit's own SHA (commit them here). |
+  | Baselines **already committed this session** (gitignore-collapse: code committed progressively in Phase B) | A **new empty marker commit** created here — `git commit --allow-empty`. Its SHA is the frozen-at marker. |
+
+  In the gitignore-collapse case **do NOT reuse a Phase B baseline commit's SHA** as the marker — a fresh empty marker keeps the frozen-at boundary unambiguous and post-dates every baseline commit. This is the recurring re-derivation; the table settles it.
 - Optional: tag the commit (e.g., `baseline-funds-business-logic-2026-05-13`) — user's call, asked once.
 
 **Commit cadence — see SKILL.md §Commit cadence for the Phase C exception.** On a repeat Phase C (no C.2 bootstrap), the standard two-commit cadence applies: this is commit 1 (code), C.5 is commit 2 (audit). On a first-time C.2 bootstrap, the cadence is three commits: bootstrap commit (detekt config + custom-rules artifact, from C.2) → freeze marker commit (this step) → audit commit (C.5). The freeze SHA cannot be self-referenced inside its own commit; that's why C.5's `freeze.md` + `coverage.md` flips must land in a separate commit AFTER the freeze marker SHA exists.
