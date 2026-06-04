@@ -15,10 +15,12 @@ AGENT_FILE="${ROLE_AGENT:-$HERE/../../../agents/$PERSONA.md}"
 
 # Opt-in OS sandbox (HARNESS_SANDBOX=1): a filesystem+network blast-wall around the
 # worker, the doc-blessed alternative to bypass-only. Falls back gracefully if absent.
+# Do NOT also set CLAUDE_CODE_SUBPROCESS_ENV_SCRUB — Claude Code forces permission mode to
+# "default" when it's set, which deadlocks a headless worker (no human to approve the Write).
+# Credentials are still protected by the sandbox's denyRead (~/.aws, ~/.ssh, ~/.config/gh…).
 SANDBOX_OPT=""
 if [ "${HARNESS_SANDBOX:-0}" = "1" ] && [ -f "$HERE/../assets/sandbox-settings.json" ]; then
   SANDBOX_OPT="--settings $HERE/../assets/sandbox-settings.json"
-  export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1     # strip cloud/API creds from subprocess env
 fi
 
 # Broadened streaming filter (proven in the Task 1 spike): think + tool + text.
