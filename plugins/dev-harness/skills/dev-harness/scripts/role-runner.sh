@@ -35,9 +35,14 @@ FILTER='select(.type=="stream_event") | .event as $e |
 
 _log() { printf '%s [%s] %s\n' "$(date +%H:%M:%S)" "$ROLE" "$1" >> "$ROOT/$ROLE/worklog.md"; }
 
-_artifact_present() {   # $1 = EXPECT path (relative to .harness or cwd)
+_artifact_present() {   # $1 = EXPECT path — accepts ".harness/artifacts/X" or bare "artifacts/X"
   [ -z "$1" ] && return 0
-  [ -f "$ROOT/$1" ] || [ -f "$1" ]
+  local p="$1"
+  case "$p" in
+    .harness/*)  p="$ROOT/${p#.harness/}" ;;   # canonical form -> the run's actual .harness root
+    artifacts/*) p="$ROOT/$p" ;;               # bare form (relative to .harness)
+  esac
+  [ -f "$p" ] || [ -f "$1" ]
 }
 
 run_once() {

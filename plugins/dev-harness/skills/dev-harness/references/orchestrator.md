@@ -10,15 +10,15 @@ Manish=tech-lead · Mohit-Dev/Bharat-Dev=dev · Rohit/Bharat-QA=qa · Mohit-Arch
 
 ## Flow
 1. **INIT** — `harness-init.sh --story "<s>" --slug <slug>` (preflight, branch, layout, emulator lock, 5 panes).
-2. **Tech Lead** — `send tech-lead "ANALYSE\nEXPECT: artifacts/spec.md"` → wait done|needs-user. If `needs-user`: `render-review.sh questionnaire artifacts/open-questions.md`, get answers, append to spec.md, `send tech-lead RESUME`. Then **HTML plan gate**: `render-review.sh plan artifacts/spec.md`; wait for the user's approval.
+2. **Tech Lead** — `send tech-lead "ANALYSE\nEXPECT: .harness/artifacts/spec.md"` → wait done|needs-user. If `needs-user`: `render-review.sh questionnaire .harness/artifacts/open-questions.md`, get answers, append to spec.md, `send tech-lead RESUME`. Then **HTML plan gate**: `render-review.sh plan .harness/artifacts/spec.md`; wait for the user's approval.
 3. **Per phase P (in the phase plan order):**
-   a. `send dev "PLAN phase P\nEXPECT: artifacts/plan.md"` → wait done.
+   a. `send dev "PLAN phase P\nEXPECT: .harness/artifacts/plan.md"` → wait done.
    b. loop `send dev "IMPLEMENT-NEXT phase P"` → wait done, until plan.md fully ticked. (gate: phase built — proceed?)
    c. `send qa "TAG-CHECK phase P"` → wait done; if `testtag-requests.md` non-empty → `send dev ADD-TAG` → wait → re-TAG-CHECK.
-   d. `send qa "PREP phase P\nEXPECT: artifacts/qa-scenarios.md"` → wait done.
-   e. `send qa "TEST phase P\nEXPECT: artifacts/qa-report.md"` → wait done; read report. FAIL → `send dev FIX-PER-QA` → wait → re-TEST. (QA fix cap **7** → escalate.) (gate: QA verdict)
+   d. `send qa "PREP phase P\nEXPECT: .harness/artifacts/qa-scenarios.md"` → wait done.
+   e. `send qa "TEST phase P\nEXPECT: .harness/artifacts/qa-report.md"` → wait done; read report. FAIL → `send dev FIX-PER-QA` → wait → re-TEST. (QA fix cap **7** → escalate.) (gate: QA verdict)
 4. **PR** — after all phases pass, Dev opens a **draft PR** (its own branch, base = this repo only; never force-push).
-5. **Architect** — `send architect "REVIEW\nEXPECT: artifacts/architect-review.md"` → wait done; read verdict:
+5. **Architect** — `send architect "REVIEW\nEXPECT: .harness/artifacts/architect-review.md"` → wait done; read verdict:
    - PASS → DONE.
    - only `[small]` → `send dev ADDRESS-SMALL` → re-REVIEW (no re-QA).
    - any `[structural]` → `send dev IMPLEMENT-REPLAN` → `send qa RE-TEST` (affected phases) → re-REVIEW.
