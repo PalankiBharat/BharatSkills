@@ -19,15 +19,15 @@ Every run owns a `.harness/` directory at the repo root (gitignored). The Orches
 |---|---|
 | `idle` | waiting |
 | `working` | Orchestrator wrote a new inbox; pane is processing (only the Orchestrator sets this) |
-| `done` | finished; outbox + artifacts written (supervisor sets it from the worker's exit) |
+| `done` | finished; the agent ran `bash .harness/done <role>` after writing its artifacts |
 | `blocked` | cannot proceed (emulator died, missing input) |
 | `needs-user` | Tech Lead surfaced open questions |
 
 ## Artifact paths (canonical)
-**All scratch artifacts live under `.harness/artifacts/`** (gitignored): spec, findings, open-questions, plan, dev-handoff, qa-scenarios, qa-flows/, qa-report, architect-review, architect-replan, testtag-requests. A worker's cwd is the **repo root**, so always use the full `.harness/artifacts/<file>` path — never bare `artifacts/<file>` (that would write to the committed repo root). Code goes to `app/src/**`. `EXPECT:` accepts either `.harness/artifacts/X` or bare `artifacts/X` (the supervisor normalizes both to the run's `.harness/`).
+**All scratch artifacts live under `.harness/artifacts/`** (gitignored): spec, findings, open-questions, plan, dev-handoff, qa-scenarios, qa-flows/, qa-report, architect-review, architect-replan, testtag-requests. A worker's cwd is the **repo root**, so always use the full `.harness/artifacts/<file>` path — never bare `artifacts/<file>` (that would write to the committed repo root). Code goes to `app/src/**`. The Orchestrator verifies the `EXPECT:`ed artifact at `.harness/artifacts/<file>` after the agent signals done.
 
 ## Dispatch contract
-An inbox message is `<INSTRUCTION>` plus optional `EXPECT: <artifact path>`. The supervisor marks `done` only if the worker exits 0 AND the EXPECTed artifact is present — else `blocked`. The Orchestrator also re-checks artifacts on disk (never trusts a flag alone).
+An inbox message is `<INSTRUCTION>` plus optional `EXPECT: <artifact path>`. The agent runs `bash .harness/done <role>` (or `... blocked`) when finished. The Orchestrator then **verifies the EXPECTed artifact** exists/non-empty before advancing — if the agent signalled `done` but the artifact is missing, treat it as `blocked`. `poll.sh` has a timeout → if the agent never signals, mark `blocked`/restart.
 
 ## Helper scripts
-`lib.sh` (notepad + pick_serial + redact) · `harness-init.sh` · `send.sh` · `poll.sh` · `role-runner.sh` (supervisor) · `feedback.sh` · `render-review.sh`.
+`lib.sh` (notepad + pick_serial + redact) · `harness-init.sh` · `send.sh` · `poll.sh` · `agent-pane.sh` (pane launcher) · `harness-allow.sh` · `feedback.sh` · `render-review.sh`.

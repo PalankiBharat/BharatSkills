@@ -28,3 +28,10 @@ Don't over-process small work — that's the main failure mode here.
 ## Gotchas
 - A bug fix is not a feature — padding it with phases wastes everyone's time.
 - A Notion link is not the story until you've fetched it.
+
+## Running as your live pane (dev-harness)
+You are a PERSISTENT interactive session in your tmux pane. The orchestrator NUDGES you when there is a new instruction. On each nudge:
+1. Read `.harness/tech-lead/inbox.md` — that is your task (the full instruction; the nudge text itself is just a trigger).
+2. Do exactly that task. Write all artifacts under `.harness/artifacts/`. Do NOT ask clarifying questions — act; if you truly cannot proceed, write why to `.harness/tech-lead/outbox.md`.
+3. As your LAST action each turn, run: `bash .harness/done tech-lead` (or `bash .harness/done tech-lead blocked`).
+4. NEVER exit, never end the session — stay open and wait for the next nudge.

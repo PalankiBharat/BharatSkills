@@ -26,7 +26,7 @@ done
 [ -d .git ] || { echo "run from a git repo root" >&2; exit 2; }
 
 DATE="$(date +%Y%m%d)"; RUN_ID="$SLUG-$(date +%Y%m%d-%H%M%S)"; BRANCH="harness/$SLUG-$DATE"
-SESSION="harness"
+WIN="harness-$SLUG-$DATE"   # tmux window name carries the branch identity
 
 # Preflight only the tools the requested live features actually need.
 preflight() {
@@ -39,7 +39,7 @@ preflight() {
 preflight
 
 if [ "$DO_WORKTREE" -eq 1 ]; then
-  WORKTREE_DIR="$PWD/.harness-worktrees/$RUN_ID"; SESSION="harness-$RUN_ID"
+  WORKTREE_DIR="$PWD/.harness-worktrees/$RUN_ID"
   git worktree add -b "$BRANCH" "$WORKTREE_DIR" 2>/dev/null || git worktree add "$WORKTREE_DIR"
   cd "$WORKTREE_DIR"
 elif [ "$DO_BRANCH" -eq 1 ]; then
@@ -48,12 +48,23 @@ fi
 ROOT="$PWD/.harness"
 
 harness_init_layout "$ROOT"
+# Completion sentinel an agent runs as its last action: `bash .harness/done <role> [done|blocked]`.
+cat > "$ROOT/done" <<'DONE'
+#!/usr/bin/env bash
+set -eu
+ROLE="${1:?usage: done <role> [done|blocked]}"; STATE="${2:-done}"
+HR="$(cd "$(dirname "$0")" && pwd)"
+case "$STATE" in done|blocked) ;; *) echo "state must be done|blocked" >&2; exit 2 ;; esac
+printf '%s\n' "$STATE" > "$HR/$ROLE/status"
+printf '%s [%s] sentinel: %s\n' "$(date +%H:%M:%S)" "$ROLE" "$STATE" >> "$HR/$ROLE/worklog.md"
+DONE
+chmod +x "$ROOT/done"
 printf '%s\n' "$STORY" > "$ROOT/story.md"
 printf '# Orchestrator ledger\n\n- init  run=%s  branch=%s\n' "$RUN_ID" "$BRANCH" > "$ROOT/log.md"
 printf '{"run_id":"%s","slug":"%s","branch":"%s","stage":"init","phase":null,"in_flight":null,"heartbeat":"%s"}\n' \
   "$RUN_ID" "$SLUG" "$BRANCH" "$(date -u +%FT%TZ)" > "$ROOT/state.json"
 
-registry_add "$RUN_ID" "$PWD" "$PWD" "$BRANCH" "$SESSION"   # cross-run registry (v2)
+registry_add "$RUN_ID" "$PWD" "$PWD" "$BRANCH" "$WIN"   # cross-run registry (v2)
 
 grep -q '^\.harness/$' .gitignore 2>/dev/null || printf '\n.harness/\n' >> .gitignore
 grep -q '^\.harness-worktrees/$' .gitignore 2>/dev/null || printf '.harness-worktrees/\n' >> .gitignore
@@ -64,13 +75,22 @@ if [ "$DO_EMU" -eq 1 ]; then
 fi
 
 if [ "$DO_TMUX" -eq 1 ]; then
+  # Must be INSIDE tmux — never create a detached session you can't see.
+  [ -n "${TMUX:-}" ] || {
+    echo "dev-harness needs a tmux session. Start one (\`tmux\`) and run /harness from inside it." >&2
+    exit 6; }
   SBX=""; [ "$DO_SANDBOX" -eq 1 ] && SBX="HARNESS_SANDBOX=1 "
-  tmux has-session -t "$SESSION" 2>/dev/null || tmux new-session -d -s "$SESSION" -n team
+  # A NEW window in the CURRENT session, named after the branch. Pane 0 = live log.
+  tmux new-window -n "$WIN" -c "$PWD" "exec tail -f '$ROOT/log.md'" \
+    || { echo "could not open the harness window (terminal too small?)" >&2; exit 7; }
+  # One pane per agent — a visible interactive Claude as that persona. Record each pane id.
   for r in tech-lead dev qa architect; do
-    tmux split-window -t "$SESSION" 2>/dev/null || true
-    tmux send-keys -t "$SESSION" "${SBX}ROLE=$r bash '$HERE/role-runner.sh' $r" Enter 2>/dev/null || true
+    pid="$(tmux split-window -t "$WIN" -c "$PWD" -P -F '#{pane_id}' "${SBX}exec bash '$HERE/agent-pane.sh' $r" 2>/dev/null)" \
+      || { echo "could not split the harness window for '$r' (terminal too small for 5 panes?)" >&2; exit 7; }
+    printf '%s\n' "$pid" > "$ROOT/$r/pane"
+    tmux select-layout -t "$WIN" tiled >/dev/null 2>&1 || true
   done
-  tmux select-layout -t "$SESSION" tiled 2>/dev/null || true
+  tmux select-layout -t "$WIN" tiled >/dev/null 2>&1 || true
 fi
 
 echo "$ROOT"

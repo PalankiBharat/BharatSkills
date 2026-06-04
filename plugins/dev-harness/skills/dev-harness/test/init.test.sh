@@ -46,5 +46,11 @@ assert_contains "$(cat "$T/.harness/state.json")" "demo"
 assert_contains "$(cat "$T/.gitignore")" ".harness/"
 # the run is registered in the cross-run registry (v2)
 assert_contains "$(registry_list)" "demo"
+# the completion sentinel exists and works
+assert_file "$T/.harness/done"
+bash "$T/.harness/done" tech-lead
+assert_eq "$(cat "$T/.harness/tech-lead/status")" "done"
+bash "$T/.harness/done" dev blocked
+assert_eq "$(cat "$T/.harness/dev/status")" "blocked"
 
 echo OK

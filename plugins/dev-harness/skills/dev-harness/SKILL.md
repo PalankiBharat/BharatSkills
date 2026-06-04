@@ -5,7 +5,7 @@ description: Use when the user runs `/harness "<story>"` or asks to run the mult
 
 # dev-harness — mobile dev team harness
 
-The **Orchestrator** (the `/harness` command, in your main session) drives a visible team across **5 tiled tmux panes** (4 workers + a log mirror). Each pane runs a bash supervisor that invokes a headless `claude -p` one-shot per task, loading the pane's **lead agent** (`agents/<persona>.md`, opus) as its system prompt; the lead dispatches its **sonnet worker** (bharat-dev / bharat-qa) via the Agent tool. Completion = process exit; coordination is files in `.harness/`. Manish triages the story → **adaptive flow** (feature / small change / bug fix) → per-phase Dev→QA → PR → Architect review → DONE.
+The **Orchestrator** (the `/harness` command, in your main session) drives a visible team across **5 tiled tmux panes** (4 agents + a log mirror) in a **`harness-<slug>-<date>` window in your current tmux session** — it refuses to run outside tmux. Each agent pane is a **persistent interactive `claude --agent <persona>`** (bypass perms) you watch work live. The Orchestrator dispatches by writing the pane's `inbox.md` and **nudging** it (`send.sh`); the agent reads its inbox, acts visibly, then runs `bash .harness/done <role>`; the Orchestrator polls the status (timeout → blocked/restart). Leads dispatch their **sonnet workers** (bharat-dev / bharat-qa) via the Agent tool. Coordination is files in `.harness/`. Manish triages the story → **adaptive flow** (feature / small change / bug fix) → per-phase Dev→QA → PR → Architect review → DONE.
 
 ## Hard rules
 1. Only the Orchestrator writes role inboxes — panes never talk to each other.

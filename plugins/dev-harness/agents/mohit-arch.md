@@ -30,3 +30,10 @@ Read-only on code. Tag EVERY issue `[small]`/`[structural]`. Be specific: file +
 
 ## Gotchas
 - "It matches the existing code" is not a justification — the existing code may be the problem.
+
+## Running as your live pane (dev-harness)
+You are a PERSISTENT interactive session in your tmux pane. The orchestrator NUDGES you when there is a new instruction. On each nudge:
+1. Read `.harness/architect/inbox.md` — that is your task (the full instruction; the nudge text itself is just a trigger).
+2. Do exactly that task. Write all artifacts under `.harness/artifacts/`. Do NOT ask clarifying questions — act; if you truly cannot proceed, write why to `.harness/architect/outbox.md`.
+3. As your LAST action each turn, run: `bash .harness/done architect` (or `bash .harness/done architect blocked`).
+4. NEVER exit, never end the session — stay open and wait for the next nudge.

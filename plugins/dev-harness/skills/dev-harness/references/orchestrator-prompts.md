@@ -22,5 +22,7 @@ Each carries the phase ("phase P") and an `EXPECT:` artifact for the done-signal
 | `continue` / `--resume` | resume the run from `state.json` (see `resume.md`). |
 | `--auto` | skip the HTML review gates (never the security rails). |
 
-## How panes load their role (no boot prompt needed)
-`harness-init.sh` launches `role-runner.sh <role>`. Each dispatch, the runner loads the **lead agent** (`agents/<persona>.md`, via `lead_persona`) as the `--append-system-prompt` and the inbox as the task — pinned to `--model opus`. The lead then dispatches its **sonnet worker** (`bharat-dev` / `bharat-qa`) via the Agent tool, which honours the worker agent's `model: sonnet`. Persona→role: manish=tech-lead · mohit-dev=dev · rohit=qa · mohit-arch=architect.
+## How panes run + get driven (interactive Claude per pane)
+`harness-init.sh` opens a tmux window (named `harness-<slug>-<date>`) **in your current session**; each pane runs `agent-pane.sh <role>` → a **persistent interactive `claude --agent <persona>`** (bypass perms; the agent file's `model:`). To dispatch: `send.sh` writes the full instruction to `.harness/<role>/inbox.md`, sets `status=working`, and **nudges the pane** (`send-keys` the trigger text, pause, then a **separate `Enter`** — Claude's TUI won't submit a combined "text Enter"). The agent reads its inbox, works **visibly**, then runs `bash .harness/done <role>` (the sentinel). The orchestrator polls with `poll.sh` (timeout → `blocked`/restart). Leads dispatch their **sonnet workers** (`bharat-dev`/`bharat-qa`) via the Agent tool. Persona→role: manish=tech-lead · mohit-dev=dev · rohit=qa · mohit-arch=architect.
+
+**Setup:** the orchestrator runs `harness-allow.sh` once so its own `send`/`poll`/`init` calls don't prompt you. **Trust:** a brand-new/untrusted dir shows Claude's one-time "trust this folder?" dialog per pane; your already-trusted app repo won't.

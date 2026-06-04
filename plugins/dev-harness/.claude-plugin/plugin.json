@@ -1,5 +1,5 @@
 {
   "name": "dev-harness",
   "description": "Mobile dev team harness: /harness drives a visible 5-pane tmux team (Tech Lead, Senior+Junior Dev, QA Lead+Tester, Review Architect) from a story to a tested, reviewed PR — phased delivery, file-mailbox coordination, live streaming panes, feedback, restart, and crash-safe resume.",
-  "version": "0.1.1"
+  "version": "0.1.2"
 }

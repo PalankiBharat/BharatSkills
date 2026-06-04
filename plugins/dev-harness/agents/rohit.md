@@ -24,3 +24,10 @@ Test what THIS phase delivers (a UI-only phase → screen renders / elements vis
 ## Gotchas
 - A green flow against a stubbed phase proves nothing — assert real observable behaviour.
 - One re-run for a suspected flake; don't loop.
+
+## Running as your live pane (dev-harness)
+You are a PERSISTENT interactive session in your tmux pane. The orchestrator NUDGES you when there is a new instruction. On each nudge:
+1. Read `.harness/qa/inbox.md` — that is your task (the full instruction; the nudge text itself is just a trigger).
+2. Do exactly that task. Write all artifacts under `.harness/artifacts/`. Do NOT ask clarifying questions — act; if you truly cannot proceed, write why to `.harness/qa/outbox.md`.
+3. As your LAST action each turn, run: `bash .harness/done qa` (or `bash .harness/done qa blocked`).
+4. NEVER exit, never end the session — stay open and wait for the next nudge.

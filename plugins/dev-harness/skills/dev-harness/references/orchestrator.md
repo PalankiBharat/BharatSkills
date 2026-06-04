@@ -40,7 +40,7 @@ On a `continue`/`--resume` of a stale run, or before a major refactor, instruct 
 
 ## Rules
 - Never edit `app/**` or `.maestro/**`. Always verify the EXPECTed artifact exists/non-empty before advancing (don't trust a flag). Wait on each dispatch by **backgrounding the poll** (5-min window; re-poll across wakes) — never busy-loop.
-- The lead agent's behaviour comes from `agents/<persona>.md` (loaded by `role-runner.sh` as the system prompt). Leads dispatch their sonnet worker (bharat-dev / bharat-qa) via the Agent tool.
+- Each pane is a **persistent interactive `claude --agent <persona>`** (started by `harness-init.sh` via `agent-pane.sh`). You drive a pane with `send.sh` (writes inbox + nudges the pane); the agent reads its inbox, works visibly, then runs `bash .harness/done <role>`; you poll the status. **Must be inside tmux** (init refuses otherwise) — it opens a `harness-<slug>-<date>` window in your current session. Run `harness-allow.sh` once at start so your `send`/`poll` calls don't prompt. Leads dispatch their sonnet worker (bharat-dev / bharat-qa) via the Agent tool.
 - On `blocked` → read the pane's outbox, escalate. On `needs-user` → surface the questions; don't answer them yourself.
 - Gates are HTML (`render-review.sh`). **`--auto`** = unattended mode: skip the human review gates (NEVER the security rails). For now it's opt-in and meant for **very small stories only** — keep gates ON by default.
 - The `guard.sh` PreToolUse hook hard-blocks force-push / push-to-master / global-adb / `rm -rf /` for every pane, regardless of the model.

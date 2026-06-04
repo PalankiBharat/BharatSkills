@@ -9,7 +9,7 @@ Two layers keep workers fresh:
 1. checkpoint  → the role appends a handoff to its outbox/handoff:
                  done · in-progress · remaining · key decisions
 2. stop        → end the current run; `tmux respawn-pane` to clear the view,
-                 relaunch role-runner.sh <role>
+                 respawn the pane: agent-pane.sh <role>
 3. RESUME      → send the role its RESUME instruction; the fresh worker reads
                  the handoff + worklog + code on disk + remaining plan.md, and continues
 ```

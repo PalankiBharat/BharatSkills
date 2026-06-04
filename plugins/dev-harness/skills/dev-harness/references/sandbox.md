@@ -3,7 +3,7 @@
 The safe alternative to bypass-only: Claude Code's **built-in OS sandbox** (macOS Seatbelt / Linux bubblewrap) puts a filesystem + network blast-wall around every worker, so a bad input can't reach your whole machine. It's the doc-blessed replacement for `--dangerously-skip-permissions` — autonomous *within* the boundary, OS-enforced regardless of what the model decides.
 
 ## How to turn it on
-`harness-init.sh --sandbox` launches each pane with `HARNESS_SANDBOX=1`; `role-runner.sh` then adds `--settings assets/sandbox-settings.json` to every `claude -p`. Default (no flag) keeps the proven bypass-only path. **We deliberately do NOT set `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`** — Claude Code forces permission mode to "default" when it's set, which deadlocks a headless worker (no human to approve the Write). Credentials are protected by the sandbox `denyRead` list instead (verified by smoke test 2026-06-04).
+`harness-init.sh --sandbox` launches each pane with `HARNESS_SANDBOX=1`; `agent-pane.sh` then adds `--settings assets/sandbox-settings.json` to the pane's interactive `claude`. Default (no flag) keeps the proven bypass-only path. **We deliberately do NOT set `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`** — Claude Code forces permission mode to "default" when it's set, which deadlocks an autonomous worker (no human to approve the Write). Credentials are protected by the sandbox `denyRead` list instead (verified by smoke test 2026-06-04).
 
 ## What `assets/sandbox-settings.json` enforces
 - **Filesystem write:** repo (`./`) + `~/.maestro` + `~/.android` only. Everything else (shell rc, `/bin`, other homes) is read-only/blocked.
