@@ -24,6 +24,11 @@ If either is missing, ask for it (via AskUserQuestion) before starting.
   explicit why-not for the alternatives.** The user is approving *your judgment*, so show it.
 - **Don't bloat.** Prefer the leanest change that works — a surgical edit over a new paragraph, a
   reworded line over a new section. Length is a cost, not a feature.
+- **No war stories.** Don't fold the retro's anecdotes into the skill — "a prior session burned X",
+  "this once broke in incident Y", "someone improved Z and it shipped a bug". They add length without
+  giving the reader a rule to act on. Capture the **rule**, and at most the failure **mode** in a few
+  words if it sharpens the *why* ("else `MissingFieldException`"). The incident narrative stays in the
+  retro and the PR body — that's where the story belongs, not in the skill.
 
 ## Phase 1 — Read the whole target skill FIRST
 
@@ -115,4 +120,5 @@ that now lies, a path that moved) — but stay within the approved scope; don't 
 | Bumping one version location and forgetting the rest | Bump all of them in lockstep, then validate. |
 | Appending a "what changed" clause to the plugin/README description | Bump the version only; almost never touch descriptions. They're what-the-skill-is, not a changelog. |
 | Over-bumping (minor/major for a tiny tweak) | Semver: patch for small tweaks, minor for new rules/features. A retro fold is usually a patch or minor. |
+| Folding the retro's war stories into the skill ("a prior session…") | Capture the rule + the failure mode in a few words; the incident narrative belongs in the retro/PR, not the skill. |
 | Pushing to master / skipping the PR | Always a branch + PR with a body that maps changes to retro items. |

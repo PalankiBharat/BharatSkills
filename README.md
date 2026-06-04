@@ -6,7 +6,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 
 | Plugin | Version | Description |
 |---|---|---|
-| `feature-analyzer` | 2.2.0 | Pre-dev story interrogation — team-lead orchestrator walks code + Figma flows, honours project memory, strips out-of-platform sections, emits a centred dark-mode HTML doc with the original story pinned alongside option-pill questions across PM / Backend / Android / Design / QA / Compliance / DevOps roles |
+| `feature-analyzer` | 2.2.1 | Pre-dev story interrogation — team-lead orchestrator walks code + Figma flows, honours project memory, strips out-of-platform sections, emits a centred dark-mode HTML doc with the original story pinned alongside option-pill questions across PM / Backend / Android / Design / QA / Compliance / DevOps roles |
 | `qa-autopilot` | 1.3.2 | Android UI QA in three modes — branch QA (git diff → journey-risk → generate/run Maestro flows → report), single-flow Maestro authoring, and Figma visual parity (fetch design → screenshot the live screen → pixel-diff colour / thickness / spacing). Maestro discipline (accessibility-ID selectors, screen-tag enforcement) and the ADB fingerprint bridge are built in |
 | `dev-harness` | 0.1.4 | `/harness "<story>"` drives a visible 6-pane tmux team (a driving Orchestrator pane + Tech Lead + Senior/Junior Dev + QA Lead/Tester + Review Architect) from a story to a tested, reviewed PR. Persona agents (opus leads dispatch sonnet workers), adaptive flow (feature / small-change / bug-fix), phased delivery, file-mailbox coordination, live streaming panes, two-lane feedback, restart, crash-safe resume, PreToolUse security guard, opt-in OS sandbox (`--sandbox`), and multi-run worktrees (`--worktree`). |
 | `skill-feedback` | 1.2.0 | End-of-session skill auditor — reviews skills used and raises GitHub Issues with improvement feedback |
@@ -18,10 +18,9 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 | `legacy-refactor` | 1.0.0 | Safe legacy code refactoring (Michael Feathers' "Working Effectively with Legacy Code") — seams, characterization tests, dependency breaking, sprout/wrap, Kotlin/Android patterns |
 | `release` | 1.0.0 | Release builds with correct release notes — `/release` slash command for Play Store builds |
 | `instructions-feedback` | 1.0.0 | End-of-session auditor that reviews the conversation for instruction corrections and 'always/never' directives, then drafts user-approved GitHub Issues proposing amendments to CLAUDE.md, path-scoped rules, or the project constitution |
-| `review-pr` | 1.0.0 | Multi-agent PR review — 25 focused agents in parallel per file type, inline GitHub comments, calibration (human-in-loop) and autopilot (`--auto`) modes |
+| `review-pr` | 1.3.0 | Multi-agent PR review — 25 focused agents in parallel per file type, inline GitHub comments, calibration (human-in-loop) and autopilot (`--auto`) modes |
 | `preview-compose` | 0.1.0 | Renders Jetpack Compose `@Preview` composables on a connected Android emulator from the terminal — installs the debug APK and launches a bundled PreviewActivity with the target preview's FQN |
 | `kmm-migration-workflow` | 1.11.0 | Android-to-KMM migration orchestrator with strict behavioral-equivalence safety. Phased workflow — discovery, diagnostic, frozen baseline tests, `git mv` + surgical migration, Android+iOS validation, PR, code-review intake, then parity-QA hand-off. Live-sourced API knowledge (web + Context7), per-repo conventions in `.kmm/project.md`, diff-confirm gates, commit autopilot, blocking per-phase retro |
-| `kmm-debugger` | 1.1.0 | Deep-investigation workflow for post-migration KMM regressions — hard-gated A/B subagent pair dispatch per topic before any plan or fix, bias guard against defending existing implementation, "is this even our bug?" as first question (catches upstream contract violations), Doctrine 3 (always prefer clean long-term solutions over hotfixes / iterative patches), auto-firing retro after each push/PR/publish |
 | `sniper-ops` | 1.3.0 | Ops shortcuts for the sniper-v2-android repo — `share-prod` / `share-staging` (commit + push + release-notes pre-flight then trigger CircleCI build), `install-prod` / `install-staging` (local install to a connected device, then auto-launch the app and tail a crash-only logcat `*:E` scoped to the app's PID in the background), `heap-dump-pair` (option-driven interview to capture a baseline + t+5min `.hprof` pair so you can diff retained objects in Android Studio Profiler), and `heap-dump-compare` (diff two Android `.hprof` files and present a side-by-side comparison table — data only, no diagnosis) |
 | `kmm-qa-autopilot` | 0.4.0 | Parity QA for Android-to-KMM migration PRs — proves a migration is behavior-preserving by running the baseline `master` and the PR head head-to-head. From a PR link: builds two ProductionRelease APKs (the shipped R8-minified artifact, same package; auto-baselines a merged PR to pre-migration master), boots + locks two visible emulators (master→A, PR→B), one manual prod login each, a no-exclusions heatmap from the master-vs-PR diff, the SAME Maestro flows on both devices, and a view-hierarchy structure + stable-value diff (live prices/charts auto-masked by double-sampling) → per-journey parity verdict. Evidence-backed verdict (exception docs are context only); ends with a session retro. Real-prod-state safety gate holds order/funds/kill-switch flows behind explicit confirmation |
 | `retro-triage` | 0.2.0 | Folds a skill's session retro (`retro.md` / improvement backlog) into reviewed, version-bumped skill edits and a PR. Treats the retro as candidates, not decisions — reads the whole target skill first, distills distinct candidates, gets approval one-by-one (each with a recommended option + reasoning via AskUserQuestion), reconciles candidates against the skill's own refuted/learned notes, then implements surgically in a worktree (surgical edit vs rewrite vs new file — no bloat) and ships a PR |
@@ -51,7 +50,9 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 /plugin install review-pr@punchhq-skills
 /plugin install preview-compose@punchhq-skills
 /plugin install kmm-migration-workflow@punchhq-skills
-/plugin install kmm-debugger@punchhq-skills
+/plugin install sniper-ops@punchhq-skills
+/plugin install kmm-qa-autopilot@punchhq-skills
+/plugin install retro-triage@punchhq-skills
 /plugin install dev-harness@punchhq-skills
 ```
 
@@ -243,14 +244,6 @@ claude-code-skills/
 │   │           └── references/
 │   │               ├── test-discipline.md
 │   │               └── phases/        # phase-0-discovery through phase-g-pr
-│   ├── kmm-debugger/
-│   │   ├── .claude-plugin/
-│   │   │   └── plugin.json
-│   │   └── skills/
-│   │       └── kmm-debugger/
-│   │           ├── SKILL.md
-│   │           ├── references/        # pitfalls.md, subagent-prompts.md, retro-questions.md
-│   │           └── sessions/          # per-session retro log entries
 └── README.md
 ```
 
