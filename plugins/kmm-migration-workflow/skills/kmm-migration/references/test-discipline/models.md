@@ -28,6 +28,7 @@ Hold data. Most also have computed properties (`val pnl: Double get() = …`) or
 
 **Serialization**
 - [ ] If `@Serializable` and used over the wire, a `Json.encodeToString` round-trip test for the field shape the backend cares about. Serializer behavior is a top KMM migration risk — round-trip is the canonical check.
+- [ ] **Gson → kotlinx swap?** kotlinx is strict where Gson was lenient — apply `migration-baselines.md` §"Gson → kotlinx.serialization" in full. For this DTO specifically: every server-decoded field nullable-or-defaulted (else `MissingFieldException`), a `decode("{}")` tripwire test, exact wire type kept (no `String`→`Double`/`Long`), and a `@SerialName ↔ @SerializedName` zero-drift diff against master.
 
 ### Template
 

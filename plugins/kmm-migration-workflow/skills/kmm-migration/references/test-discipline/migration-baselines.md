@@ -68,6 +68,17 @@ fun `getReports returns HttpException on 500`() = runTest {
 
 **Decision rule**: if a baseline can be written that compiles unchanged before and after the lib swap → Path A. Only otherwise → Path B. Bias hard toward A — most lib swaps don't expose swapped types in the public surface.
 
+### Gson → kotlinx.serialization: preserve every leniency at migration time
+
+**Root cause (memorize this).** Gson is lenient by default in five ways; kotlinx.serialization is strict by default in all five. Every serialization bug in a migration is the swap silently dropping one of Gson's tolerances. Fix each **at migration time in the DTO/config**, not reactively in prod — reproducing the old leniency is **equivalence-preserving, not an improvement** (Principle #1). Source of truth is **pre-migration master**; it's the only thing that encodes the real wire contract.
+
+1. **One shared lenient `Json`** — `isLenient = true` + `coerceInputValues = true` + `ignoreUnknownKeys = true` + `explicitNulls = false`, on the **single** API `Json` instance every decoder uses. `isLenient` is what reproduces Gson's number↔string coercion (BE sends `amount: 183.0`; a `String`-typed field decodes only under `isLenient` — otherwise `JsonDecodingException`, an actual prod bug this caught). **Never create ad-hoc `Json {}` instances** that drift from it. The repo's shared-Json object name is a `project.md` fact (`networking.json_config`).
+2. **Every server-decoded DTO field is nullable or defaulted.** Gson sets an absent field to null/default; kotlinx throws `MissingFieldException` unless the field has `?` or `= default`. **`isLenient`/`coerceInputValues` do NOT help here — only `?` / `= default` does.** Tripwire: a `decode("{}")` test per response DTO.
+3. **Keep master's exact wire type — no opportunistic `String`→`Double`/`Long` "upgrades."** A migration is behavior-preserving; a type refactor is a separate PR with its own BE verification (someone "improving" `MinimumFunds`/`validUpto` types here broke an edge payload and forced `.toString()` round-trips on consumers). Reinforces Phase D's verbatim-old-behavior pre-flight.
+4. **Diff every `@SerialName` against master's `@SerializedName` — zero drift required.** A wrong/missing key doesn't crash; the field reads as its default **forever**. No lenient config and no round-trip test catches it — the scariest class precisely because it's invisible. Make the field-by-field diff a Phase D gate for every migrated DTO.
+5. **Never swallow a decode/parse failure.** An empty `onFailure {}` / empty `catch` turns a strict-decode error into a silent failure (a prior session: an infinite status-poll, invisible for the full timeout). Log/surface it — a strict-decode bug must be loud, not a silent loop.
+6. **Golden/snapshot inputs must be real BE payloads** — captured numeric amounts, missing fields, edge shapes — not hand-written clean JSON. The clean-shape gap is exactly what ships these bugs past the snapshot (see "Snapshot / golden files" below).
+
 ### What "observable" means (allowlist + denylist)
 
 **Allowed assertions (these survive migration):**
@@ -208,6 +219,8 @@ The cost is: a snapshot diff that's hard to read on review. The
 benefit is: every field on the payload is implicitly asserted, even
 the ones you didn't think of. For a migration safety net, that
 trade-off is right.
+
+**For a decode golden, the JSON fixture must be a real captured BE payload** — actual numeric amounts, missing fields, edge shapes — not a hand-written clean object. A clean-shape fixture is exactly what lets a strict-decode bug ship past the snapshot (see "Gson → kotlinx.serialization" above, trap 6).
 
 ### Where frozen tests live
 

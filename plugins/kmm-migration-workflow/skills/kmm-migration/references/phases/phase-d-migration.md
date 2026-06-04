@@ -66,6 +66,8 @@ For each layer-batch — files committed individually within the batch:
 
    **Verbatim-old-behavior pre-flight (mandatory for library-substitution / `lib-swap: path-a` files).** Before authoring the substituted version, read the **OLD** implementation's exact behavior and reproduce it literally — never trust a target-shape-only pre-flight. The traps a shape-only read ships are real: HTTP status mapping (`status == 200` *exact*, NOT a 2xx `isSuccess()` helper), try/catch vs exception-propagation, fallback branches, default values. Both caught real money-flow divergences in a prior session. Cite the old source path + line for each behavior reproduced, in `migration.md`.
 
+   **Gson → kotlinx.serialization swaps carry their own pre-flight** (full rationale in `references/test-discipline/migration-baselines.md` §"Gson → kotlinx.serialization"). kotlinx is strict where Gson was lenient, so for every DTO/serializer swap: decode through the **one shared lenient `Json`** (`isLenient` + `coerceInputValues` + `ignoreUnknownKeys` + `explicitNulls=false`, no ad-hoc `Json {}`); keep master's **exact wire type** — no `String`→`Double`/`Long` "upgrades"; make every server-decoded field nullable-or-defaulted; **diff every `@SerialName` against master's `@SerializedName` (zero drift)**; surface — never swallow — decode failures.
+
 4. **Build → fix compile errors loop.**
    - **Haiku subagent** runs gradle, parses errors.
    - **Sonnet subagent** selects routine fixes; **Opus subagent** (not the orchestrator) handles complex substitutions where live-search is needed. The loop is sequential by build dependency, but **each iteration's edit is a dispatched subagent** — the orchestrator never edits the file directly. Subagent failure → another subagent, per SKILL.md NON-NEGOTIABLE.
@@ -154,6 +156,7 @@ Beyond universals:
 - **D.0 foundation pre-flight passed the iOS klib compile + cold KSP run** (`compileKotlinIosArm64` + `kspKotlinIosArm64 --rerun-tasks`), not just JVM/Android.
 - Every locked library version re-confirmed to exist + fit the repo's Kotlin version at D entry.
 - Every `migrate`-plan file moved via **`git mv` then edit** — never read-rewrite-replace.
+- **Every Gson→kotlinx.serialization DTO swap preserves master's exact wire types, decodes through the one shared lenient `Json`, keeps every server-decoded field nullable-or-defaulted, and passes a `@SerialName ↔ @SerializedName` zero-drift diff** (migration-baselines.md §"Gson → kotlinx.serialization"). Type "upgrades" are out of scope — a separate PR with its own BE verification.
 - Baselines green at every commit boundary (with exception refs for sanctioned divergences).
 - iOS check passes per batch (`compileKotlinIosArm64`; cold `kspKotlinIosArm64 --rerun-tasks` on KSP-touching batches); full XCFramework/SKIE at D.2 — before status flips `frozen` → `migrated`.
 - **`coverage.md` flipped `frozen → migrated` as each file's code reaches `commonMain`** (State-serialization gate) — never left stale for Phase E.
