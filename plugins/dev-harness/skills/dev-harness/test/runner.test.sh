@@ -38,4 +38,18 @@ printf 'PREP\nEXPECT: artifacts/qa-scenarios.md\n' > "$HARNESS_ROOT/qa/inbox.md"
 set_status "$HARNESS_ROOT" qa working
 CLAUDE_BIN="$NOART" bash "$HERE/../scripts/role-runner.sh" qa --once || true
 assert_eq "$(get_status "$HARNESS_ROOT" qa)" "blocked"
+
+# canonical EXPECT form ".harness/artifacts/X" resolves the same as bare "artifacts/X"
+OKART="$T/okart.sh"
+cat > "$OKART" <<EOF
+#!/usr/bin/env bash
+echo '{}'
+echo done > "$HARNESS_ROOT/artifacts/dev-handoff.md"
+exit 0
+EOF
+chmod +x "$OKART"
+printf 'IMPLEMENT-NEXT\nEXPECT: .harness/artifacts/dev-handoff.md\n' > "$HARNESS_ROOT/dev/inbox.md"
+set_status "$HARNESS_ROOT" dev working
+CLAUDE_BIN="$OKART" bash "$HERE/../scripts/role-runner.sh" dev --once
+assert_eq "$(get_status "$HARNESS_ROOT" dev)" "done"
 echo OK

@@ -23,6 +23,9 @@ Every run owns a `.harness/` directory at the repo root (gitignored). The Orches
 | `blocked` | cannot proceed (emulator died, missing input) |
 | `needs-user` | Tech Lead surfaced open questions |
 
+## Artifact paths (canonical)
+**All scratch artifacts live under `.harness/artifacts/`** (gitignored): spec, findings, open-questions, plan, dev-handoff, qa-scenarios, qa-flows/, qa-report, architect-review, architect-replan, testtag-requests. A worker's cwd is the **repo root**, so always use the full `.harness/artifacts/<file>` path — never bare `artifacts/<file>` (that would write to the committed repo root). Code goes to `app/src/**`. `EXPECT:` accepts either `.harness/artifacts/X` or bare `artifacts/X` (the supervisor normalizes both to the run's `.harness/`).
+
 ## Dispatch contract
 An inbox message is `<INSTRUCTION>` plus optional `EXPECT: <artifact path>`. The supervisor marks `done` only if the worker exits 0 AND the EXPECTed artifact is present — else `blocked`. The Orchestrator also re-checks artifacts on disk (never trusts a flag alone).
 

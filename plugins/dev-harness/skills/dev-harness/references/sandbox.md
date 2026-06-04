@@ -3,7 +3,7 @@
 The safe alternative to bypass-only: Claude Code's **built-in OS sandbox** (macOS Seatbelt / Linux bubblewrap) puts a filesystem + network blast-wall around every worker, so a bad input can't reach your whole machine. It's the doc-blessed replacement for `--dangerously-skip-permissions` — autonomous *within* the boundary, OS-enforced regardless of what the model decides.
 
 ## How to turn it on
-`harness-init.sh --sandbox` launches each pane with `HARNESS_SANDBOX=1`; `role-runner.sh` then adds `--settings assets/sandbox-settings.json` to every `claude -p` and exports `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` (strips cloud/API creds from subprocess env). Default (no flag) keeps the proven bypass-only path.
+`harness-init.sh --sandbox` launches each pane with `HARNESS_SANDBOX=1`; `role-runner.sh` then adds `--settings assets/sandbox-settings.json` to every `claude -p`. Default (no flag) keeps the proven bypass-only path. **We deliberately do NOT set `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`** — Claude Code forces permission mode to "default" when it's set, which deadlocks a headless worker (no human to approve the Write). Credentials are protected by the sandbox `denyRead` list instead (verified by smoke test 2026-06-04).
 
 ## What `assets/sandbox-settings.json` enforces
 - **Filesystem write:** repo (`./`) + `~/.maestro` + `~/.android` only. Everything else (shell rc, `/bin`, other homes) is read-only/blocked.
@@ -15,7 +15,7 @@ The safe alternative to bypass-only: Claude Code's **built-in OS sandbox** (macO
 ## Layers (defense in depth)
 1. **`guard.sh`** PreToolUse hook — denylist (force-push / master-push / global-adb / `rm -rf /`).
 2. **OS sandbox** — filesystem + network boundary.
-3. **Secret redaction** in artifacts + env scrub.
+3. **Secret redaction** in artifacts (worklog / log / PR body) + the sandbox `denyRead` on credential dirs.
 
 ## Known limitations (from the docs)
 - The proxy allowlists by hostname **without TLS inspection** → a broad domain (e.g. `github.com`) is a possible exfil path (domain fronting). Keep the allowlist tight.

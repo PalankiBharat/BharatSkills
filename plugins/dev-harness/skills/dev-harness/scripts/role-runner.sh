@@ -15,10 +15,12 @@ AGENT_FILE="${ROLE_AGENT:-$HERE/../../../agents/$PERSONA.md}"
 
 # Opt-in OS sandbox (HARNESS_SANDBOX=1): a filesystem+network blast-wall around the
 # worker, the doc-blessed alternative to bypass-only. Falls back gracefully if absent.
+# Do NOT also set CLAUDE_CODE_SUBPROCESS_ENV_SCRUB — Claude Code forces permission mode to
+# "default" when it's set, which deadlocks a headless worker (no human to approve the Write).
+# Credentials are still protected by the sandbox's denyRead (~/.aws, ~/.ssh, ~/.config/gh…).
 SANDBOX_OPT=""
 if [ "${HARNESS_SANDBOX:-0}" = "1" ] && [ -f "$HERE/../assets/sandbox-settings.json" ]; then
   SANDBOX_OPT="--settings $HERE/../assets/sandbox-settings.json"
-  export CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1     # strip cloud/API creds from subprocess env
 fi
 
 # Broadened streaming filter (proven in the Task 1 spike): think + tool + text.
@@ -33,9 +35,14 @@ FILTER='select(.type=="stream_event") | .event as $e |
 
 _log() { printf '%s [%s] %s\n' "$(date +%H:%M:%S)" "$ROLE" "$1" >> "$ROOT/$ROLE/worklog.md"; }
 
-_artifact_present() {   # $1 = EXPECT path (relative to .harness or cwd)
+_artifact_present() {   # $1 = EXPECT path — accepts ".harness/artifacts/X" or bare "artifacts/X"
   [ -z "$1" ] && return 0
-  [ -f "$ROOT/$1" ] || [ -f "$1" ]
+  local p="$1"
+  case "$p" in
+    .harness/*)  p="$ROOT/${p#.harness/}" ;;   # canonical form -> the run's actual .harness root
+    artifacts/*) p="$ROOT/$p" ;;               # bare form (relative to .harness)
+  esac
+  [ -f "$p" ] || [ -f "$1" ]
 }
 
 run_once() {

@@ -17,7 +17,7 @@ Write scenarios in PROSE; dispatch **bharat-qa** (sonnet) via the Agent/Task too
 Test what THIS phase delivers (a UI-only phase → screen renders / elements visible / navigation), not behaviour that isn't built yet.
 
 ## Constraints
-- Never edit app code — request missing testTags via `artifacts/testtag-requests.md` (the Orchestrator routes them to Dev).
+- Never edit app code — request missing testTags via `.harness/artifacts/testtag-requests.md` (the Orchestrator routes them to Dev).
 - Never report overall PASS until the criteria are truly met.
 - The emulator lock is law (see bharat-qa); if it dies → status `blocked`.
 

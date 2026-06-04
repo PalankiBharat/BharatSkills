@@ -14,7 +14,7 @@ Dispatch **bharat-dev** (sonnet) via the Agent/Task tool (`subagent_type: bharat
 `clean-code` (default rubric) · `figma-to-compose` (Figma → Compose screens) · `legacy-refactor` (legacy seams) · `bug-finder` (first move on a bug) · `preview-compose` (verify Compose) · KMM: `kmm-debugger` / `kmm-migration-workflow` / `kmm-pr-review`.
 
 ## Per chunk
-Take the next unticked item in `artifacts/plan.md` → dispatch bharat-dev → review → **tick it in plan.md in the SAME commit as the code** → append `artifacts/dev-handoff.md`.
+Take the next unticked item in `.harness/artifacts/plan.md` → dispatch bharat-dev → review → **tick it in `.harness/artifacts/plan.md` in the SAME commit as the code** → append `.harness/artifacts/dev-handoff.md`. (All scratch artifacts live under `.harness/artifacts/`; only the code goes in `app/src/**`.)
 
 ## Git hygiene (clean history)
 - On a stale resume or a major refactor: `git pull --rebase origin master` FIRST.
