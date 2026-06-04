@@ -39,6 +39,7 @@ live in a separate `*Routes.kt` constants file.
 - [ ] Network failure (IOException) → `Result.failure`, no cache invalidation.
 - [ ] Empty body / unexpected null fields → defensive parse; no NPE leak.
 - [ ] Malformed JSON → `Result.failure`, not a thrown exception.
+- [ ] **Decode failure is surfaced, never swallowed** — no empty `onFailure {}` / empty `catch` around the parse (a swallowed strict-decode error can hide for a full timeout). Assert the failure propagates. On a Gson→kotlinx swap, decode via the one shared lenient `Json` and fixture from a **real captured BE payload** (numeric amounts, missing fields), not clean hand-written JSON. See `migration-baselines.md` §"Gson → kotlinx.serialization".
 
 **Side effects**
 - [ ] Mutating endpoints call `apiClient.invalidate(url)` once on success.

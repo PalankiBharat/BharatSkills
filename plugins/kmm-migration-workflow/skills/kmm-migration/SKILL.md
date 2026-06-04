@@ -386,6 +386,9 @@ Phase-specific gates are listed in each phase's reference file.
 - `networking.shared_client_config` — shared HTTP client config:
   - `object_name`: `<name of the shared client/config factory>`
   - `host_constant_convention`: `<e.g., per-flavor BuildKonfig fields named *_API / *_DNS / *_BASE_PATH>`
+- `networking.json_config` — the single shared `kotlinx.serialization` `Json` instance every server decode goes through (Gson→kotlinx migrations must route through this one, never ad-hoc `Json {}`; see migration-baselines.md §"Gson → kotlinx.serialization"):
+  - `object_name`: `<name of the shared Json instance / factory + its path>`
+  - `lenient_flags_confirmed`: `<bool — isLenient + coerceInputValues + ignoreUnknownKeys + explicitNulls=false all set, reproducing Gson's leniency>`
 - `git.base_branch` (optional) — the repo's PR base branch (`master` / `main` / `develop`). Detected at runtime if absent via `git symbolic-ref refs/remotes/origin/HEAD`.
 - `git.pr_merge_policy` — `squash | merge | rebase`. Drives Phase F.4's pre-merge integration simulation: a squash-merge repo is validated with `git merge origin/<base>` (the true PR simulation), NOT a rebase — a rebase replays intermediate commits and produces spurious conflicts on files the branch relocated that the base also touched at the old path. Conflict detection must use the same operation that will integrate.
 
