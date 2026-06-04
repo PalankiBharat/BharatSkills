@@ -1,0 +1,36 @@
+/* dev-harness review theme — Linear-inspired, derived from feature-analyzer's canonical render. */
+:root{
+  --bg-root:#0C0C0E; --bg-surface:#16161A; --bg-elevated:#1C1C22; --bg-input:#1A1A20;
+  --border:#272730; --border-hover:#343440;
+  --text:#F0F0F3; --text-secondary:#9898A3; --text-tertiary:#63636D;
+  --accent:#8B5CF6; --accent-hover:#A78BFA; --accent-bg:rgba(139,92,246,.10); --accent-border:rgba(139,92,246,.30);
+  --green:#34D399; --amber:#FBBF24; --red:#F87171;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r-sm:8px; --r-md:12px; --r-lg:16px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body{font-family:var(--font);font-size:16px;line-height:1.65;color:var(--text);background:var(--bg-root);
+  letter-spacing:-.01em;padding:36px 20px 96px}
+.wrap{max-width:860px;margin:0 auto}
+header{display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border);padding-bottom:18px;margin-bottom:24px}
+header h1{font-size:21px;font-weight:800;letter-spacing:-.02em}
+header h1 .dot{color:var(--accent)}
+.kind{font:600 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--accent);
+  background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:999px;padding:6px 11px}
+pre.payload{white-space:pre-wrap;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:20px 22px;font:13.5px/1.7 var(--mono);color:#dfe0ea;box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
+.review{margin-top:22px}
+.review label{display:block;color:var(--text-tertiary);font:600 11px/1 var(--mono);text-transform:uppercase;
+  letter-spacing:.08em;margin-bottom:9px}
+textarea{width:100%;min-height:130px;background:var(--bg-input);color:var(--text);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:13px 15px;font:14.5px/1.6 var(--font);resize:vertical;transition:border-color .15s}
+textarea:focus{outline:none;border-color:var(--accent-border);box-shadow:0 0 0 3px var(--accent-bg)}
+.actions{display:flex;align-items:center;gap:14px;margin-top:14px}
+button{background:var(--accent);color:#0C0C0E;border:0;border-radius:var(--r-md);padding:12px 22px;
+  font:700 15px var(--font);cursor:pointer;transition:background .15s}
+button:hover{background:var(--accent-hover)}
+#s{color:var(--green);font-weight:600;font-size:14px}
+#pv{white-space:pre-wrap;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:13px;margin-top:12px;font:12.5px/1.6 var(--mono);color:var(--text-secondary)}
