@@ -1,15 +1,17 @@
 ---
 name: dev-harness
-description: Use when the user runs `/harness "<story>"` or asks to run the multi-agent mobile dev team harness. Drives a story to a tested, reviewed PR through a visible 5-pane tmux team — Tech Lead (Manish), Senior+Junior Dev (Mohit-Dev/Bharat-Dev), QA Lead+Tester (Rohit/Bharat-QA), Review Architect (Mohit-Arch) — with phased delivery, file-mailbox coordination, feedback, restart, and crash-safe resume.
+description: Use when the user runs `/harness "<story>"` or asks to run the multi-agent mobile dev team harness. Drives a story to a tested, reviewed PR through a visible 6-pane tmux team — a driving Orchestrator pane plus Tech Lead (Manish), Senior+Junior Dev (Mohit-Dev/Bharat-Dev), QA Lead+Tester (Rohit/Bharat-QA), Review Architect (Mohit-Arch) — with phased delivery, file-mailbox coordination, feedback, restart, and crash-safe resume.
 ---
 
 # dev-harness — mobile dev team harness
 
-The **Orchestrator** (the `/harness` command, in your main session) drives a visible team across **5 tiled tmux panes** (4 agents + a log mirror) in a **`harness-<slug>-<date>` window in your current tmux session** — it refuses to run outside tmux. Each agent pane is a **persistent interactive `claude --agent <persona>`** (bypass perms) you watch work live. The Orchestrator dispatches by writing the pane's `inbox.md` and **nudging** it (`send.sh`); the agent reads its inbox, acts visibly, then runs `bash .harness/done <role>`; the Orchestrator polls the status (timeout → blocked/restart). Leads dispatch their **sonnet workers** (bharat-dev / bharat-qa) via the Agent tool. Coordination is files in `.harness/`. Manish triages the story → **adaptive flow** (feature / small change / bug fix) → per-phase Dev→QA → PR → Architect review → DONE.
+The harness runs a visible team across **6 tiled tmux panes** — a **driving Orchestrator pane + 4 agent panes + a log mirror** — in a **`harness-<slug>-<date>` window in your current tmux session** (it refuses to run outside tmux). Every pane, including the Orchestrator, is a **persistent interactive `claude --agent <persona>`** (bypass perms) you watch work live and can interrupt.
+
+**Who drives:** the `/harness` command (your main session) is **launcher-only** — it runs `harness-init.sh`, which opens the window, spawns the panes, and **self-starts the Orchestrator pane** (`claude --agent orchestrator`) with a one-time nudge. Then the main session **steps back**; it does NOT drive the run (two drivers would race on `state.json`). The **Orchestrator pane** is the driver: it dispatches a role by writing the pane's `inbox.md` and nudging it (`bash .harness/send <role> "<msg>"`), then polls (`bash .harness/poll <role> --settle`, looping on `still-working`); the agent reads its inbox, acts visibly, then runs `bash .harness/done <role>`. Leads dispatch their **sonnet workers** (bharat-dev / bharat-qa) via the Agent tool. Coordination is files in `.harness/`. Manish triages the story → **adaptive flow** (feature / small change / bug fix) → per-phase Dev→QA → PR → Architect review → DONE.
 
 ## Hard rules
-1. Only the Orchestrator writes role inboxes — panes never talk to each other.
-2. The Orchestrator never writes code and never runs/authors tests.
+1. Only the Orchestrator pane writes role inboxes — panes never talk to each other; the main session is launcher-only and never drives the run.
+2. The Orchestrator never writes code and never runs/authors tests. It **stays alive**: after each dispatch it loops `poll --settle` until the role settles, ending its turn only at needs-user, blocked, or run-complete.
 3. QA never codes — it only asks (testTag requests route to Dev).
 4. Skill bindings are strong defaults with reason — deviation needs a one-line reason in outbox.
 5. QA never reports overall PASS until pass criteria are met.
@@ -25,7 +27,7 @@ The **Orchestrator** (the `/harness` command, in your main session) drives a vis
 Dev pair: no cap (bounded by the plan's chunks). QA fix: **7**/phase. Architect: **3**. Global QA→Architect cycles: **3**. Then escalate to the user.
 
 ## Read next
-`references/orchestrator.md` (the playbook — you, when running `/harness`) · `orchestrator-prompts.md` · `protocol.md` · `skill-bindings.md` · the team agents in `agents/` (manish · mohit-dev · bharat-dev · rohit · bharat-qa · mohit-arch) · `restart.md` · `resume.md` · `html-interaction.md`.
+`agents/orchestrator.md` (the driver persona — runs in the Orchestrator pane) · `references/orchestrator.md` (the playbook) · `orchestrator-prompts.md` · `protocol.md` · `skill-bindings.md` · the team agents in `agents/` (manish · mohit-dev · bharat-dev · rohit · bharat-qa · mohit-arch) · `restart.md` · `resume.md` · `html-interaction.md`.
 
 ## Scope
 v1.5: full single-run phased pipeline. **v2 (built):** opt-in OS sandbox (`--sandbox`, see `references/sandbox.md`), themed review pages, and the multi-run core (`--worktree` + cross-run registry + heartbeat + per-run lock, see `references/multirun.md`). **Still deferred:** auto-raising skill-feedback PRs; the reattach/picker flow is smoke-only.

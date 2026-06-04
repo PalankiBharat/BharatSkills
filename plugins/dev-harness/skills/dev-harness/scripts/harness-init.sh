@@ -59,6 +59,22 @@ printf '%s\n' "$STATE" > "$HR/$ROLE/status"
 printf '%s [%s] sentinel: %s\n' "$(date +%H:%M:%S)" "$ROLE" "$STATE" >> "$HR/$ROLE/worklog.md"
 DONE
 chmod +x "$ROOT/done"
+# Path-independent driver wrappers so the Orchestrator persona dispatches/polls with
+# stable commands (`bash .harness/send <role> "<msg>"`, `bash .harness/poll <role> [--settle]`)
+# without knowing the plugin's install path.
+# HARNESS_ROOT is baked in so the scripts never depend on the caller's cwd (a `git
+# rev-parse` fallback dies the moment the orchestrator runs them from elsewhere).
+cat > "$ROOT/send" <<EOF
+#!/usr/bin/env bash
+exec env HARNESS_ROOT="$ROOT" bash "$HERE/send.sh" --role "\$1" --message "\$2"
+EOF
+chmod +x "$ROOT/send"
+cat > "$ROOT/poll" <<EOF
+#!/usr/bin/env bash
+role="\$1"; shift
+exec env HARNESS_ROOT="$ROOT" bash "$HERE/poll.sh" --role "\$role" "\$@"
+EOF
+chmod +x "$ROOT/poll"
 printf '%s\n' "$STORY" > "$ROOT/story.md"
 printf '# Orchestrator ledger\n\n- init  run=%s  branch=%s\n' "$RUN_ID" "$BRANCH" > "$ROOT/log.md"
 printf '{"run_id":"%s","slug":"%s","branch":"%s","stage":"init","phase":null,"in_flight":null,"heartbeat":"%s"}\n' \
@@ -74,23 +90,68 @@ if [ "$DO_EMU" -eq 1 ]; then
   printf '%s\n' "$SERIAL" > "$ROOT/qa/emulator.lock"
 fi
 
+# Pre-accept Claude's folder-trust for this repo so panes don't stall at the trust dialog
+# (fresh/worktree dirs always show it; under --sandbox a stuck role pane can't be nudged out).
+# Idempotent + atomic; no-op if jq or ~/.claude.json is absent.
+trust_workdir() {
+  local cj="$HOME/.claude.json" d="$1" tmp
+  { [ -f "$cj" ] && command -v jq >/dev/null; } || return 0
+  tmp="$(mktemp)" || return 0
+  if jq --arg d "$d" '.projects[$d] = ((.projects[$d] // {}) + {hasTrustDialogAccepted:true, hasCompletedProjectOnboarding:true})' "$cj" >"$tmp" 2>/dev/null; then
+    mv "$tmp" "$cj"
+  else
+    rm -f "$tmp"
+  fi
+}
 if [ "$DO_TMUX" -eq 1 ]; then
   # Must be INSIDE tmux — never create a detached session you can't see.
   [ -n "${TMUX:-}" ] || {
     echo "dev-harness needs a tmux session. Start one (\`tmux\`) and run /harness from inside it." >&2
     exit 6; }
+  trust_workdir "$PWD"; trust_workdir "$(pwd -P)"
   SBX=""; [ "$DO_SANDBOX" -eq 1 ] && SBX="HARNESS_SANDBOX=1 "
   # A NEW window in the CURRENT session, named after the branch. Pane 0 = live log.
   tmux new-window -n "$WIN" -c "$PWD" "exec tail -f '$ROOT/log.md'" \
     || { echo "could not open the harness window (terminal too small?)" >&2; exit 7; }
+  # The Orchestrator pane — the visible, persistent driver (claude --agent orchestrator).
+  # It replaces the old invisible main-session driver, so it can never "kill itself".
+  opid="$(tmux split-window -t "$WIN" -c "$PWD" -P -F '#{pane_id}' "${SBX}exec bash '$HERE/agent-pane.sh' orchestrator" 2>/dev/null)" \
+    || { echo "could not split the harness window for the orchestrator (terminal too small for 6 panes?)" >&2; exit 7; }
+  printf '%s\n' "$opid" > "$ROOT/orchestrator/pane"
+  tmux select-layout -t "$WIN" tiled >/dev/null 2>&1 || true
   # One pane per agent — a visible interactive Claude as that persona. Record each pane id.
   for r in tech-lead dev qa architect; do
     pid="$(tmux split-window -t "$WIN" -c "$PWD" -P -F '#{pane_id}' "${SBX}exec bash '$HERE/agent-pane.sh' $r" 2>/dev/null)" \
-      || { echo "could not split the harness window for '$r' (terminal too small for 5 panes?)" >&2; exit 7; }
+      || { echo "could not split the harness window for '$r' (terminal too small for 6 panes?)" >&2; exit 7; }
     printf '%s\n' "$pid" > "$ROOT/$r/pane"
     tmux select-layout -t "$WIN" tiled >/dev/null 2>&1 || true
   done
   tmux select-layout -t "$WIN" tiled >/dev/null 2>&1 || true
+
+  # Self-start the driver: write its standing order, let Claude boot, then nudge it.
+  # From here the main session is LAUNCHER-ONLY — it must not also drive state.json.
+  printf 'BEGIN. Drive the run for the story in .harness/story.md.\nDispatch the Tech Lead first, then loop: poll, advance on settle, pause for the user only at needs-user gates. Stay in your turn until the run is done, blocked, or needs the user.\n' \
+    > "$ROOT/orchestrator/inbox.md"
+  NUDGE="Read .harness/orchestrator/inbox.md and begin driving the run now."
+  ( # Heavy envs can take 10-20s for `claude` to boot. Nudge, then re-nudge on a long
+    # gap ONLY while it still hasn't dispatched (tech-lead inbox empty) — so a run already
+    # underway is never interrupted, but a missed-nudge idle start self-heals.
+    sleep 6
+    tmux send-keys -t "$opid" -l "$NUDGE" 2>/dev/null || true; sleep 0.4
+    tmux send-keys -t "$opid" Enter 2>/dev/null || true
+    for _ in 1 2 3 4; do
+      sleep 30
+      [ -s "$ROOT/tech-lead/inbox.md" ] && break
+      tmux send-keys -t "$opid" -l "$NUDGE" 2>/dev/null || true; sleep 0.4
+      tmux send-keys -t "$opid" Enter 2>/dev/null || true
+    done
+  ) >/dev/null 2>&1 &
+  # Liveness watchdog — re-wakes the Orchestrator whenever the in-flight role settles, so
+  # the run advances even if the LLM ended its turn. Backgrounded; retires on .stop-watchdog,
+  # and self-reaps when its orchestrator pane disappears. Kill any stale one for this run first.
+  pkill -f "watchdog.sh $ROOT " 2>/dev/null || true
+  rm -f "$ROOT/.stop-watchdog"
+  nohup bash "$HERE/watchdog.sh" "$ROOT" "$opid" >"$ROOT/watchdog.log" 2>&1 &
 fi
 
 echo "$ROOT"

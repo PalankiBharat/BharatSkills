@@ -33,6 +33,11 @@ harness_init_layout() {
     : > "$root/$r/worklog.md"
     printf 'idle\n' > "$root/$r/status"
   done
+  # The Orchestrator drives from its own visible pane; it gets a mailbox dir for its
+  # standing order + pane id, but is NOT a pollable pipeline role (kept out of HARNESS_ROLES).
+  mkdir -p "$root/orchestrator"
+  : > "$root/orchestrator/inbox.md"
+  : > "$root/orchestrator/worklog.md"
   : > "$root/story.md"
   : > "$root/log.md"
 }

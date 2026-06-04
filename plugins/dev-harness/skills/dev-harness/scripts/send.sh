@@ -26,7 +26,10 @@ printf '%s' "$MSG" > "$ROOT/$ROLE/inbox.md.tmp"
 mv "$ROOT/$ROLE/inbox.md.tmp" "$ROOT/$ROLE/inbox.md"
 set_status "$ROOT" "$ROLE" working
 
-if [ "$NUDGE" -eq 1 ] && [ -n "${TMUX:-}" ] && [ -f "$ROOT/$ROLE/pane" ]; then
+# NUDGE the role's pane. Do NOT gate on $TMUX: the Orchestrator runs as a Claude pane
+# whose Bash-tool env has NO $TMUX, yet `tmux send-keys` reaches the running server via
+# the default socket. Gating on $TMUX silently dropped every dispatch (roles never woke).
+if [ "$NUDGE" -eq 1 ] && [ -f "$ROOT/$ROLE/pane" ]; then
   PANE="$(cat "$ROOT/$ROLE/pane")"
   # Claude's TUI needs the text and a SEPARATE Enter (a combined "text" Enter leaves it
   # unsubmitted under bracketed-paste). Type the trigger literally, pause, then submit.

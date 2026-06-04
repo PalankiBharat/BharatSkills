@@ -38,6 +38,16 @@ git init -q && git commit --allow-empty -q -m base
 
 for r in tech-lead dev qa architect; do assert_dir "$T/.harness/$r"; done
 assert_dir  "$T/.harness/artifacts"
+# the Orchestrator gets its own mailbox dir (it drives from a visible pane)
+assert_dir  "$T/.harness/orchestrator"
+assert_file "$T/.harness/orchestrator/inbox.md"
+# path-independent driver wrappers so the orchestrator persona can dispatch/poll
+assert_file "$T/.harness/send"
+assert_file "$T/.harness/poll"
+bash "$T/.harness/send" dev "ANALYSE: do the thing"
+assert_eq "$(cat "$T/.harness/dev/inbox.md")" "ANALYSE: do the thing"
+assert_eq "$(cat "$T/.harness/dev/status")" "working"
+assert_eq "$(bash "$T/.harness/poll" dev)" "working"
 assert_contains "$(cat "$T/.harness/story.md")" "Make it pop"
 assert_file "$T/.harness/log.md"
 assert_file "$T/.harness/state.json"
