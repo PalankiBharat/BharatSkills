@@ -1,6 +1,6 @@
 ---
 name: dev-harness
-description: Use when the user runs `/harness "<story>"` or asks to run the multi-agent mobile dev team harness. Drives a story to a tested, reviewed PR through a visible 6-pane tmux team — a driving Orchestrator pane plus Tech Lead (Manish), Senior+Junior Dev (Mohit-Dev/Bharat-Dev), QA Lead+Tester (Rohit/Bharat-QA), Review Architect (Mohit-Arch) — with phased delivery, file-mailbox coordination, feedback, restart, and crash-safe resume.
+description: Use when the user runs `/harness "<story>"` or asks to run the multi-agent mobile dev team harness — drives a whole story/feature to a tested, reviewed PR through a visible 6-pane tmux team (Orchestrator + Tech Lead Manish, Senior+Junior Dev Mohit-Dev/Bharat-Dev, QA Lead+Tester Rohit/Bharat-QA, Review Architect Mohit-Arch) with phased delivery, file-mailbox coordination, needs-user gates, and crash-safe resume. Do NOT use for single-file edits, quick fixes, code questions, reviews of existing diffs, or non-mobile work — run those directly in a normal session.
 ---
 
 # dev-harness — mobile dev team harness
