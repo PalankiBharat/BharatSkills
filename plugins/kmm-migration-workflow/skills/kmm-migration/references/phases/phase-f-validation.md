@@ -27,6 +27,8 @@
 
 ### F.2 — Code quality + iOS surface (parallel Sonnet per file)
 
+**Every F.2 review-subagent prompt hard-instructs: diff each finding against `origin/master` FIRST.** Code carried **verbatim from master** is flag-not-fix (behavioral equivalence — Principle #1), **never** a migration BLOCKER, no matter how it reads. Without this, subagents over-flag pre-existing carried code as migration-introduced (NEFT→gpay "BLOCKER", nested-DTO visibility, `var accountId`), and each false positive costs a main-thread `git show origin/master` round-trip to dismiss.
+
 Per in-scope file (migrated and held):
 - Clean code adherence — no `*Holder` / `*Manager` cruft.
 - DRY / KISS check.
@@ -86,7 +88,7 @@ If conflicts surface: user resolves; skill assists with diff-confirm. Recon firs
 **Smoke test (Sonnet subagent) — runtime-crash gate only, NOT a behavioral walk.**
 - **Check `adb devices` FIRST.** If no device/emulator is connected, surface it and boot one *before* building — never discover "no device" after a ~15-min build. (Emulator binary may not be on PATH; project.md records the AVD names + path.)
 - Build the ProductionRelease APK (the shipped, R8-minified artifact — never Debug; debug skips R8 and false-greens serialization migrations) and install on the device.
-- Launch the app; confirm it **starts and does not crash** (crash-only logcat scoped to the app PID). Login/OTP-gated deep walks are user territory — the smoke does not attempt them.
+- Launch the app; confirm it **starts and does not crash** (crash-only logcat scoped to the app PID). Login/OTP-gated deep walks are user territory — the smoke does not attempt them. **The launch smoke cannot exercise post-login serialization paths**, so R8/ProductionRelease serialization runtime parity (the kotlinx keep-rule + decode behavior on real payloads) is **explicitly deferred to Phase I parity QA** — a crash-free launch is not evidence of serialization parity.
 - **Navigation discipline:** if the subagent navigates at all, it **must use the structured-tap CLI** and is **forbidden from back-gesture walking** (back-gestures exit the app and invalidate the check). If the tap CLI isn't available, the agent **screenshots and reports** — it does not fumble the device.
 - Output: launch confirmation + crash-free logcat (or the crash, if any). Goal met = installs + launches + no crash.
 

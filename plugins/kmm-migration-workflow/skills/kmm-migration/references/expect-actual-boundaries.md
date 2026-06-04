@@ -83,6 +83,29 @@ interface Clipboard {
 
 Platform modules bind `Clipboard` to Android/iOS implementations. Common tests use a fake.
 
+## Inject-the-collaborator seam (static-accessor / companion-facade domain models)
+
+A recurring KMM blocker: a domain model whose `companion object` exposes `get()` / `create()` / `sync()` that **self-instantiate a service-located store** (`BankRepository()`, a static singleton). The model can't move to `commonMain` — the static accessor reaches Android/service-locator code — and it can't be baselined, because the collaborator isn't injectable.
+
+**Standard seam: constructor-inject the collaborator; demote the companion accessor to a thin delegator (or a repository method).** The store becomes an interface supplied to the model/use-case, not something the model reaches for itself.
+
+```kotlin
+// BEFORE — companion self-instantiates a service-located store (blocks commonMain + baselining)
+data class BankDetailsModel(/* … */) {
+    companion object {
+        fun get(id: String) = BankRepository().findBank(id)   // static reach-out
+    }
+}
+
+// AFTER — collaborator injected; model is a plain commonMain data class
+interface BankRepository { fun findBank(id: String): BankDetailsModel? }   // commonMain
+class GetBankDetails(private val repo: BankRepository) {                    // injected, fakeable
+    operator fun invoke(id: String) = repo.findBank(id)
+}
+```
+
+The model is now commonMain-clean and the use-case is baselineable with a hand-rolled fake. **Migrate the model and its facade→repository conversion together** — they're one unit (see phase-d D.1 dependency-coupled chains). Note: a companion accessor that *looks* dead under a single-line grep may be live via builder-style newline call sites — verify with a multiline search before treating it as removable (phase-0 §6.5).
+
 ## Compose-specific guidance
 
 - Keep platform-specific Composables at leaf nodes.
