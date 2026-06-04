@@ -1,0 +1,21 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": false,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "allowWrite": ["./", "~/.maestro", "~/.android"],
+      "denyRead": ["~/.aws", "~/.ssh", "~/.config/gh", "~/.config/gcloud", "~/.netrc", "~/.npmrc"]
+    },
+    "allowedDomains": [
+      "github.com",
+      "*.githubusercontent.com",
+      "dl.google.com",
+      "services.gradle.org",
+      "repo.maven.apache.org",
+      "repo1.maven.org",
+      "*.googleapis.com"
+    ],
+    "excludedCommands": ["gh *", "adb *", "maestro *"]
+  }
+}
