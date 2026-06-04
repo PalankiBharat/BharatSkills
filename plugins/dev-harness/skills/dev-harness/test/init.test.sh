@@ -44,6 +44,7 @@ assert_file "$T/.harness/orchestrator/inbox.md"
 # path-independent driver wrappers so the orchestrator persona can dispatch/poll
 assert_file "$T/.harness/send"
 assert_file "$T/.harness/poll"
+assert_file "$T/.harness/ask"
 bash "$T/.harness/send" dev "ANALYSE: do the thing"
 assert_eq "$(cat "$T/.harness/dev/inbox.md")" "ANALYSE: do the thing"
 assert_eq "$(cat "$T/.harness/dev/status")" "working"

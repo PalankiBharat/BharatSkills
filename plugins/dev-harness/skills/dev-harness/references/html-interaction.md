@@ -2,6 +2,36 @@
 
 Every human touchpoint renders as a themed browser page — never a raw terminal prompt.
 
+## needs-user questions → a structured FORM (not prose)
+
+When an agent needs the user to decide, it writes `.harness/artifacts/questions.json` and the Orchestrator renders it with **`bash .harness/ask .harness/artifacts/questions.json`** (`scripts/render-questions.sh`). This produces a clean, minimal, UX-friendly form — severity-grouped, one field per question, the recommended option pre-selected and badged — and a single **Copy answers** button that emits a parseable `HARNESS ANSWERS` block the user pastes back.
+
+**Schema** (`questions.json`):
+```json
+{ "title": "one line of context (optional)",
+  "groups": [
+    { "label": "Blockers", "severity": "blocker | clarification", "questions": [
+      { "id": "b1",
+        "type": "single | multi | text",
+        "q": "the question (short, specific)",
+        "why": "one line on why it matters (optional)",
+        "options": [ {"label":"option A","recommended":true}, {"label":"option B"} ],
+        "allowNote": true } ] } ] }
+```
+Rules the agents follow: **one focused question per decision; every choice question offers concrete options with exactly one `recommended`** (the sensible default); `blocker` (gates the build) is grouped apart from `clarification`; `text` only when free input is genuinely needed; never a vague open-ended ask. `options`/`allowNote` are ignored for `type: text`.
+
+**Reply format** (what the user pastes back) — the Orchestrator parses it:
+```
+HARNESS ANSWERS
+[b1] I'll paste the spec now
+  [b1 note] …optional free text…
+[b2] symbol,price,ts; skip malformed
+[c1] Skip the row, continue
+```
+
+## Other touchpoints (prose review)
+
+
 `scripts/render-review.sh <kind> <payload-file> [--no-open]`
 - **kinds:** `story` · `plan` · `questionnaire` · `verdict` · `summary`
 - wraps the payload (markdown/text) — first **redacted** then **HTML-escaped** — in `assets/theme.css`

@@ -75,6 +75,12 @@ role="\$1"; shift
 exec env HARNESS_ROOT="$ROOT" bash "$HERE/poll.sh" --role "\$role" "\$@"
 EOF
 chmod +x "$ROOT/poll"
+# Render the structured needs-user questionnaire form: `bash .harness/ask <questions.json>`.
+cat > "$ROOT/ask" <<EOF
+#!/usr/bin/env bash
+exec env HARNESS_ROOT="$ROOT" bash "$HERE/render-questions.sh" "\$@"
+EOF
+chmod +x "$ROOT/ask"
 printf '%s\n' "$STORY" > "$ROOT/story.md"
 printf '# Orchestrator ledger\n\n- init  run=%s  branch=%s\n' "$RUN_ID" "$BRANCH" > "$ROOT/log.md"
 printf '{"run_id":"%s","slug":"%s","branch":"%s","stage":"init","phase":null,"in_flight":null,"heartbeat":"%s"}\n' \

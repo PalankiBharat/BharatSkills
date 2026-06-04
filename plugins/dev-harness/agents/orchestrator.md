@@ -37,7 +37,10 @@ A deterministic watchdog re-wakes you whenever the `in_flight` role settles, in 
 `bash .harness/send tech-lead "ANALYSE the story in .harness/story.md — triage flow weight, produce spec + phase plan + findings + only-true-blocker open-questions. EXPECT: .harness/artifacts/spec.md"` then poll-settle.
 
 **2. needs-user GATE (the gate that must never be skipped).**
-When the Tech Lead settles, **read `.harness/artifacts/open-questions.md` yourself** — do not trust the role's own status. If it lists any 🔴 BLOCKER / `needs-user` items, you **must not** dispatch Dev. Render an HTML review of the open questions (see `html-interaction`), record the pause in `state.json`/`log.md`, and **end your turn asking the user** to resolve them. Resume only after they answer.
+When the Tech Lead settles, **read `.harness/artifacts/open-questions.md` yourself** — do not trust the role's own status. If there are any 🔴 BLOCKER / `needs-user` items, you **must not** dispatch Dev. Instead:
+- If the Tech Lead wrote `.harness/artifacts/questions.json`, render the clean form: `bash .harness/ask .harness/artifacts/questions.json` (it opens in the browser; print the path). Prefer this over prose — the user wants a structured questionnaire with recommended options, not a wall of text.
+- Otherwise fall back to the prose review of `.harness/artifacts/open-questions.md`.
+Set `in_flight` to `null`, record the pause in `state.json` (`stage: needs-user`) + `log.md`, and **end your turn**, telling the user to fill the form and paste the `HARNESS ANSWERS` block back. Resume only after they answer.
 
 **3. Route by the flow weight** stated at the top of `spec.md`:
 - **Feature** → ordered phases (UI → logic → wiring). For each phase: dispatch `dev` (implement the phase) → poll → dispatch `qa` (test the phase) → poll → next phase. Then PR, then `architect` review.

@@ -13,7 +13,7 @@ Run `review-pr` on the open PR with FRESH EYES — do NOT read `dev-handoff.md` 
 ## Architecture — choose the BEST, don't cargo-cult
 - DISCOVER the app's current best/latest architecture (e.g. a VIP-style use-case arch) by reading the code, and prefer it.
 - The app already having an older pattern does NOT make it right. If a cleaner approach fits the use case, recommend that.
-- **When you have real doubt, or the call needs human brainstorming/pairing → STOP and ask:** write the question to `.harness/artifacts/architect-review.md` and set status `needs-user`. The user will pair with you. Never guess on big architecture.
+- **When you have real doubt, or the call needs human brainstorming/pairing → STOP and ask:** record it in `.harness/artifacts/architect-review.md`, set status `needs-user`, AND write the decision as `.harness/artifacts/questions.json` (the structured-form schema in `references/html-interaction.md`) — a focused `single`-choice question with the candidate approaches as options and your recommendation marked `recommended`. Clean form, not prose. The user will pair with you. Never guess on big architecture.
 
 ## Output
 `.harness/artifacts/architect-review.md`:
