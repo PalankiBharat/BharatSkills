@@ -87,7 +87,15 @@ that now lies, a path that moved) — but stay within the approved scope; don't 
 - **If the skill lives in a plugin/marketplace, bump every version location in lockstep** — for this
   repo that's `plugin.json`, the marketplace entry, the marketplace top-level `metadata.version`, and
   the README row. A drift between any of them ships a broken or invisible update. (Check the repo's
-  own conventions doc — e.g. `CLAUDE.md` — for the exact list.)
+  own conventions doc — e.g. `CLAUDE.md` — for the exact list.) **Bump conservatively and by semver:**
+  a **patch** (`x.y.Z`) for small content tweaks, a **minor** (`x.Y.0`) for new rules/features; reserve
+  major for breaking workflow changes. A retro fold is almost always a patch or minor — don't over-bump.
+- **Almost never edit the plugin/catalog descriptions.** The `plugin.json`, marketplace-entry, and
+  README-row descriptions are tuned for skill triggering and catalog browse — a retro fold bumps the
+  **version only**, it does NOT append a "what changed this version" clause to any description. (Piling
+  recent-change bullets into a description is the failure mode — the description should read as *what the
+  skill is*, not a changelog; the PR and retro are the changelog.) Only edit a description when the user
+  **explicitly asks**, and then keep it concise — **what the skill does + how**, never a list of changes.
 - **Validate** (`claude plugin validate .` here) and confirm it passes — quote the result, don't assume.
 - **Review the diff**, then **commit on the worktree branch, push, and open a PR** with a concise body
   mapping each change back to its retro item. **Never push to `master` directly.**
@@ -105,4 +113,6 @@ that now lies, a path that moved) — but stay within the approved scope; don't 
 | Appending new sections for every change | Edit at the right altitude — surgical where it fits, rewrite where it reads better, new file only to avoid bloat. |
 | Editing the user's working checkout | Worktree off master first; this is a PR-bound, version-bumped pass. |
 | Bumping one version location and forgetting the rest | Bump all of them in lockstep, then validate. |
+| Appending a "what changed" clause to the plugin/README description | Bump the version only; almost never touch descriptions. They're what-the-skill-is, not a changelog. |
+| Over-bumping (minor/major for a tiny tweak) | Semver: patch for small tweaks, minor for new rules/features. A retro fold is usually a patch or minor. |
 | Pushing to master / skipping the PR | Always a branch + PR with a body that maps changes to retro items. |
