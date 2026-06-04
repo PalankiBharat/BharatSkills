@@ -1,35 +1,65 @@
 #!/usr/bin/env bash
-# watchdog wakes the orchestrator on a role settle, and stands down while working / paused.
+# File-based watchdog: wakes a never-woke role ONCE, stays quiet for an alive role, escalates a stuck
+# role via check-in -> escalate, and wakes the orchestrator when the in_flight role settles.
 . "$(dirname "$0")/_assert.sh"
 HERE="$(cd "$(dirname "$0")" && pwd)"; . "$HERE/../scripts/lib.sh"
-T="$(mktemp -d)"; ROOT="$T/.harness"; harness_init_layout "$ROOT"
+WD="$HERE/../scripts/watchdog.sh"
 
-WAKELOG="$T/wakes.txt"; : > "$WAKELOG"
-cat > "$T/wake.sh" <<EOF
+# Build a fresh root with a fake wake-hook that logs tagged messages.
+new_root() {
+  local t; t="$(mktemp -d)"; ROOT="$t/.harness"; harness_init_layout "$ROOT"
+  for r in $HARNESS_ROLES; do echo "%$r" > "$ROOT/$r/pane"; done
+  WL="$t/wakes.txt"; : > "$WL"
+  cat > "$t/wake.sh" <<EOF
 #!/usr/bin/env bash
-printf 'wake\n' >> "$WAKELOG"
+printf '%s\n' "\$1" >> "$WL"
 EOF
-chmod +x "$T/wake.sh"
-count() { wc -l < "$WAKELOG" | tr -d ' '; }
+  chmod +x "$t/wake.sh"
+  export WATCHDOG_WAKE_CMD="$t/wake.sh" WATCHDOG_INTERVAL=1 WATCHDOG_BOOT_GRACE=1 \
+         WATCHDOG_STUCK=2 WATCHDOG_CHECKIN_GRACE=2
+}
+tag() { grep -c "^$1" "$WL"; }
 
-export WATCHDOG_INTERVAL=1 WATCHDOG_WAKE_CMD="$T/wake.sh"
+# 1) NEVER WOKE -> exactly one WAKE (marker prevents repeats), no escalation yet
+new_root
+set_status "$ROOT" dev working          # status now; worklog/activity older -> no activity since dispatch
+bash "$WD" "$ROOT" "%orch" & W=$!; sleep 4; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
+assert_eq "$(tag WAKE)" "1"
 
-# in_flight carries a "role:STAGE" suffix (as the orchestrator writes it); still WORKING -> no wake
-printf '{"in_flight":"tech-lead:ANALYSE"}' > "$ROOT/state.json"
-set_status "$ROOT" tech-lead working
-bash "$HERE/../scripts/watchdog.sh" "$ROOT" "%0" & WPID=$!
-sleep 3
-assert_eq "$(count)" "0"
+# 2) ALIVE -> stay quiet (recent worklog activity after dispatch)
+new_root
+set_status "$ROOT" dev working
+sleep 1; : > "$ROOT/dev/worklog.md"     # activity AFTER dispatch -> woke + alive
+bash "$WD" "$ROOT" "%orch" & W=$!; sleep 2; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
+assert_eq "$(tag WAKE)" "0"
+assert_eq "$(tag CHECKIN)" "0"
 
-# settles done (in_flight still suffixed) -> watchdog strips suffix and wakes
-set_status "$ROOT" tech-lead done
-sleep 3
-[ "$(count)" -ge 1 ] || _FAIL "watchdog must wake on settle (got $(count))"
+# 3) STUCK -> CHECKIN then ESCALATE (woke, then silent past STUCK + CHECKIN_GRACE)
+new_root
+set_status "$ROOT" qa working
+sleep 1; : > "$ROOT/qa/worklog.md"      # woke
+bash "$WD" "$ROOT" "%orch" & W=$!; sleep 7; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
+[ "$(tag CHECKIN)" -ge 1 ]  || _FAIL "stuck role must get a check-in"
+[ "$(tag ESCALATE)" -ge 1 ] || _FAIL "still-silent role must escalate"
 
-# orchestrator pauses (in_flight null) -> stands down, no further wakes
-printf '{"in_flight":null}' > "$ROOT/state.json"
-before="$(count)"; sleep 3
-assert_eq "$(count)" "$before"
+# 4) SETTLE -> wake the orchestrator once when in_flight role is done|blocked (suffix stripped)
+new_root
+printf '{"in_flight":"architect:REVIEW"}' > "$ROOT/state.json"
+set_status "$ROOT" architect done
+bash "$WD" "$ROOT" "%orch" & W=$!; sleep 3; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
+[ "$(tag SETTLE)" -ge 1 ] || _FAIL "settle must wake the orchestrator"
 
-touch "$ROOT/.stop-watchdog"; sleep 2; kill $WPID 2>/dev/null || true
+# 5) LONG THINK -> transcript mtime keeps it ALIVE even with NO worklog/activity updates
+new_root
+proj="$(mktemp -d)"; mkdir -p "$proj/slug"; sid="sess-xyz"
+export WATCHDOG_PROJECTS_DIR="$proj" WATCHDOG_STUCK=2 WATCHDOG_CHECKIN_GRACE=2
+echo "$sid" > "$ROOT/qa/session"
+set_status "$ROOT" qa working
+: > "$proj/slug/$sid.jsonl"              # transcript fresh AFTER dispatch -> woke
+bash "$WD" "$ROOT" "%orch" & W=$!
+for i in 1 2 3 4 5 6; do sleep 1; : > "$proj/slug/$sid.jsonl"; done   # transcript keeps advancing
+touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
+unset WATCHDOG_PROJECTS_DIR
+assert_eq "$(tag WAKE)" "0"
+assert_eq "$(tag CHECKIN)" "0"          # transcript activity => never "stuck" despite stale worklog
 echo OK

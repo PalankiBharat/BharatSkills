@@ -81,6 +81,41 @@ cat > "$ROOT/ask" <<EOF
 exec env HARNESS_ROOT="$ROOT" bash "$HERE/render-questions.sh" "\$@"
 EOF
 chmod +x "$ROOT/ask"
+# Activity wrapper: `bash .harness/run <role> -- <cmd...>` runs a (possibly long) command and tees its
+# combined output to .harness/<role>/activity.log. The log's MTIME is the "alive right now" signal the
+# watchdog watches — so a 12-min gradle build reads as alive (the agent can't write a worklog line while
+# blocked inside one tool call). Forwards the command's real exit code (pipefail + PIPESTATUS).
+cat > "$ROOT/run" <<EOF
+#!/usr/bin/env bash
+set -o pipefail
+role="\$1"; shift
+[ "\${1:-}" = "--" ] && shift
+log="$ROOT/\$role/activity.log"
+[ -d "$ROOT/\$role" ] || { echo "unknown role: \$role" >&2; exit 2; }
+"\$@" 2>&1 | tee -a "\$log"
+exit "\${PIPESTATUS[0]}"
+EOF
+chmod +x "$ROOT/run"
+# Gate-resume: `bash .harness/answer <role> "<verbatim user answers>"` re-dispatches the role to
+# incorporate the answers ITSELF — so the Orchestrator routes the answers and never reconciles/analyzes.
+cat > "$ROOT/answer" <<EOF
+#!/usr/bin/env bash
+role="\$1"; shift
+msg="RESUME — the user answered the open questions. Incorporate their verbatim answers below into your work (revise the relevant artifact), resolve the gate, then signal done. Do not re-ask; do not wait for more input on these.
+
+\$*"
+exec env HARNESS_ROOT="$ROOT" bash "$HERE/send.sh" --role "\$role" --message "\$msg"
+EOF
+chmod +x "$ROOT/answer"
+# Artifact gate: `bash .harness/require <file...>` exits non-zero if any is missing/empty. The
+# Orchestrator runs it before accepting a role's `done` — a missing required output => re-dispatch.
+cat > "$ROOT/require" <<'EOF'
+#!/usr/bin/env bash
+miss=0
+for f in "$@"; do [ -s "$f" ] || { echo "MISSING/EMPTY: $f" >&2; miss=1; }; done
+exit $miss
+EOF
+chmod +x "$ROOT/require"
 printf '%s\n' "$STORY" > "$ROOT/story.md"
 printf '# Orchestrator ledger\n\n- init  run=%s  branch=%s\n' "$RUN_ID" "$BRANCH" > "$ROOT/log.md"
 printf '{"run_id":"%s","slug":"%s","branch":"%s","stage":"init","phase":null,"in_flight":null,"heartbeat":"%s"}\n' \

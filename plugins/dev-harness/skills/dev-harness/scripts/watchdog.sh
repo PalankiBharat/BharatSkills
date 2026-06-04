@@ -1,93 +1,116 @@
 #!/usr/bin/env bash
-# watchdog.sh <root> <orchestrator-pane> — deterministic liveness for the Orchestrator.
+# watchdog.sh <root> <orchestrator-pane> — deterministic, FILE-BASED liveness for the harness.
 #
-# The Orchestrator is an LLM pane and may end its turn after a dispatch (prompt discipline
-# alone is not enough — proven in live testing). This watchdog watches state.json's
-# `in_flight` role; whenever that role SETTLES (done|blocked) it WAKES the Orchestrator so
-# it advances. The Orchestrator still makes every decision — the watchdog only re-wakes it.
+# It never screen-scrapes to judge liveness (that proved fragile). A role's "alive" signal is the
+# newest MTIME of files the harness owns: .harness/<role>/worklog.md (the agent appends a line per
+# step) and .harness/<role>/activity.log (a long build/test tee'd via .harness/run). The only screen
+# WRITES are nudges (send-keys) — never reads.
 #
-# It stands down (does nothing) whenever `in_flight` is null — that is how the Orchestrator
-# signals an intentional pause (needs-user) or completion. Stops on <root>/.stop-watchdog.
+# Per `working` role:
+#   - never woke (no activity since dispatch, past boot grace) -> ONE wake nudge.
+#   - alive (recent activity)                                  -> stay quiet.
+#   - stuck (working but no activity > STUCK)                  -> ONE gentle check-in;
+#       still no activity after CHECKIN_GRACE                  -> ESCALATE to the user (via orchestrator).
+# Plus: when the in_flight role SETTLES (done|blocked) -> wake the orchestrator. Self-reaps when the
+# orchestrator pane disappears. Stops on <root>/.stop-watchdog.
 #
-# Test seams: WATCHDOG_INTERVAL (poll seconds), WATCHDOG_WAKE_CMD (called with the message
-# instead of tmux send-keys — also disables the "busy" check).
+# Test seams: WATCHDOG_INTERVAL, WATCHDOG_BOOT_GRACE, WATCHDOG_STUCK, WATCHDOG_CHECKIN_GRACE, and
+# WATCHDOG_WAKE_CMD (called with a tagged message instead of tmux; also disables self-reap/skip-real-send).
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; . "$HERE/lib.sh"   # HARNESS_ROLES
 ROOT="${1:?usage: watchdog.sh <root> <orchestrator-pane>}"
 OPANE="${2:?orchestrator pane id}"
 STATE="$ROOT/state.json"
-INTERVAL="${WATCHDOG_INTERVAL:-12}"
+INTERVAL="${WATCHDOG_INTERVAL:-15}"
+BOOT_GRACE="${WATCHDOG_BOOT_GRACE:-30}"
+# STUCK/CHECKIN_GRACE are deliberately LONG: real agents think/compute for 20-30 min in a single
+# stretch (observed live). A false "stuck -> pause the run" is the costly outcome, so we only act
+# after sustained silence across ALL liveness signals.
+STUCK="${WATCHDOG_STUCK:-1800}"            # 30m of no activity before a gentle check-in
+CHECKIN_GRACE="${WATCHDOG_CHECKIN_GRACE:-600}"   # +10m re-confirmed silence before escalating
+PROJECTS_DIR="${WATCHDOG_PROJECTS_DIR:-$HOME/.claude/projects}"
 
 _mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
+_now()   { date +%s; }
 
-wake() {
-  if [ -n "${WATCHDOG_WAKE_CMD:-}" ]; then "$WATCHDOG_WAKE_CMD" "$1"; return; fi
-  tmux send-keys -t "$OPANE" -l "$1" 2>/dev/null || true
+# Newest activity mtime for a role across ALL signals the harness can see WITHOUT screen-scraping:
+#   worklog.md   — per-step breadcrumb the agent appends
+#   activity.log — a long build/test tee'd via .harness/run (alive during a 12-min gradle)
+#   transcript   — the agent's own Claude session jsonl (advances during pure THINKING, no tool
+#                  call needed); located via the session id the agent records in .harness/<role>/session.
+# The transcript is what stops a long think from looking "stuck" — it's written by Claude Code
+# itself, so it doesn't depend on the agent remembering to log.
+last_activity() {
+  local m w a t sid tx; m=0
+  w="$(_mtime "$ROOT/$1/worklog.md")";  [ "$w" -gt "$m" ] && m="$w"
+  a="$(_mtime "$ROOT/$1/activity.log")"; [ "$a" -gt "$m" ] && m="$a"
+  sid="$(cat "$ROOT/$1/session" 2>/dev/null)"
+  if [ -n "$sid" ]; then
+    tx="$(ls "$PROJECTS_DIR"/*/"$sid".jsonl 2>/dev/null | head -1)"
+    [ -n "$tx" ] && { t="$(_mtime "$tx")"; [ "$t" -gt "$m" ] && m="$t"; }
+  fi
+  echo "$m"
+}
+
+# send a tagged message to a pane (or to the test hook). Text is tagged for testability.
+send_pane() {  # <pane> <text>
+  if [ -n "${WATCHDOG_WAKE_CMD:-}" ]; then "$WATCHDOG_WAKE_CMD" "$2"; return; fi
+  tmux send-keys -t "$1" -l "$2" 2>/dev/null || true
   sleep 0.4
-  tmux send-keys -t "$OPANE" Enter 2>/dev/null || true
+  tmux send-keys -t "$1" Enter 2>/dev/null || true
 }
+pane_of() { cat "$ROOT/$1/pane" 2>/dev/null; }
 
-# Don't wake the Orchestrator while it is actively working (would land text mid-turn).
-orch_busy() {
-  [ -n "${WATCHDOG_WAKE_CMD:-}" ] && return 1
-  tmux capture-pane -p -t "$OPANE" 2>/dev/null | grep -q 'esc to interrupt'
-}
-
-# A role that was dispatched (status=working) but never actually woke sits at an idle
-# prompt — it shows NO active-work indicator. A working agent shows "esc to interrupt".
-# So "needs a nudge" == working status AND not currently processing. (The context bar is
-# NOT a reliable idle signal: a busy agent stays under 10% context, bar all-dashes, for a
-# long time — keying on that re-nudges a working pane forever and corrupts the run.)
-role_idle() {
-  [ -n "${WATCHDOG_WAKE_CMD:-}" ] && return 1
-  ! tmux capture-pane -p -t "$1" 2>/dev/null | grep -q 'esc to interrupt'
-}
-renudge_role() {  # <role> <pane>
-  _dbg "renudge $1 -> $2"
-  tmux send-keys -t "$2" -l "Read .harness/$1/inbox.md and do exactly that now; when finished run: bash .harness/done $1" 2>/dev/null || true
-  sleep 0.4
-  tmux send-keys -t "$2" Enter 2>/dev/null || true
-}
-_dbg() { [ -n "${WATCHDOG_DEBUG:-}" ] && printf '%s %s\n' "$(date +%H:%M:%S)" "$1" >> "$ROOT/watchdog.log" || true; }
-
-last="" stale=0
+settle_last=""
 while :; do
   sleep "$INTERVAL"
   [ -f "$ROOT/.stop-watchdog" ] && break
-  # Self-reap: if the orchestrator pane is gone (window closed / crashed), exit — never
-  # poll forever or stack a zombie per run. (Skipped in test mode, where OPANE is fake.)
+  # Self-reap when the orchestrator pane is gone (window closed/crash) — never poll forever.
   [ -z "${WATCHDOG_WAKE_CMD:-}" ] && { tmux display-message -p -t "$OPANE" '' >/dev/null 2>&1 || break; }
+  now="$(_now)"
 
-  # Universal role-wake: nudge ANY role that is `working` but whose pane never woke. This
-  # is the sole nudge path under --sandbox (the orchestrator's own tmux call is blocked by
-  # the sandbox), and a lost-nudge self-heal otherwise. Independent of in_flight. A per-role
-  # cooldown (marker-file mtime; no bash-4 assoc arrays — macOS ships bash 3.2) avoids a
-  # second nudge in the brief window before the work indicator appears.
+  # ---- per-role liveness (independent of in_flight; the sole nudge path, also sandbox-safe) ----
   for r in $HARNESS_ROLES; do
     [ -f "$ROOT/$r/status" ] && [ "$(tr -d '\n' < "$ROOT/$r/status")" = "working" ] || continue
-    p="$(cat "$ROOT/$r/pane" 2>/dev/null)"; [ -n "$p" ] || continue
-    role_idle "$p" || { _dbg "scan: $r working, already busy"; continue; }
-    mark="$ROOT/$r/.wd-last-nudge"
-    [ -f "$mark" ] && [ $(( $(date +%s) - $(_mtime "$mark") )) -lt 20 ] && continue
-    : > "$mark"
-    renudge_role "$r" "$p"
+    smt="$(_mtime "$ROOT/$r/status")"        # dispatch time (send.sh wrote status=working)
+    act="$(last_activity "$r")"
+    p="$(pane_of "$r")"; [ -n "$p" ] || continue
+
+    if [ "$act" -le "$smt" ]; then
+      # never woke since dispatch. After boot grace, send ONE wake (marker prevents repeats per dispatch).
+      [ $(( now - smt )) -lt "$BOOT_GRACE" ] && continue
+      [ "$(_mtime "$ROOT/$r/.wd-wake")" -gt "$smt" ] && continue   # already woke this dispatch
+      : > "$ROOT/$r/.wd-wake"
+      send_pane "$p" "WAKE Read .harness/$r/inbox.md and do exactly that now; first append a 'started' line to .harness/$r/worklog.md; when finished run: bash .harness/done $r"
+      continue
+    fi
+
+    # woke + progressing. Only act if it has gone silent for too long.
+    [ $(( now - act )) -lt "$STUCK" ] && continue
+    if [ "$(_mtime "$ROOT/$r/.wd-checkin")" -le "$act" ]; then
+      : > "$ROOT/$r/.wd-checkin"
+      send_pane "$p" "CHECKIN Status check: if you're still working, append one line to .harness/$r/worklog.md and continue. If you're done or blocked, run: bash .harness/done $r [blocked]"
+      continue
+    fi
+    # checked-in already and STILL silent past the grace -> escalate to the user via the orchestrator.
+    [ $(( now - $(_mtime "$ROOT/$r/.wd-checkin") )) -lt "$CHECKIN_GRACE" ] && continue
+    [ "$(_mtime "$ROOT/$r/.wd-escalate")" -gt "$act" ] && continue
+    : > "$ROOT/$r/.wd-escalate"
+    printf '%s | WATCHDOG: %s stuck — no activity for >%ss, no response to check-in. Surface to user.\n' \
+      "$(date -u +%FT%TZ)" "$r" "$STUCK" >> "$ROOT/log.md"
+    send_pane "$OPANE" "ESCALATE The '$r' pane is STUCK — no activity for over $((STUCK/60))m and no response to a status check. Stop polling it; tell the user it needs attention (it may be rate-limited or hung), and pause the run."
   done
 
+  # ---- settle wake: in_flight role done|blocked -> wake the orchestrator to advance ----
   [ -f "$STATE" ] || continue
   R="$(jq -r '.in_flight // empty' "$STATE" 2>/dev/null)" || continue
-  [ -n "$R" ] || { last=""; stale=0; continue; }          # paused/complete -> stand down
-  R="${R%%:*}"                                             # in_flight may be "role:STAGE"
+  [ -n "$R" ] || { settle_last=""; continue; }
+  R="${R%%:*}"
   [ -f "$ROOT/$R/status" ] || continue
   S="$(tr -d '\n' < "$ROOT/$R/status")"
-
-  case "$S" in done|blocked) ;; *) continue ;; esac        # working handled by the scan above
-
+  case "$S" in done|blocked) ;; *) continue ;; esac
   key="$R:$S:$(_mtime "$ROOT/$R/status")"
-  if [ "$key" = "$last" ]; then
-    stale=$((stale + 1))
-    [ "$stale" -lt 4 ] && continue                         # re-arm only if it stays stuck
-  fi
-  orch_busy && continue
-  stale=0; last="$key"
-  wake "System: the '$R' pane has settled with status '$S'. Continue driving NOW — verify its EXPECTed artifact, run the needs-user gate (read .harness/artifacts/open-questions.md), then dispatch the next step or pause for the user. Do not stop until the run is done, blocked, or needs the user."
+  [ "$key" = "$settle_last" ] && continue
+  settle_last="$key"
+  send_pane "$OPANE" "SETTLE The '$R' pane settled with status '$S'. Continue driving now — verify its artifact, run the needs-user gate, then dispatch the next step or pause. Don't stop until the run is done, blocked, or needs the user."
 done

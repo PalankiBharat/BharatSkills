@@ -31,6 +31,8 @@ harness_init_layout() {
     : > "$root/$r/outbox.md"
     : > "$root/$r/feedback.md"
     : > "$root/$r/worklog.md"
+    : > "$root/$r/activity.log"
+    : > "$root/$r/session"
     printf 'idle\n' > "$root/$r/status"
   done
   # The Orchestrator drives from its own visible pane; it gets a mailbox dir for its
