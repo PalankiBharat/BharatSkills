@@ -1,32 +1,32 @@
-# Resume — crash recovery
+# Resume — crash / session recovery
 
-**Principle:** durable state (`.harness/` files + git branch/commits + PR) survives any crash; transient state (tmux, running `claude -p`, the manager's memory) does not. Resume = rebuild the transient from the durable.
+**Principle:** durable state (`.harness/` files + git branch/commits + PR) survives any crash; transient state (the tmux panes, the running Claude sessions, the watchdog, the Orchestrator's memory) does not. Resume = rebuild the transient from the durable.
 
 ## Save points (written every transition)
-- `state.json` — run_id, slug, branch, stage, phase, in-flight instruction, counters, heartbeat.
+- `state.json` — run_id, slug, branch, stage, phase, `in_flight`, counters, heartbeat.
 - `log.md` — append-only history.
 - per-role `worklog.md` — fine-grained "where I stopped".
 
-## `/harness --resume` (also triggered by the plain word **"continue"**)
+## `continue` / `/harness --resume` → `bash .harness/resume`
+`harness-resume.sh` (the `.harness/resume` wrapper):
 ```
-1. read state.json (+ worklog) → find the in-flight instruction
-2. rebuild tmux session + 5 panes (supervisors just re-watch their inboxes — safe to restart)
-3. re-pin the emulator (re-read or re-capture the serial)
-4. RE-SEND the in-flight instruction → a fresh worker reads its worklog + handoff
-   + code on disk + remaining plan.md, and continues from exactly there
-5. carry on through the normal flow
+1. read state.json → the in-flight stage
+2. if the run's Orchestrator pane is ALIVE (pane_alive) → restart it: respawn the watchdog
+   + re-nudge the Orchestrator to "continue from state.json". That's the common case.
+3. if the window/pane is GONE → tell the user to re-run /harness from inside tmux to rebuild
+   the panes; .harness/ + git state are intact, so the rebuilt run picks up where it stopped.
 ```
+On a rebuild, each agent re-records its `session` id and re-reads its inbox/worklog/the code on disk + the remaining plan/design, and continues from there.
 
 ## Stale runs (days old) → rebase from master first
-If the run has been paused for a while (or is about to do a major refactor), before re-dispatching Dev, have Dev `git pull --rebase origin master` so the branch is current and history stays clean. During the rebase: a conflict in a file that is NOT part of our feature is **master's call** (take theirs); resolve carefully only inside our own feature's files, and ask the user if genuinely unsure. After a sanctioned rebase, `--force-with-lease` on the run's OWN branch is the one allowed force-push (the `guard.sh` hook still blocks plain `--force` and any push to master).
+Before re-dispatching Dev on an old run (or before a major refactor), have Dev `git pull --rebase origin master`. During the rebase, a conflict in a file NOT part of our feature is master's call (take theirs); resolve only inside our own feature's files; ask the user if unsure. After a sanctioned rebase, `--force-with-lease` on the run's OWN branch is the one allowed force-push (`guard.sh` still blocks plain `--force` and any push to master).
 
 ## Why re-sending is safe (idempotency)
-- "do the next **unticked** chunk" — plan.md ticks live in the same commit as the code, so the git tree is authoritative.
-- artifacts are written temp-then-rename (never read half-written).
-- re-running a step never double-applies.
+- "do the next **unticked** chunk" — plan ticks live in the same commit as the code, so the git tree is authoritative.
+- artifacts are written temp-then-rename (never read half-written); re-running a step never double-applies.
 
 ## Failure mid-run
-Network/emulator failure → the worker `claude -p` errors → after a couple of quiet retries the supervisor sets `blocked` → the Orchestrator pauses the run (records the reason in `state.json`) and tells the user. `--resume`/`continue` picks up later.
+A network/emulator/API failure ends a pane's turn; the watchdog detects the role going silent → check-in → ESCALATE to the user (or, for a rate limit, the recovery path). The run pauses with the reason in `log.md`; `continue` picks up later.
 
-## Multiple runs (v2 — built)
-See `multirun.md`. Each run is a **git worktree** + a **registry** entry (`~/.dev-harness/registry.json`) with heartbeat + per-run lock. `--resume` / "continue" reads `registry_list`, renders an HTML picker, and reattaches the chosen run's tmux session + emulator before re-sending its in-flight instruction. (The reattach/picker flow is smoke-tested.)
+## Multiple runs (v2)
+See `multirun.md`: each run is a git worktree + a registry entry (`~/.dev-harness/registry.json`) with heartbeat + per-run lock. (The reattach/picker flow is smoke-tested.)

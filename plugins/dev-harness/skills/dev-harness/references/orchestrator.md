@@ -1,47 +1,29 @@
 # Orchestrator playbook
 
-You are the Orchestrator (the manager) — the user's main session. You **never** write code and **never** run/author tests. You coordinate the four panes via `.harness/` + `send.sh`/`poll.sh`, and you re-derive your state from `state.json` on every re-entry (never from memory — survives compaction/restart).
+The authoritative driver instructions live in **`agents/orchestrator.md`** (the Orchestrator runs as a pane, `claude --agent orchestrator`). This file is the reference summary; if the two disagree, the agent file wins.
 
-## Liveness (proven in the spike)
-Dispatch a pane, then **wait by backgrounding the poll** so the completion event wakes you — do NOT busy-loop in one bash call (the 10-min ceiling + no foreground sleep). On each wake: read `state.json` → decide the next dispatch. Update `state.json` + append `log.md` at every transition.
+The Orchestrator is a **visible pane**, not the main session. `/harness` is launcher-only: `harness-init.sh` opens the `harness-<slug>-<date>` window in the current tmux session, spawns 6 panes (Orchestrator + tech-lead + dev + qa + architect + log), self-starts the Orchestrator, then steps back. The Orchestrator drives via files in `.harness/`; it never writes code or tests, and re-derives state from `state.json` on every re-entry.
 
-## Names (narrate with these; route by role key)
-Manish=tech-lead · Mohit-Dev/Bharat-Dev=dev · Rohit/Bharat-QA=qa · Mohit-Arch=architect.
+## Dispatch + liveness
+- Dispatch: `bash .harness/send <role> "<instruction>. EXPECT: .harness/artifacts/<file>"` (writes inbox, sets `working`, nudges the pane).
+- Wait: `bash .harness/poll <role> --settle` — prints `done`/`blocked`/`still-working` (re-poll on `still-working`); returns under the tool cap so the turn never breaks.
+- Before accepting `done`, confirm the artifact: `bash .harness/require <file>…` (a `done` with a missing artifact is really `blocked`).
+- A file-based **watchdog** runs alongside (judges liveness by `worklog`+`activity.log`+transcript mtimes); it messages `SETTLE` (advance) or `ESCALATE` (a role is stuck — tell the user, pause).
 
-## Flow
-1. **INIT** — `harness-init.sh --story "<s>" --slug <slug>` (preflight, branch, layout, emulator lock, 5 panes).
-2. **Tech Lead** — `send tech-lead "ANALYSE\nEXPECT: .harness/artifacts/spec.md"` → wait done|needs-user. If `needs-user`: `render-review.sh questionnaire .harness/artifacts/open-questions.md`, get answers, append to spec.md, `send tech-lead RESUME`. Then **HTML plan gate**: `render-review.sh plan .harness/artifacts/spec.md`; wait for the user's approval.
-3. **Per phase P (in the phase plan order):**
-   a. `send dev "PLAN phase P\nEXPECT: .harness/artifacts/plan.md"` → wait done.
-   b. loop `send dev "IMPLEMENT-NEXT phase P"` → wait done, until plan.md fully ticked. (gate: phase built — proceed?)
-   c. `send qa "TAG-CHECK phase P"` → wait done; if `testtag-requests.md` non-empty → `send dev ADD-TAG` → wait → re-TAG-CHECK.
-   d. `send qa "PREP phase P\nEXPECT: .harness/artifacts/qa-scenarios.md"` → wait done.
-   e. `send qa "TEST phase P\nEXPECT: .harness/artifacts/qa-report.md"` → wait done; read report. FAIL → `send dev FIX-PER-QA` → wait → re-TEST. (QA fix cap **7** → escalate.) (gate: QA verdict)
-4. **PR** — after all phases pass, Dev opens a **draft PR** (its own branch, base = this repo only; never force-push).
-5. **Architect** — `send architect "REVIEW\nEXPECT: .harness/artifacts/architect-review.md"` → wait done; read verdict:
-   - PASS → DONE.
-   - only `[small]` → `send dev ADDRESS-SMALL` → re-REVIEW (no re-QA).
-   - any `[structural]` → `send dev IMPLEMENT-REPLAN` → `send qa RE-TEST` (affected phases) → re-REVIEW.
-   - after small fixes & PASS → ONE final QA → DONE. (Architect cap **3** · global ≤**3** full QA→Arch cycles → escalate.)
-6. **DONE** — append final block to `log.md`; post summary; leave PR ready.
+## Flow (two human gates; full path = feature)
+1. **Tech Lead → requirement.** `send tech-lead "ANALYSE …"` → `require spec.md feature-analysis.md`.
+2. **GATE 1 — requirement review (human).** `bash .harness/ask .harness/artifacts/questions.json` (or render `spec.md`); null `in_flight`; end turn. Resume: `bash .harness/answer tech-lead "<answers>"`.
+3. **Design (feature only).** `send dev "PLAN — first-cut tech-plan.md"` → `send architect "PLAN — design.md (pseudo-code: SOLID / clean arch / scale)"` → `require design.md`.
+4. **GATE 2 — design review (human).** render `design.md`; null `in_flight`; end turn. Resume: `answer architect`.
+5. **Build per phase — separate lanes.** `send dev` (implement the design TDD; code/unit tests are Dev's, foreground) → `send qa` (manual/user-journey via Maestro). Phase done = `dev-handoff.md` **and** a QA-PASS `qa-report.md`. QA FAIL → re-dispatch Dev (fix cap **7**/phase).
+6. **PR → Architect post-code REVIEW.** `[small]` → Dev fixes + final QA once; `[structural]` → Architect replans → Dev → QA re-test. Caps: Architect **3**, global QA↔Architect **3**, then escalate.
+7. **DONE** — null `in_flight`, summarise `log.md`, `touch .harness/.stop-watchdog`.
 
-## Adaptive flow (Manish triages — don't over-process small work)
-Read the flow weight Manish wrote at the top of `spec.md` and run the matching path:
-- **Feature** → the full per-phase loop above (PR → Architect).
-- **Small change / UI tweak** → skip the phase plan: one `dev PLAN`+`IMPLEMENT-NEXT` pass → targeted `qa TEST` → PR → a light Architect `REVIEW`.
-- **Internal bug fix (no UI)** → `dev` implements + tests; **QA optional/skipped**; straight to a light Architect `REVIEW`. ("no plan, then architect review" = this path.)
-The user approves the chosen weight at the HTML plan gate.
-
-## Architect doubt → pair with the user
-If the Architect returns status `needs-user` (real architecture doubt / wants brainstorming or pairing), surface `architect-review.md` to the user via `render-review.sh`, capture the decision, and re-dispatch. Never auto-resolve a big architecture call.
-
-## Long resume / major refactor → rebase first
-On a `continue`/`--resume` of a stale run, or before a major refactor, instruct Dev to `git pull --rebase origin master` first (Mohit-Dev's agent knows: master wins for non-feature conflicts; `--force-with-lease` on our own branch only). See `resume.md`.
+**Small change / bug fix** → skip the two design gates (one Dev pass → QA → light Architect).
 
 ## Rules
-- Never edit `app/**` or `.maestro/**`. Always verify the EXPECTed artifact exists/non-empty before advancing (don't trust a flag). Wait on each dispatch by **backgrounding the poll** (5-min window; re-poll across wakes) — never busy-loop.
-- Each pane is a **persistent interactive `claude --agent <persona>`** (started by `harness-init.sh` via `agent-pane.sh`). You drive a pane with `send.sh` (writes inbox + nudges the pane); the agent reads its inbox, works visibly, then runs `bash .harness/done <role>`; you poll the status. **Must be inside tmux** (init refuses otherwise) — it opens a `harness-<slug>-<date>` window in your current session. Run `harness-allow.sh` once at start so your `send`/`poll` calls don't prompt. Leads dispatch their sonnet worker (bharat-dev / bharat-qa) via the Agent tool.
-- On `blocked` → read the pane's outbox, escalate. On `needs-user` → surface the questions; don't answer them yourself.
-- Gates are HTML (`render-review.sh`). **`--auto`** = unattended mode: skip the human review gates (NEVER the security rails). For now it's opt-in and meant for **very small stories only** — keep gates ON by default.
-- The `guard.sh` PreToolUse hook hard-blocks force-push / push-to-master / global-adb / `rm -rf /` for every pane, regardless of the model.
-- Commands you accept anytime: see `orchestrator-prompts.md` (feedback / skill-feedback / restart / status / continue / --resume).
+- Never edit `app/**` / `.maestro/**`; never do a teammate's work — route gate answers via `.harness/answer`, never reconcile/analyse yourself.
+- Keep Dev and QA lanes separate — Dev implements, QA verifies; never put render/ST/PASS-FAIL/screenshots in a Dev dispatch.
+- `guard.sh` (PreToolUse) hard-blocks force-push / push-to-master / global-adb / `rm -rf /` for every pane.
+- Gates render as HTML (`render-questions.sh` / `render-review.sh`). `--auto` skips the human gates (never the security rails) — opt-in, small stories only.
+- Accepted-anytime user commands: see `orchestrator-prompts.md`.

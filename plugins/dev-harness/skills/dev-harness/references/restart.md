@@ -1,16 +1,14 @@
-# Restart — context relief
+# Restart — context relief for a single pane
 
-Two layers keep workers fresh:
-1. **By design** — the per-chunk `IMPLEMENT-NEXT` loop keeps every `claude -p` small; each worker is a fresh one-shot, so context never accumulates across dispatches.
-2. **Manual `restart <name|role>`** — a safety valve for a single long dispatch.
+Each pane is a **persistent interactive `claude --agent <persona>`**. A long dispatch can fill a pane's context; `restart <name|role>` gives that one pane a fresh start without losing work.
 
 ## `restart <role>` procedure (Orchestrator-driven)
 ```
-1. checkpoint  → the role appends a handoff to its outbox/handoff:
-                 done · in-progress · remaining · key decisions
-2. stop        → end the current run; `tmux respawn-pane` to clear the view,
-                 respawn the pane: agent-pane.sh <role>
-3. RESUME      → send the role its RESUME instruction; the fresh worker reads
-                 the handoff + worklog + code on disk + remaining plan.md, and continues
+1. checkpoint → the role appends a handoff to its outbox/worklog:
+                done · in-progress · remaining · key decisions
+2. respawn   → tmux respawn-pane the role's pane: agent-pane.sh <role>
+                (re-record its pane id; a fresh Claude session starts)
+3. RESUME    → re-dispatch the role; the fresh agent reads its handoff + worklog +
+                the code on disk + the remaining plan/design, and continues
 ```
-The handoff + `worklog.md` are the resume token — nothing is lost because workers are stateless and all state is on disk. The Orchestrator itself is resumable too (see `resume.md`).
+The handoff + `worklog.md` are the resume token — nothing is lost, because all durable state is on disk (artifacts, git, plan ticks). On respawn the agent re-records its `session` id, so the watchdog keeps seeing it alive. The Orchestrator pane itself is resumable the same way (see `resume.md`).
