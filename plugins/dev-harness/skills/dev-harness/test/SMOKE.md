@@ -14,7 +14,7 @@ legacy-refactor, preview-compose, figma-to-compose, kmm-*, qa-autopilot, review-
 2. **Panes:** `tmux ls | grep harness`; the window has 5 tiled panes (tech-lead, dev, qa, architect, log).
 3. **Branch + lock:** `git branch --show-current` = `harness/<slug>-<date>`; `cat .harness/qa/emulator.lock` matches `adb devices`; `.harness/` is gitignored.
 4. **Visibility:** each pane STREAMS live work (think 💭 + tool 🔧 + text 🗨), not one final line.
-5. **Agents/models:** the dev pane runs Mohit-Dev (opus) and dispatches Bharat-Dev (sonnet) via the Agent tool — confirm both personas + both models appear in the pane transcript. Same for QA (Rohit/Bharat-QA).
+5. **Agents/models (token-cost critical):** each pane's `/model` must match `role_model` — orchestrator/tech-lead/architect on **opus**, dev/qa on **opusplan** (check the pane header / run `/model` in a pane). The dev pane (Mohit-Dev) must **spawn Bharat-Dev via the Agent tool** and let him type — confirm a Bharat-Dev subagent on **sonnet** appears in the dev transcript and that Mohit-Dev did NOT edit app files directly. Same for QA (Rohit spawns Bharat-QA on sonnet). If no junior subagent appears, the spawn is broken and tokens will be all-opus.
 6. **Adaptive flow:** Manish writes a flow weight at the top of `artifacts/spec.md`; for this tiny story it should pick "small change", not a full feature pipeline.
 7. **HTML gates:** the plan gate opens an HTML page in the browser; answers paste back and the run continues.
 8. **Feedback:** in the main session say `feedback for mohit: also handle empty state` → appears in `.harness/dev/feedback.md`; `skill-feedback qa-autopilot: prefers text selectors` → appears under `~/.dev-harness/skill-feedback/`.

@@ -45,4 +45,25 @@ assert_eq "$(resolve_role architect)" "architect"
 # --- unknown name is refused ---
 ( resolve_role nobody 2>/dev/null ) && _FAIL "unknown name should be refused"
 
+# --- role_model: per-role defaults (deep panes opus, build lanes opusplan) ---
+assert_eq "$(role_model orchestrator)" "opus"
+assert_eq "$(role_model tech-lead)"    "opus"
+assert_eq "$(role_model architect)"    "opus"
+assert_eq "$(role_model dev)"          "opusplan"
+assert_eq "$(role_model qa)"           "opusplan"
+
+# --- role_model: per-role env override wins (hyphen role -> underscored env key) ---
+assert_eq "$(HARNESS_MODEL_DEV=sonnet role_model dev)"            "sonnet"
+assert_eq "$(HARNESS_MODEL_TECH_LEAD=haiku role_model tech-lead)" "haiku"
+# --- role_model: global override applies when no per-role key ---
+assert_eq "$(HARNESS_MODEL=opus role_model dev)"                  "opus"
+# --- role_model: per-role key beats the global default ---
+assert_eq "$(HARNESS_MODEL=opus HARNESS_MODEL_QA=sonnet role_model qa)" "sonnet"
+
+# --- is_launch_model: aliases + full ids are launch-flag; /model modes are not ---
+for m in opus sonnet haiku claude-opus-4-8; do
+  is_launch_model "$m" || _FAIL "$m should be a launch-flag model"
+done
+is_launch_model opusplan && _FAIL "opusplan must NOT be a launch-flag model"
+
 echo OK

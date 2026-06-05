@@ -15,10 +15,17 @@ if [ "${HARNESS_SANDBOX:-0}" = "1" ] && [ -f "$HERE/../assets/sandbox-settings.j
   SANDBOX_OPT="--settings $HERE/../assets/sandbox-settings.json"
 fi
 
+# Per-role model — pin it explicitly so a pane never silently inherits the user's default
+# (which made every pane Opus and blew up token cost). A /model-only mode (opusplan) can't
+# be a launch flag, so it boots on the default and harness-init switches it post-boot.
+MODEL="$(role_model "$ROLE" 2>/dev/null || echo opus)"
+MODEL_OPT=""
+if is_launch_model "$MODEL"; then MODEL_OPT="--model $MODEL"; fi
+
 if [ "$ROLE" = "orchestrator" ]; then
   printf '\033[1;36m▌ Orchestrator\033[0m — driving the run. You can talk to me here (Esc to interrupt).\n\n'
 else
   printf '\033[1;35m▌ %s\033[0m — waiting for the orchestrator. You can watch here; do not type.\n\n' "$PERSONA"
 fi
-# Interactive Claude AS the persona agent (loads its system prompt + model), no prompts.
-exec "$CLAUDE_BIN" --agent "$PERSONA" --permission-mode bypassPermissions $SANDBOX_OPT
+# Interactive Claude AS the persona agent (loads its system prompt), no prompts.
+exec "$CLAUDE_BIN" --agent "$PERSONA" --permission-mode bypassPermissions $SANDBOX_OPT $MODEL_OPT
