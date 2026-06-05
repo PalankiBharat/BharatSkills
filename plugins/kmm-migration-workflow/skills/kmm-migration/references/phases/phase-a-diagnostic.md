@@ -123,6 +123,18 @@ Per in-scope file:
 - **SUT test-classpath gaps** — if the SUT compiles against any dep that's `compileOnly` or platform-only (e.g., `retrofit2.HttpException`, `androidx.paging`), record the gap so Phase B's B.0 source-set bootstrap can preempt it (add `testImplementation` early, not retroactively when B.4 compile breaks).
 - **Migration-order signal** — what this depends on (informs Phase D ordering for `migrate`-plan files).
 
+### 3.5. Journey enrichment + diff coverage cross-check
+
+**Journey row enrichment.** For each row in `journeys.md` (confirmed at Phase 0's coverage-approval gate), a Sonnet subagent maps the per-file risk surfaces from sub-phase 3 onto that journey: which in-scope files are exercised, which seam boundaries are crossed, which `concurrency-semantics-sensitive` or `blocked`-iOS-interop files sit on the path. Each journey row gains a `risk surfaces` column listing the files + their Phase D plan (`migrate`/`hold`) and key risk flags. This enrichment anchors the Phase B baseline strategy to user-visible paths, not to file-topology abstractions.
+
+**Diff coverage cross-check.** After enrichment, a subagent verifies that every changed symbol identified in the Phase A plan is exercised by at least one journey row. Symbols with zero journey coverage are surfaced to the user as catalog gaps before `plan.md` is confirmed.
+
+The diff-derived technical surfaces are no longer the heatmap; they are a coverage cross-check. A changed symbol covered by no journey is a catalog gap surfaced to the user — this keeps 'no exclusions' honest while the primary framing stays user-centric.
+
+The gap list is presented as: *"These changed symbols have no journey coverage: `<symbol>` in `<file>` (Phase D plan: `<migrate/hold>`). Add a journey row, or confirm the gap is acceptable."* User either adds a journey row to `journeys.md` (re-triggers enrichment for that row) or explicitly accepts the gap with a recorded rationale. No silent uncovered symbols.
+
+The enriched `journeys.md` (with risk-surface column) and any accepted coverage gaps are recorded in `plan.md` before Phase A completes.
+
 ### 4. Cross-file synthesis (Opus)
 
 - **Phase D migration ordering** — topological for `migrate`-plan files: leaves first (Models, Mappers), layers up (Repositories, UseCases), Presentation last if in scope. `hold`-plan files don't participate in Phase D ordering.
