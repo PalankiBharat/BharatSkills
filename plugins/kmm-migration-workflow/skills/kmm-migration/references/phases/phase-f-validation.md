@@ -1,10 +1,10 @@
 # Phase F — Validation
 
-**Purpose.** Prove the migration is structurally sound and behavior-preserving *as far as automated checks can show*, then hand a clean, installable build to Phase G (PR), Phase H (code-review intake), and Phase I (parity QA). Multi-layered automated sanity check: code, docs, build, tests, pre-merge integration — plus a runtime-crash smoke. **Behavioral parity QA is NOT in this phase** — it runs after the PR via the `kmm-qa-autopilot` skill (Phase I). Any blocker here → loop back through the relevant prior phase → re-validate.
+**Purpose.** Prove the migration is structurally sound and behavior-preserving *as far as automated checks can show*, then hand a clean, installable build to Phase G (PR), Phase H (code-review intake), and Phase I (parity QA). Multi-layered automated sanity check: code, docs, build, tests, pre-merge integration — plus a runtime-crash smoke. **Behavioral parity QA is NOT in this phase** — it runs in-skill at Phase I, as an autonomous agent-device replay loop against the frozen runtime golden. Any blocker here → loop back through the relevant prior phase → re-validate.
 
-**What moved out of Phase F.** The old F.6 user-driven manual-QA gate and F.7 "migration complete" sign-off are gone. Parity QA now happens post-PR, off the PR git diff + heatmap, in a separate skill. Phase F's job is: *does it build on both platforms, are the baselines green, does it integrate with the latest base branch, and does it launch without crashing?* The heatmap is still **drafted** here (F.5) because Phase G embeds it into the PR body and Phase I / autopilot consume it.
+**What moved out of Phase F.** The old F.6 user-driven manual-QA gate and F.7 "migration complete" sign-off are gone. Parity QA now happens post-PR, in the Phase I loop, off the frozen golden + the embedded heatmap. Phase F's job is: *does it build on both platforms, are the baselines green, does it integrate with the latest base branch, and does it launch without crashing?* The heatmap is still **drafted** here (F.5) because Phase G embeds it into the PR body and the Phase I loop consumes it (filling its Result cells).
 
-**The smoke test stays — as a runtime-crash gate, not a QA walk.** Its only job is to confirm the build installs and runs without crashing, so we don't hand a dead build to autopilot and burn a full parity cycle (two APKs + two emulators + a manual prod login) only to crash on launch. It is not a behavioral walk and does not gate on user-visible behavior.
+**The smoke test stays — as a runtime-crash gate, not a QA walk.** Its only job is to confirm the build installs and runs without crashing, so we don't hand a dead build to the Phase I parity loop and burn a full parity cycle (two ProductionRelease APKs + agent-device session) only to crash on launch. It is not a behavioral walk and does not gate on user-visible behavior.
 
 **Inputs:** all prior session files (`scope.md` through `move.md`, status complete), `project.md`, `searches/`, `git diff <base>..HEAD`, `project.md.git.pr_merge_policy`.
 
@@ -62,8 +62,8 @@ Held files (`androidMain`) skip the SKIE surface review — they're not exposed 
 - **Visual regression** (Paparazzi/Roborazzi) against pre-migration goldens if UI was indirectly touched.
 - **Telemetry parity scan** — analytics events preserved through migrated code paths (Sonnet scans for analytics-relevant changes).
 - **Crash-reporting hookup verified** for migrated namespaces (Crashlytics/Sentry still receives from new package paths).
-- **HTTP client timeout parity verification** (if Phase A's sub-phase 1.5 produced a per-service timeout table). Smoke a representative endpoint per service from the table; observe real `tookMs` and timeout behavior via network capture (per project's HTTP-inspection capability). Confirm each service's effective timeout matches plan.md. Empty timeout install or default values where higher was specified surface here, not in QA — these are P0-class failures. Failure → loop back to D.
-- **HTTP client server-registration verification** (if Phase A's sub-phase 1.5 produced a server-registration table). For each new/changed host in the table, fire the smoke endpoint and confirm the request actually reaches the intended backend (non-500, expected response shape). A missing host registration in the shared client config object surfaces as 500s or DNS resolution failures here. Failure → P0; loop back to D.
+- **HTTP client timeout parity verification** (if Phase A's sub-phase 1.5 produced a per-service timeout table). Smoke a representative endpoint per service from the table; observe real `tookMs` and timeout behavior via `agent-device network` (the project's HTTP-inspection capability — captures in-flight traffic to `*.json` wire files with `tookMs`, status, and host). Confirm each service's effective timeout matches plan.md. Empty timeout install or default values where higher was specified surface here, not in QA — these are P0-class failures. Failure → loop back to D.
+- **HTTP client server-registration verification** (if Phase A's sub-phase 1.5 produced a server-registration table). For each new/changed host in the table, fire the smoke endpoint and confirm via `agent-device network` that the request actually reaches the intended backend (non-500, expected response shape, correct host in wire file). `agent-device network` is the concrete mechanism for real host reachability — a missing host registration in the shared client config object surfaces as 500s or DNS resolution failures in the captured wire. Failure → P0; loop back to D.
 - **Performance regression check** (if project has androidx-benchmark wiring): flag >10% regression on critical paths.
 - **Memory regression check** (if instrumentation available): flag baseline-level regressions, especially on iOS (Kotlin/Native memory model differs from JVM).
 
@@ -85,28 +85,25 @@ If conflicts surface: user resolves; skill assists with diff-confirm. Recon firs
 
 ### F.5 — Runtime-crash smoke + heatmap draft (in parallel)
 
-**Smoke test (Sonnet subagent) — runtime-crash gate only, NOT a behavioral walk.**
-- **Check `adb devices` FIRST.** If no device/emulator is connected, surface it and boot one *before* building — never discover "no device" after a ~15-min build. (Emulator binary may not be on PATH; project.md records the AVD names + path.)
+**Smoke test (Sonnet subagent, via `agent-device`) — runtime-crash gate only, NOT a behavioral walk.** See `references/agent-device.md` for the full command surface and subagent-mediation pattern.
+- **Check `agent-device apps` FIRST** (or `adb devices` for Android-only context). If no device/emulator is connected, surface it and boot one *before* building — never discover "no device" after a ~15-min build. (Emulator binary may not be on PATH; project.md records the AVD names + path.)
 - Build the ProductionRelease APK (the shipped, R8-minified artifact — never Debug; debug skips R8 and false-greens serialization migrations) and install on the device.
-- Launch the app; confirm it **starts and does not crash** (crash-only logcat scoped to the app PID). Login/OTP-gated deep walks are user territory — the smoke does not attempt them. **The launch smoke cannot exercise post-login serialization paths**, so R8/ProductionRelease serialization runtime parity (the kotlinx keep-rule + decode behavior on real payloads) is **explicitly deferred to Phase I parity QA** — a crash-free launch is not evidence of serialization parity.
-- **Navigation discipline:** if the subagent navigates at all, it **must use the structured-tap CLI** and is **forbidden from back-gesture walking** (back-gestures exit the app and invalidate the check). If the tap CLI isn't available, the agent **screenshots and reports** — it does not fumble the device.
-- Output: launch confirmation + crash-free logcat (or the crash, if any). Goal met = installs + launches + no crash.
+- Launch via `agent-device open <bundle-id>`; take a snapshot with `agent-device snapshot -i`; assert known stable state (e.g., the app shell or splash element is visible: `agent-device assert <ref> role <expected-role>`). Login/OTP-gated deep walks are user territory — the smoke does not attempt them. **The launch smoke cannot exercise post-login serialization paths**, so R8/ProductionRelease serialization runtime parity (the kotlinx keep-rule + decode behavior on real payloads) is **explicitly deferred to Phase I parity QA** — a crash-free launch is not evidence of serialization parity.
+- **Crash evidence gate:** collect `agent-device logs --pid <app-pid>` scoped to the launch window. Any unhandled exception, ANR, or crash appended to the session log by agent-device is a hard blocker. Goal met = installs + `open` succeeds + snapshot reaches known state + logs contain no crash.
+- Output: `agent-device snapshot` result + `agent-device logs` excerpt. The subagent does NOT back-gesture walk (back-gestures exit the app and invalidate the check).
 
 **Heatmap draft (Opus subagent, in parallel).**
 
-Drafted as a **pre-QA checklist** that Phase G embeds into the PR body and Phase I / `kmm-qa-autopilot` consume. Result column starts empty (`TBD`) and is **never** pre-filled — it's filled during the post-PR parity QA, not here.
+Drafted as a **pre-QA checklist** that Phase G embeds into the PR body and the Phase I parity loop consumes. Result column starts `TBD` and is **never** pre-filled — it is filled during the in-skill parity QA (Phase I), not here.
 
-Sources:
-- Phase 0 navigation flow
-- plan.md risk register
-- Per-file behavior surfaces (focus on `migrate`-plan files; held files unchanged at observable level since their code didn't move from `androidMain`)
+**Primary source: `journeys.md`.** Each row in the heatmap maps directly to one entry in the journey catalog. The Opus subagent reads `journeys.md` (produced by Phase A) and renders one heatmap row per journey, carrying a pointer to that journey's frozen golden reference (the `golden/<journey>/` directory under the session's migration root). diff-derived behavior discovery is no longer the primary source here — it lives in Phase A as the coverage cross-check that validates `journeys.md` is complete.
 
 Format (tickable markdown saved as `heatmap.md`):
 
-| Surface | Observable | Result |
-|---|---|---|
-| <user-facing flow> | <expected behavior, risk area to watch> | TBD |
-| ... | ... | TBD |
+| Journey | User does | Expects to see | Golden ref | Result |
+|---|---|---|---|---|
+| <journey name from journeys.md> | <action from journeys.md> | <expected output from journeys.md> | `golden/<journey>/` | TBD |
+| ... | ... | ... | ... | TBD |
 
 ### F.6 — Blocker loop
 

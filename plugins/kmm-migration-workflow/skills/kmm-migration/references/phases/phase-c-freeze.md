@@ -110,11 +110,13 @@ If the smoke test passes when it should have failed → detekt enforcement is br
 
 The skill's behavioral refusal to edit frozen baselines is not smoke-testable mechanically — it's a gate the skill follows at every write (see SKILL.md cross-cutting Migration-exception process).
 
-### C.4 — Freeze this session's baselines
+### C.4 — Freeze this session's baselines and the runtime golden
 
 - All baseline test files for in-scope files (in `<dest>/src/androidUnitTest/`) committed atomically.
+- **The runtime golden (`golden/`) is frozen in lockstep.** Its frozen-at SHA is recorded alongside the unit-baseline SHA in both `freeze.md` and `coverage.md`. The golden directory is gitignored and never committed; the frozen-at SHA refers to the freeze-marker commit, which is the same temporal boundary for both assets.
+- **Editing a frozen golden requires a `.kmm/exceptions/*.md` entry — the same gate as a frozen unit baseline.** The orchestrator confirms the exception BEFORE dispatching any subagent edit to a frozen golden; hooks do not fire on subagent tool calls, so this check cannot be delegated to a hook (see `references/runtime-golden.md` §Freeze protection).
 - **Sonnet** composes the commit message — references the session, lists files frozen, aggregates trust scores from audit.md.
-- **Resulting commit SHA = frozen-at marker** for this session.
+- **Resulting commit SHA = frozen-at marker** for this session and for the golden.
 - **Freeze-marker decision table (don't re-derive it each Phase C):**
 
   | Situation | Frozen-at marker |
@@ -144,6 +146,7 @@ Amend `retro.md` with `## Phase C — Freeze (captured YYYY-MM-DD)`. Five-bullet
 
 - Header (status, tasks)
 - Frozen-at commit SHA + optional tag
+- **Runtime golden frozen-at SHA** (same marker commit; records that `golden/` is frozen as of this boundary)
 - Files frozen (path, type, baseline path, trust score, SHA)
 - Detekt enforcement bootstrap status (skipped if pre-existing; logged with C.2 sub-step results if first-time set up)
 - Pre-flight scan result (C.2.1's 4-field report verbatim, if C.2 ran)
@@ -162,3 +165,4 @@ Beyond universals:
 - **Detekt enforcement** verified working via smoke test — **no exceptions**.
 - **No concurrency "parity" claim frozen on faith** — for `concurrency-semantics-sensitive` files (Phase A), any baseline asserting a concurrency parity model is verified against master before the freeze commit (C.1).
 - Frozen-at SHA recorded in both `freeze.md` and `coverage.md` before Phase D can start.
+- **Runtime golden frozen-at SHA** recorded in `freeze.md`; any subsequent edit to `golden/` requires a `.kmm/exceptions/*.md` entry confirmed by the orchestrator before subagent dispatch.

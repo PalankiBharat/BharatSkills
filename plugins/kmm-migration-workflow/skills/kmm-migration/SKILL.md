@@ -176,6 +176,7 @@ Reflex defaults that govern tool choice. These are not preferences — they shap
   - **Room/KSP modules.** Default `-Pksp.incremental=false`, or auto-retry once on `Number of loaded files in snapshots differs` — that's a known KSP incremental-cache bug (exposed by `clean`), not a code failure; don't diagnose it as one.
 - **"BUILD SUCCESSFUL" is not proof tests ran — verify execution + counts via JUnit XML.** Gradle suppresses test counts in console output, and a cached / `UP-TO-DATE` task prints `BUILD SUCCESSFUL` *without running anything*. After any test task, confirm the tests actually executed and read their counts from `build/test-results/<task>/*.xml` (testsuite `tests`/`failures`/`skipped` attributes). This is the companion to the `--rerun-tasks` false-green rule (Phase D D.1 step 6): `--rerun-tasks` forces execution, JUnit-XML parsing *confirms* it happened.
 - **Verify a library/SDK's KMM availability from its published Gradle module metadata — never infer from the `:app` consumption site.** Whether a dependency can move to `commonMain` is determined by its published artifacts: the `.module` metadata / an `iosSimulatorArm64` (or `iosArm64`/`iosX64`) klib in `~/.gradle/caches`, or `./gradlew :<dest>:dependencyInsight --dependency <lib>`. How the Android app currently consumes it tells you nothing about iOS availability. (Repeated failure mode: `mobilenetworkingsdk` was misclassified Android-only three times across two sessions; the gradle-cache klib proved it KMM-published each time.) See Phase A sub-phase 3 for the hard gate that enforces this.
+- **Agent-device is the device-driving + network/crash-capture mechanism for Phase I parity runs.** All Phase I runs are subagent-mediated (one subagent per A/B leg; the orchestrator never drives the device directly). Protocol and golden format: `references/agent-device.md`; runtime golden structure and replay semantics: `references/runtime-golden.md`.
 
 ### Non-trivial decision protocol (principle #4)
 
@@ -353,7 +354,9 @@ Phase-specific gates are listed in each phase's reference file.
     └── kmm/<feature>-<depth>/      # mirrors branch path
         ├── scope.md                # Phase 0
         ├── plan.md                 # Phase A
+        ├── journeys.md             # Phase 0/A — user/QA-lens journey catalog (gitignored)
         ├── audit.md                # Phase B
+        ├── golden/                 # Phase B — runtime golden (wires + checkpoints; gitignored)
         ├── coverage.md             # session-local registry (audited → frozen → migrated → promoted)
         ├── phase-d-followups.md    # accumulator for SUTs deferred to Phase D + post-migration cleanups
         ├── freeze.md               # Phase C
@@ -364,7 +367,7 @@ Phase-specific gates are listed in each phase's reference file.
         ├── pr.md                   # Phase G — phase artifact (audit wrapper; never the --body-file source)
         ├── pr-body.md              # Phase G — the raw PR body shipped via --body-file
         ├── review.md               # Phase H — code-review intake + per-finding resolution log
-        ├── qa.md                   # Phase I — parity-QA hand-off + bug-fixing log (kmm-qa-autopilot invocation + PR link)
+        ├── qa.md                   # Phase I — parity-loop verdicts + bug-fixing log (in-skill agent-device A/B)
         └── retro.md                # Per-phase friction dump (see Special actions)
 ```
 
@@ -395,7 +398,7 @@ Phase-specific gates are listed in each phase's reference file.
 
 The skill defines what slots exist; each repo's `project.md` fills them in. The skill itself contains no per-repo identifiers.
 
-**coverage.md (per session) columns:** File, Type, Phase D plan (`migrate` / `hold`, decided Phase A), Baseline path (initial — always `<dest>/androidUnitTest/...`), Trust score, Status (`relocated` → `audited` → `frozen` → `migrated` → `promoted`), Frozen-at SHA, Final code path (`<dest>/commonMain/...` if migrated, `<dest>/androidMain/...` if held), Final baseline path (`<dest>/commonTest/...` if promoted, else initial).
+**coverage.md (per session) columns:** File, Type, Phase D plan (`migrate` / `hold`, decided Phase A), Baseline path (initial — always `<dest>/androidUnitTest/...`), Trust score, Status (`relocated` → `audited` → `frozen` → `migrated` → `promoted`), Frozen-at SHA, Final code path (`<dest>/commonMain/...` if migrated, `<dest>/androidMain/...` if held), Final baseline path (`<dest>/commonTest/...` if promoted, else initial). Each journey in `journeys.md` also has a golden-status entry (`captured` -> `frozen`) tracked alongside the file rows; the golden freezes with the unit baselines in Phase C.
 
 ---
 
@@ -408,7 +411,7 @@ The skill defines what slots exist; each repo's `project.md` fills them in. The 
 
 ## Realistic expectations
 
-A non-trivial migration session takes **5–9 hours end-to-end**, distributed across phases (mostly waiting on gradle). Fully resumable — start one day, continue the next. **Parity QA is no longer inside this skill** — Phase F runs automated checks plus a runtime-crash smoke and the PR opens at Phase G. After the PR, **Phase H ingests external code-review feedback** and resolves blockers through the workflow, then **Phase I hands off to the `kmm-qa-autopilot` skill** (run separately with the PR link) for behavioral parity QA and fixes any QA bug through the workflow. Review feedback and QA bugs are never live-patched (see §Late-change discipline); both are structured intakes that carry their own retro.
+A non-trivial migration session takes **5–9 hours end-to-end**, distributed across phases (mostly waiting on gradle). Fully resumable — start one day, continue the next. Phase F runs automated checks plus a runtime-crash smoke and the PR opens at Phase G. After the PR, **Phase H ingests external code-review feedback** and resolves blockers through the workflow, then **Phase I is an in-skill autonomous parity loop**: agent-device A/B replays the runtime golden (the journeys catalog captured in Phase B) against the migrated build and fixes parity-restoring bugs through the workflow until the heatmap is green. Deterministic replay makes computed financial values comparable to the digit; live A/B is the narrow exception for flows that can't be seeded. Review feedback and QA bugs are never live-patched (see §Late-change discipline); both are structured intakes that carry their own retro.
 
 ---
 
@@ -427,7 +430,7 @@ The migration runs through 10 phases. **Load the relevant phase reference file w
 | **F** | Validation — automated checks (build, baseline tests JVM+iOS, pre-merge integration, code-quality/iOS-surface) + runtime-crash smoke + heatmap draft. **No manual-QA gate.** | `validation.md` + `heatmap.md` | `references/phases/phase-f-validation.md` |
 | **G** | PR Creation (heatmap embedded as a checklist in the PR body's QA section; concise, value-driven body) | `pr.md` + `pr-body.md` | `references/phases/phase-g-pr.md` |
 | **H** | Receive & Resolve Review — ingest external code-review feedback on the PR, resolve blockers *through the workflow* (test + exception + commit + retro), user-approval gate to proceed | `review.md` | `references/phases/phase-h-review.md` |
-| **I** | Parity-QA + Bug-fixing — hand off to `kmm-qa-autopilot` (works off the PR git diff + heatmap); fix any QA bug through the workflow. Final phase. | `qa.md` | `references/phases/phase-i-qa.md` |
+| **I** | Parity-QA + Bug-fixing — in-skill autonomous parity loop: agent-device A/B replay of the runtime golden (journeys catalog) against the migrated build; fixes parity-restoring bugs through the workflow until the heatmap is green; conditional iOS forward-check. Final phase. | `qa.md` | `references/phases/phase-i-qa.md` |
 
 Read phase references **on demand** — when the workflow enters or resumes a phase, before executing its sub-phases. This keeps context focused on the current work.
 

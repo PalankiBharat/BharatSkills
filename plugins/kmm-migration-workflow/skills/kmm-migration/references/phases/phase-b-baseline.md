@@ -161,6 +161,25 @@ Written in `<dest>/src/androidUnitTest/...`, KMM-portable stack only so they pro
 
 Opt-out requires explicit user rationale recorded in audit.md.
 
+### B.6b — Runtime golden capture
+
+Drive the MASTER/current build through every journey listed in `journeys.md` (authored in Phase 0/A) using agent-device via `scripts/ad-capture.sh`. For each journey, record:
+- Real network wires (request/response pairs at each checkpoint).
+- Computed UI outputs at each checkpoint (values the migrated logic must reproduce).
+- Crash/log evidence at each step.
+
+Captured artifacts land in the `golden/` directory under the feature's session folder (see Directory layout in SKILL.md; format and folder structure defined in `references/runtime-golden.md`).
+
+**Tag each captured element** as `computed` or `live` from the journey's expectation. `computed` = the value the migrated logic produces (the equivalence contract); `live` = a raw network response captured for replay fidelity.
+
+**PII gate — mandatory before persisting.** Run `scripts/scrub-pii.py --gate` followed by `scripts/scrub-pii.py --scan` on every capture batch. Surface any discovered PII classes to the user before finalizing; the golden is gitignored and must never appear in the PR.
+
+**Additive to unit baselines.** Runtime golden capture supplements (does not replace) the unit baselines written in B.3–B.6. Both freeze together in Phase C.
+
+**All device-driving is subagent-mediated.** The main context remains a dashboard — ad-capture output, PII scan results, and checkpoint evidence flow in as summaries, not raw streams.
+
+**Replay-readiness.** The captured wires double as REPLAY INPUTS for Phase I parity QA. The per-repo replay mechanism — whether agent-device-native replay, an external proxy, or an app-side interceptor — is resolved via a research spike and recorded in `project.md` and/or `docs/superpowers/research/` before Phase I begins (forward reference only; do NOT invent or pick the mechanism here). Journeys where replay is infeasible fall back to live A/B comparison in Phase I (flagged in `golden/` at capture time).
+
 ### B.7 — Verification
 
 - Full baseline suite green: `./gradlew :<dest>:testDebugUnitTest` (or project-specific task per `project.md`) — runs everything in `<dest>/androidUnitTest`.
