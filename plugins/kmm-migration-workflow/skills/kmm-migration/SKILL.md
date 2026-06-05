@@ -353,7 +353,9 @@ Phase-specific gates are listed in each phase's reference file.
     └── kmm/<feature>-<depth>/      # mirrors branch path
         ├── scope.md                # Phase 0
         ├── plan.md                 # Phase A
+        ├── journeys.md             # Phase 0/A — user/QA-lens journey catalog (gitignored)
         ├── audit.md                # Phase B
+        ├── golden/                 # Phase B — runtime golden (wires + checkpoints; gitignored)
         ├── coverage.md             # session-local registry (audited → frozen → migrated → promoted)
         ├── phase-d-followups.md    # accumulator for SUTs deferred to Phase D + post-migration cleanups
         ├── freeze.md               # Phase C
@@ -395,7 +397,7 @@ Phase-specific gates are listed in each phase's reference file.
 
 The skill defines what slots exist; each repo's `project.md` fills them in. The skill itself contains no per-repo identifiers.
 
-**coverage.md (per session) columns:** File, Type, Phase D plan (`migrate` / `hold`, decided Phase A), Baseline path (initial — always `<dest>/androidUnitTest/...`), Trust score, Status (`relocated` → `audited` → `frozen` → `migrated` → `promoted`), Frozen-at SHA, Final code path (`<dest>/commonMain/...` if migrated, `<dest>/androidMain/...` if held), Final baseline path (`<dest>/commonTest/...` if promoted, else initial).
+**coverage.md (per session) columns:** File, Type, Phase D plan (`migrate` / `hold`, decided Phase A), Baseline path (initial — always `<dest>/androidUnitTest/...`), Trust score, Status (`relocated` → `audited` → `frozen` → `migrated` → `promoted`), Frozen-at SHA, Final code path (`<dest>/commonMain/...` if migrated, `<dest>/androidMain/...` if held), Final baseline path (`<dest>/commonTest/...` if promoted, else initial). Each journey in `journeys.md` also has a golden-status entry (`captured` -> `frozen`) tracked alongside the file rows; the golden freezes with the unit baselines in Phase C.
 
 ---
 
