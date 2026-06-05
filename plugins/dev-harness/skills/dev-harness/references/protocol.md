@@ -12,7 +12,7 @@ Every run owns a `.harness/` directory at the repo root (gitignored). The Orches
   qa/emulator.lock
   artifacts/  spec.md feature-analysis.md findings.md open-questions.md questions.json
               tech-plan.md design.md plan.md dev-handoff.md
-              qa-scenarios.md qa-flows/ qa-report.md architect-review.md architect-replan.md testtag-requests.md
+              qa-cases.md qa-scenarios.md qa-flows/ qa-report.md architect-review.md architect-replan.md testtag-requests.md
   review/     themed HTML review pages
 ```
 

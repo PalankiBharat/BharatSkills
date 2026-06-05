@@ -22,4 +22,20 @@ assert_contains "$(cat "$AG/mohit-dev.md")" "process failure"
 assert_contains "$(cat "$AG/rohit.md")"     "never write or run test code"
 assert_contains "$(cat "$AG/rohit.md")"     "process failure"
 
+# --- bharat-qa context hygiene: verdict from text, never read screenshots into context ---
+assert_contains "$(cat "$AG/bharat-qa.md")" "never read screenshots"
+assert_contains "$(cat "$AG/bharat-qa.md")" "qa-cases.md"
+
+# --- rohit thinks like a real user + quality analyst, and coverage is a structured checklist ---
+assert_contains "$(cat "$AG/rohit.md")" "real-world user"
+assert_contains "$(cat "$AG/rohit.md")" "qa-cases.md"
+for cat in "Invalid" "Boundary" "Interruption" "network"; do
+  assert_contains "$(cat "$AG/rohit.md")" "$cat"
+done
+
+# --- the orchestrator gates on coverage, runs a final regression, relieves QA context ---
+assert_contains "$(cat "$AG/orchestrator.md")" "Final QA regression"
+assert_contains "$(cat "$AG/orchestrator.md")" "qa-cases.md"
+assert_contains "$(cat "$AG/orchestrator.md")" "restart qa"
+
 echo OK
