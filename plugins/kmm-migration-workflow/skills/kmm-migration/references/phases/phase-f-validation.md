@@ -94,19 +94,16 @@ If conflicts surface: user resolves; skill assists with diff-confirm. Recon firs
 
 **Heatmap draft (Opus subagent, in parallel).**
 
-Drafted as a **pre-QA checklist** that Phase G embeds into the PR body and Phase I / `kmm-qa-autopilot` consume. Result column starts empty (`TBD`) and is **never** pre-filled — it's filled during the post-PR parity QA, not here.
+Drafted as a **pre-QA checklist** that Phase G embeds into the PR body and Phase I / `kmm-qa-autopilot` consume. Result column starts `TBD` and is **never** pre-filled — it is filled during the post-PR parity QA (Phase I), not here.
 
-Sources:
-- Phase 0 navigation flow
-- plan.md risk register
-- Per-file behavior surfaces (focus on `migrate`-plan files; held files unchanged at observable level since their code didn't move from `androidMain`)
+**Primary source: `journeys.md`.** Each row in the heatmap maps directly to one entry in the journey catalog. The Opus subagent reads `journeys.md` (produced by Phase A) and renders one heatmap row per journey, carrying a pointer to that journey's frozen golden reference (the `golden/<journey>/` directory under the session's migration root). diff-derived behavior discovery is no longer the primary source here — it lives in Phase A as the coverage cross-check that validates `journeys.md` is complete.
 
 Format (tickable markdown saved as `heatmap.md`):
 
-| Surface | Observable | Result |
-|---|---|---|
-| <user-facing flow> | <expected behavior, risk area to watch> | TBD |
-| ... | ... | TBD |
+| Journey | User does | Expects to see | Golden ref | Result |
+|---|---|---|---|---|
+| <journey name from journeys.md> | <action from journeys.md> | <expected output from journeys.md> | `golden/<journey>/` | TBD |
+| ... | ... | ... | ... | TBD |
 
 ### F.6 — Blocker loop
 
