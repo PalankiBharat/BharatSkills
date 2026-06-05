@@ -1,6 +1,6 @@
 # Runtime golden reference
 
-Reference for capturing, storing, protecting, and consuming the runtime golden. Loaded by Phase B (golden capture), Phase C (freeze), Phase I (parity QA loop), and the `kmm-qa-autopilot` skill.
+Reference for capturing, storing, protecting, and consuming the runtime golden. Loaded by Phase B (golden capture), Phase C (freeze), and Phase I (parity QA loop).
 
 ---
 

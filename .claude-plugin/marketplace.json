@@ -339,7 +339,7 @@
     {
       "name": "kmm-migration-workflow",
       "source": "./plugins/kmm-migration-workflow",
-      "description": "Orchestrates Android-to-KMM migration with behavioral-equivalence safety. Phased workflow — discovery, diagnostic, baseline tests, freeze, git mv + surgical edits, validation, PR, parity-QA hand-off. Live-sourced API knowledge (web + Context7), project conventions in .kmm/project.md, diff-confirm scoped to project.md, commit autopilot, blocking per-phase retro.",
+      "description": "Orchestrates Android-to-KMM migration with behavioral-equivalence safety. Phased workflow — discovery, diagnostic, baseline tests, freeze, git mv + surgical edits, validation, PR, in-skill parity-QA loop. Live-sourced API knowledge (web + Context7), project conventions in .kmm/project.md, diff-confirm scoped to project.md, commit autopilot, blocking per-phase retro.",
       "version": "1.13.0",
       "category": "migration",
       "tags": [

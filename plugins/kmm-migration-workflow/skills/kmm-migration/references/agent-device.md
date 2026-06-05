@@ -1,6 +1,6 @@
 # Agent-device reference
 
-Reference for the skill's use of the `agent-device` CLI to drive real devices during runtime-golden capture and parity QA. Loaded by Phase F (smoke), Phase I (parity QA), and the `kmm-qa-autopilot` skill.
+Reference for the skill's use of the `agent-device` CLI to drive real devices during runtime-golden capture and parity QA. Loaded by Phase F (smoke) and Phase I (parity QA).
 
 **Prerequisites:** Node 22+, Xcode (iOS simulator / device), Android SDK + ADB on `PATH`.
 
@@ -45,7 +45,7 @@ See SKILL.md §"Subagent-mediated execution" for the general pattern and subagen
 - Reused across all loop iterations within a session — the first iteration records, subsequent iterations replay.
 - When the UI structure is unchanged between sessions, `.ad` scripts are reusable in future sessions without re-recording. A replay that fails an `assert` or `wait` step signals UI drift; re-record.
 
-Record via `scripts/ad-capture.sh --device <id> --journey <name> --out <dir>` (which wraps `agent-device record` and co-locates the output with checkpoint artifacts).
+`scripts/ad-capture.sh --device <id> --journey <name> --checkpoint <name> --anchor <ref> --out <path>` wraps `agent-device snapshot -i` and emits the normalized checkpoint JSON next to the captured wires. The `.ad` journey itself is recorded separately via `agent-device record` per the deferred replay-mechanism research.
 
 ---
 
