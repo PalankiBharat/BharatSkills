@@ -76,6 +76,24 @@ A Phase-0 dead-code misclassification is expensive: a live OTP ViewModel chain w
 
 Resolved live/dead status feeds the manifest (sub-phase 11) and the per-ripple decisions (sub-phase 9).
 
+### 6.6. Journey catalog (journeys.md)
+
+Author the user/QA-lens journey catalog from the navigation flow established in sub-phase 5 and the live scope confirmed in sub-phase 6.5. This is a user-facing test surface document — NOT a restatement of the git diff or the dep-walk manifest.
+
+**Template:**
+
+## Journey catalog (journeys.md)
+| Journey | User does | Expects to see | Type | Edge/negative paths |
+|---|---|---|---|---|
+| <name> | <user action sequence> | <observable outcome, plain language> | read-only / mutating | <empty / invalid / offline / back / re-entry> |
+
+**Authoring rules:**
+- Authored from what real users do + what a QA would try — NOT from the git diff.
+- Negative/edge paths are first-class rows (OTP-lockout-style account-damaging paths excepted -> declined gap unless a test account is confirmed).
+- A Sonnet subagent drafts it from the Phase 0 navigation flow; the orchestrator synthesizes.
+
+**Coverage-approval gate:** the user confirms the catalog before it freezes. This catalog defines the entire downstream test surface — it is the primary framing for Phase A's risk enrichment and all QA coverage decisions. This is a NEW gate, distinct from the `project.md` diff-confirm protocol; `journeys.md` is session-local + gitignored. The gate is approval of WHAT gets tested, not a file-write ceremony.
+
 ### 7. Classification
 Haiku subagent. Each discovered file → one type per `test-discipline` taxonomy (see `test-discipline/index.md`):
 ViewModel / UseCase / Repository / RemoteStore / LocalStore / Mapper / Model / Interactor / Presenter / Composable / Worker / Receiver / Service / Other.
@@ -140,6 +158,7 @@ Living document, written progressively. Contains:
 - Per-ripple decisions (include / hold back, with reasoning)
 - Per-file deselections made during manifest review
 - Platform deps encountered
+- **Journey catalog** (`journeys.md`) — user/QA-lens journeys confirmed at the coverage-approval gate (sub-phase 6.6); session-local + gitignored; feeds Phase A risk enrichment and the diff coverage cross-check
 - **Pre-existing test-compile state in `<dest>/androidUnitTest`** (clean / N broken; action: @Ignore in Phase B per `test-discipline/migration-baselines.md` (Quarantine section))
 - **Legacy / non-target test source sets** (paths exempt from Phase C detekt enforcement; consumed by phase-c-freeze.md C.2 drafter)
 - Tasks (checklist)
