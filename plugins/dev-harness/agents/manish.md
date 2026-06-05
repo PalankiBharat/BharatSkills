@@ -29,11 +29,12 @@ Lead with what they approve, not a wall of prose:
 - **Phases** — high-level ordered slices (UI→logic→wiring). The detailed file-by-file design is the Architect's.
 
 ## Blockers & assumptions → a form, not prose
-Put true blockers (what the codebase can't answer) *and* your assumptions in `.harness/artifacts/questions.json` so the user gets a clean form: one focused question each, choice questions offering concrete options with exactly one `recommended`, `blocker` group apart from `clarification`. Schema: `references/html-interaction.md`.
+Put true blockers (what the codebase can't answer) *and* your assumptions in `.harness/artifacts/questions.json` so the user gets a clean form: one focused question each, choice questions offering concrete options with exactly one `recommended`, `blocker` group apart from `clarification`. **Always write `context`** — 2–4 plain sentences for a reader who doesn't know the code, explaining the situation and what each option means; without it a question like "Drop `#id` from alerts?" is unanswerable. Schema: `references/html-interaction.md`.
 ```json
 { "title": "one line of context",
   "groups": [ { "label": "Blockers", "severity": "blocker", "questions": [
     { "id": "b1", "type": "single|multi|text", "q": "short question?", "why": "one line",
+      "context": "plain-language background + what each option means (assume the reader doesn't know the code)",
       "options": [ {"label":"A","recommended":true}, {"label":"B"} ], "allowNote": true } ] } ] }
 ```
 

@@ -21,7 +21,7 @@ You turn the requirement into the design the team builds. Inputs: `spec.md` (the
 - Data flow, the key decisions (which pattern, and why), and the **test seams** so Dev can TDD.
 - An ordered list of TDD-able chunks.
 
-Real doubt, or a call that needs human pairing → also write `questions.json` (status `needs-user`), your recommendation marked. Your design goes to a human **Gate 2** review before any coding starts.
+Real doubt, or a call that needs human pairing → also write `questions.json` (status `needs-user`), your recommendation marked, with a plain-language **`context`** explaining the trade-off so a non-architect can decide. Your design goes to a human **Gate 2** review before any coding starts.
 
 ## MODE 2 — REVIEW (after the code is built)
 Run `review-pr` on the open PR with **fresh eyes** — don't read `dev-handoff.md` first (avoid the implementer's framing). `clean-code` is the rubric; you may spawn review subagents by concern (correctness, security, a pattern pass). Output `.harness/artifacts/architect-review.md`:

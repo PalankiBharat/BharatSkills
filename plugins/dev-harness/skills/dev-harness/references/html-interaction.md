@@ -15,10 +15,11 @@ When an agent needs the user to decide, it writes `.harness/artifacts/questions.
         "type": "single | multi | text",
         "q": "the question (short, specific)",
         "why": "one line on why it matters (optional)",
+        "context": "2-4 plain-language sentences of background so the harness owner — who may not know the codebase — understands the situation AND what each option means in practice",
         "options": [ {"label":"option A","recommended":true}, {"label":"option B"} ],
         "allowNote": true } ] } ] }
 ```
-Rules the agents follow: **one focused question per decision; every choice question offers concrete options with exactly one `recommended`** (the sensible default); `blocker` (gates the build) is grouped apart from `clarification`; `text` only when free input is genuinely needed; never a vague open-ended ask. `options`/`allowNote` are ignored for `type: text`.
+Rules the agents follow: **one focused question per decision; every choice question offers concrete options with exactly one `recommended`** (the sensible default); **always write `context`** in plain language for a non-coder — a question like "Drop `#id` from alerts?" is meaningless without it; `blocker` (gates the build) is grouped apart from `clarification`; `text` only when free input is genuinely needed; never a vague open-ended ask. `options`/`allowNote` are ignored for `type: text`.
 
 **Reply format** (what the user pastes back) — the Orchestrator parses it:
 ```

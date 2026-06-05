@@ -40,6 +40,9 @@ read -r -d '' FORMCSS <<'CSS' || true
 .badge{display:inline-block;margin-left:8px;color:var(--accent);background:rgba(139,92,246,.12);
   border:1px solid var(--accent-border);border-radius:999px;font:600 10px/1 var(--mono);
   text-transform:uppercase;letter-spacing:.06em;padding:4px 8px;vertical-align:middle}
+.q-context{background:var(--bg-input);border-left:3px solid var(--accent-border);border-radius:var(--r-sm);
+  padding:11px 14px;margin:9px 0 13px;color:var(--text-secondary);font-size:14px;line-height:1.62}
+.q-context b{color:var(--text)}
 .q textarea{width:100%;min-height:72px;margin-top:10px;background:var(--bg-input);color:var(--text);
   border:1px solid var(--border);border-radius:var(--r-md);padding:11px 13px;font:14px/1.6 var(--font);resize:vertical}
 .q textarea:focus{outline:none;border-color:var(--accent-border);box-shadow:0 0 0 3px var(--accent-bg)}
@@ -72,6 +75,7 @@ var n=0;
     card.appendChild(E('div','q-n','Q'+n));
     card.appendChild(E('div','q-t',esc(q.q)));
     if(q.why)card.appendChild(E('div','q-why',esc(q.why)));
+    if(q.context)card.appendChild(E('div','q-context',esc(q.context)));
     if((q.type||'single')==='text'){
       var ta=E('textarea');ta.dataset.ans=q.id;ta.placeholder='Type your answer…';card.appendChild(ta);
     }else{

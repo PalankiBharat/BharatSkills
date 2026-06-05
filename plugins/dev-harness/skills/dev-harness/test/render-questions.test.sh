@@ -13,6 +13,7 @@ cat > "$Q" <<'JSON'
       { "id": "b1", "type": "single",
         "q": "SPEC.md is missing. How do we proceed?",
         "why": "Sole source of truth for the layout.",
+        "context": "SPEC.md defines the CSV columns; without it the parser cannot be built or tested.",
         "options": [
           {"label": "I'll paste it now", "recommended": true},
           {"label": "Use a default"} ],
@@ -30,6 +31,8 @@ assert_file "$OUT"
 body="$(cat "$OUT")"
 # the structured data is embedded, and the form chrome is present
 assert_contains "$body" "SPEC.md is missing"
+assert_contains "$body" "SPEC.md defines the CSV columns"
+assert_contains "$body" "q-context"
 assert_contains "$body" "grp-blocker"
 assert_contains "$body" "grp-clarification"
 assert_contains "$body" "Recommended"
