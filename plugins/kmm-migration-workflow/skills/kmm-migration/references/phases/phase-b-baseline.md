@@ -178,6 +178,8 @@ Captured artifacts land in the `golden/` directory under the feature's session f
 
 **All device-driving is subagent-mediated.** The main context remains a dashboard — ad-capture output, PII scan results, and checkpoint evidence flow in as summaries, not raw streams.
 
+**Replay-readiness.** The captured wires double as REPLAY INPUTS for Phase I parity QA. The per-repo replay mechanism — whether agent-device-native replay, an external proxy, or an app-side interceptor — is resolved via a research spike and recorded in `project.md` and/or `docs/superpowers/research/` before Phase I begins (forward reference only; do NOT invent or pick the mechanism here). Journeys where replay is infeasible fall back to live A/B comparison in Phase I (flagged in `golden/` at capture time).
+
 ### B.7 — Verification
 
 - Full baseline suite green: `./gradlew :<dest>:testDebugUnitTest` (or project-specific task per `project.md`) — runs everything in `<dest>/androidUnitTest`.
