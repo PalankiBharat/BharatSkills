@@ -67,6 +67,13 @@ pick_serial() {
   printf '%s' "$serials"
 }
 
+# pane_alive <pane-id> -> 0 if that tmux pane currently exists. NOTE: `tmux display-message -t <id>`
+# returns 0 even for a missing pane (it falls back), so match the id against the live pane list.
+pane_alive() {
+  [ -n "${1:-}" ] || return 1
+  tmux list-panes -a -F '#{pane_id}' 2>/dev/null | grep -qx "$1"
+}
+
 # lead_persona <role> -> the opus lead agent name for that pane.
 lead_persona() {
   case "$1" in

@@ -66,7 +66,7 @@ while :; do
   sleep "$INTERVAL"
   [ -f "$ROOT/.stop-watchdog" ] && break
   # Self-reap when the orchestrator pane is gone (window closed/crash) — never poll forever.
-  [ -z "${WATCHDOG_WAKE_CMD:-}" ] && { tmux display-message -p -t "$OPANE" '' >/dev/null 2>&1 || break; }
+  [ -z "${WATCHDOG_WAKE_CMD:-}" ] && { pane_alive "$OPANE" || break; }
   now="$(_now)"
 
   # ---- per-role liveness (independent of in_flight; the sole nudge path, also sandbox-safe) ----

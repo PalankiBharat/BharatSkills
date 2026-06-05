@@ -116,6 +116,12 @@ for f in "$@"; do [ -s "$f" ] || { echo "MISSING/EMPTY: $f" >&2; miss=1; }; done
 exit $miss
 EOF
 chmod +x "$ROOT/require"
+# Resume after a session reset: `bash .harness/resume` restarts the orchestrator pane if it's alive.
+cat > "$ROOT/resume" <<EOF
+#!/usr/bin/env bash
+exec env HARNESS_ROOT="$ROOT" bash "$HERE/harness-resume.sh" "\$@"
+EOF
+chmod +x "$ROOT/resume"
 printf '%s\n' "$STORY" > "$ROOT/story.md"
 printf '# Orchestrator ledger\n\n- init  run=%s  branch=%s\n' "$RUN_ID" "$BRANCH" > "$ROOT/log.md"
 printf '{"run_id":"%s","slug":"%s","branch":"%s","stage":"init","phase":null,"in_flight":null,"heartbeat":"%s"}\n' \
