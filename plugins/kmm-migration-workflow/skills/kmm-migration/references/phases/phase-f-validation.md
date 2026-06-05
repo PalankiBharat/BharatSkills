@@ -1,10 +1,10 @@
 # Phase F — Validation
 
-**Purpose.** Prove the migration is structurally sound and behavior-preserving *as far as automated checks can show*, then hand a clean, installable build to Phase G (PR), Phase H (code-review intake), and Phase I (parity QA). Multi-layered automated sanity check: code, docs, build, tests, pre-merge integration — plus a runtime-crash smoke. **Behavioral parity QA is NOT in this phase** — it runs after the PR via the `kmm-qa-autopilot` skill (Phase I). Any blocker here → loop back through the relevant prior phase → re-validate.
+**Purpose.** Prove the migration is structurally sound and behavior-preserving *as far as automated checks can show*, then hand a clean, installable build to Phase G (PR), Phase H (code-review intake), and Phase I (parity QA). Multi-layered automated sanity check: code, docs, build, tests, pre-merge integration — plus a runtime-crash smoke. **Behavioral parity QA is NOT in this phase** — it runs in-skill at Phase I, as an autonomous agent-device replay loop against the frozen runtime golden. Any blocker here → loop back through the relevant prior phase → re-validate.
 
-**What moved out of Phase F.** The old F.6 user-driven manual-QA gate and F.7 "migration complete" sign-off are gone. Parity QA now happens post-PR, off the PR git diff + heatmap, in a separate skill. Phase F's job is: *does it build on both platforms, are the baselines green, does it integrate with the latest base branch, and does it launch without crashing?* The heatmap is still **drafted** here (F.5) because Phase G embeds it into the PR body and Phase I / autopilot consume it.
+**What moved out of Phase F.** The old F.6 user-driven manual-QA gate and F.7 "migration complete" sign-off are gone. Parity QA now happens post-PR, in the Phase I loop, off the frozen golden + the embedded heatmap. Phase F's job is: *does it build on both platforms, are the baselines green, does it integrate with the latest base branch, and does it launch without crashing?* The heatmap is still **drafted** here (F.5) because Phase G embeds it into the PR body and the Phase I loop consumes it (filling its Result cells).
 
-**The smoke test stays — as a runtime-crash gate, not a QA walk.** Its only job is to confirm the build installs and runs without crashing, so we don't hand a dead build to autopilot and burn a full parity cycle (two APKs + two emulators + a manual prod login) only to crash on launch. It is not a behavioral walk and does not gate on user-visible behavior.
+**The smoke test stays — as a runtime-crash gate, not a QA walk.** Its only job is to confirm the build installs and runs without crashing, so we don't hand a dead build to the Phase I parity loop and burn a full parity cycle (two ProductionRelease APKs + agent-device session) only to crash on launch. It is not a behavioral walk and does not gate on user-visible behavior.
 
 **Inputs:** all prior session files (`scope.md` through `move.md`, status complete), `project.md`, `searches/`, `git diff <base>..HEAD`, `project.md.git.pr_merge_policy`.
 
@@ -94,7 +94,7 @@ If conflicts surface: user resolves; skill assists with diff-confirm. Recon firs
 
 **Heatmap draft (Opus subagent, in parallel).**
 
-Drafted as a **pre-QA checklist** that Phase G embeds into the PR body and Phase I / `kmm-qa-autopilot` consume. Result column starts `TBD` and is **never** pre-filled — it is filled during the post-PR parity QA (Phase I), not here.
+Drafted as a **pre-QA checklist** that Phase G embeds into the PR body and the Phase I parity loop consumes. Result column starts `TBD` and is **never** pre-filled — it is filled during the in-skill parity QA (Phase I), not here.
 
 **Primary source: `journeys.md`.** Each row in the heatmap maps directly to one entry in the journey catalog. The Opus subagent reads `journeys.md` (produced by Phase A) and renders one heatmap row per journey, carrying a pointer to that journey's frozen golden reference (the `golden/<journey>/` directory under the session's migration root). diff-derived behavior discovery is no longer the primary source here — it lives in Phase A as the coverage cross-check that validates `journeys.md` is complete.
 

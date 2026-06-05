@@ -1,8 +1,8 @@
 # Phase G — PR Creation
 
-**Purpose.** Produce a PR ready for review **and ready for parity QA** — the PR is what Phase H (receive & resolve code review) and Phase I (parity QA via `kmm-qa-autopilot`) operate on. **PR body is about WHAT, not HOW.** Migration workflow internals stay in the session folder; the PR communicates user-visible changes only.
+**Purpose.** Produce a PR ready for review **and ready for parity QA** — the PR is what Phase H (receive & resolve code review) and Phase I (the in-skill parity loop) operate on. **PR body is about WHAT, not HOW.** Migration workflow internals stay in the session folder; the PR communicates user-visible changes only.
 
-**The PR opens with parity QA still pending — by design.** QA is no longer a gate before the PR; it runs after, off this PR's git diff + heatmap (Phase I). So the body carries the heatmap as an explicit **pre-merge QA checklist** (embedded, not linked — `.kmm/migrations/` is gitignored, so there's no repo path to point at). This is the supported flow, not a waiver.
+**The PR opens with parity QA still pending — by design.** QA is no longer a gate before the PR; it runs after, in the migration skill's Phase I loop (agent-device replay against the frozen golden), tracked against this PR's embedded heatmap. So the body carries the heatmap as an explicit **pre-merge QA checklist** (embedded, not linked — `.kmm/migrations/` is gitignored, so there's no repo path to point at). This is the supported flow, not a waiver.
 
 **Body discipline: concise and value-driven.** The current structure is good; keep it lean. Lead with the value (what changed, user-visible impact), abstract over detail, cut anything a reviewer doesn't need to decide "is this safe to merge?". No jargon, no process narrative, no padding.
 
@@ -21,7 +21,7 @@
 - **User-visible impact** — ideally *"none — behavioral + API equivalence preserved."* Be explicit about this.
 - **Files changed** — high-level summary by category. E.g., "8 files relocated to `:shared/funds/` (`androidMain`); 6 promoted to `commonMain`; 2 held in `androidMain` for a future session." Cite an **exact consumer count** (e.g. "9 consumer ViewModels updated"), not "~9" — `coverage.md` should carry the precise enumeration so the body never falls back to an approximation; if it only has a category note, count from the diff before composing.
 - **Risk areas** — from `plan.md` risk register. What should the reviewer focus on?
-- **QA — pending (parity via `kmm-qa-autopilot`)** — state plainly that behavioral parity QA runs on this PR via the autopilot skill (master vs PR head), and **embed `heatmap.md` directly here as a checklist** (`- [ ]` rows per surface). `.kmm/migrations/` is gitignored, so embed the table inline — do not link to a path. Result cells stay unchecked; they're a pre-merge gate the QA run fills in.
+- **QA — pending (parity via the migration skill's Phase I loop)** — state plainly that behavioral parity QA runs on this PR via the migration skill's in-skill Phase I loop (agent-device A/B replay against the frozen golden, master vs PR head), and **embed `heatmap.md` directly here as a checklist** (`- [ ]` rows per surface). `.kmm/migrations/` is gitignored, so embed the table inline — do not link to a path. Result cells stay unchecked; they're a pre-merge gate the Phase I loop fills in.
 - **Migration exceptions (if any, provenance-verified above)** — listed with links to `.kmm/exceptions/` files + the referencing commits in this PR's range + brief rationale. Exceptions with zero provenance are NOT listed.
 - **Tests** — baseline counts per source set (held vs promoted), all-green confirmation, iOS verification status (or host-limitation note). One or two lines.
 - **Out-of-scope follow-ups** — pre-existing broken tests quarantined (`@Ignore` or build-level exclude, from Phase B.2 / E.0) and files flipped `migrate` → `hold` during Phase D (D.3), one line each. Reviewer-facing list, not a backlog dump.
