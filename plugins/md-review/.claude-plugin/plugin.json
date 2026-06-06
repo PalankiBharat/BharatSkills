@@ -1,0 +1,21 @@
+{
+  "name": "md-review",
+  "version": "0.1.0",
+  "description": "Opens a Markdown file in a local browser page to read, tick checkboxes, and edit inline, then one-click Save writes straight back to the same file. Use when the user says \"review this md file\" or runs /md-review [path].",
+  "author": {
+    "name": "PunchHQ",
+    "email": "manish@punchhq.com"
+  },
+  "category": "productivity",
+  "keywords": [
+    "markdown",
+    "md",
+    "review",
+    "editor",
+    "browser",
+    "checklist",
+    "task-list",
+    "inline-edit",
+    "save"
+  ]
+}
