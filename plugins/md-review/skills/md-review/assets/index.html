@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>md-review</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/marked.min.js" defer></script>
+</head>
+<body>
+  <header class="bar">
+    <span class="file">📄 <b id="fname">…</b><span class="dot" id="dot" title="unsaved changes"></span></span>
+    <span class="spacer"></span>
+    <div class="toggle">
+      <button id="tab-rendered" class="active">Rendered</button>
+      <button id="tab-raw">Raw</button>
+    </div>
+    <button class="save" id="saveBtn">Save <span class="kbd">⌘S</span></button>
+  </header>
+  <article class="doc" id="doc"></article>
+  <textarea class="rawbox" id="rawbox" spellcheck="false" hidden></textarea>
+  <div class="toast" id="toast"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
