@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",
-    "version": "1.38.0",
+    "version": "1.43.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -464,8 +464,8 @@
     {
       "name": "dev-harness",
       "source": "./plugins/dev-harness",
-      "description": "Mobile dev team harness: /harness drives a visible 6-pane tmux team (a driving Orchestrator pane + Tech Lead Manish, Senior+Junior Dev Mohit/Bharat, QA Lead+Tester Rohit/Bharat-QA, Review Architect Mohit-Arch) from a story to a tested, reviewed PR. Persona agents (opus leads dispatch sonnet workers), adaptive flow (feature/small-change/bug-fix), phased delivery, file-mailbox coordination, live streaming panes, two-lane feedback, restart, crash-safe resume, PreToolUse security guard, opt-in OS sandbox, and multi-run worktrees.",
-      "version": "0.1.11",
+      "description": "Mobile dev team harness: /harness drives a visible 6-pane tmux team (a driving Orchestrator pane + Tech Lead Manish, Dev Bharat, QA Rohit, Review Architect Mohit) from a story to a tested, reviewed PR. Per-pane models (opus for orchestrator/tech-lead/architect, opusplan for dev/qa), adaptive flow (feature/small-change/bug-fix), phased delivery, file-mailbox coordination, live streaming panes, two-lane feedback, restart, crash-safe resume, PreToolUse security guard, opt-in OS sandbox, and multi-run worktrees.",
+      "version": "0.1.15",
       "category": "orchestration",
       "tags": [
         "harness",
@@ -484,6 +484,32 @@
         "orchestrator",
         "tech-lead developer architect qa",
         "mobile dev team"
+      ]
+    },
+    {
+      "name": "md-review",
+      "source": "./plugins/md-review",
+      "description": "Opens a Markdown file in a local browser page to read, tick checkboxes, and edit inline — then one-click Save writes straight back to the same file. Triggered by saying \"review this md file\" or running /md-review [path]. Starts a tiny localhost-only Python server (random port, auto-shuts down after 30 min idle); rendering is client-side via a vendored marked.js, the Markdown text stays the single source of truth (no HTML→Markdown conversion), and a SHA-256 guard warns before overwriting a file that changed on disk. Markdown only; no git/diff/PR, single file per session.",
+      "version": "0.1.0",
+      "category": "productivity",
+      "tags": [
+        "markdown",
+        "review",
+        "editor",
+        "browser",
+        "checklist",
+        "local-server"
+      ],
+      "keywords": [
+        "markdown",
+        "md",
+        "review",
+        "edit",
+        "checkbox",
+        "task-list",
+        "preview",
+        "save",
+        "inline"
       ]
     }
   ]

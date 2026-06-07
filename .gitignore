@@ -38,6 +38,9 @@ venv/
 # oh-my-claudecode runtime state (sessions, checkpoints, ultrawork)
 .omc/
 
+# superpowers brainstorming visual-companion artifacts
+.superpowers/
+
 # Speckit local init artifacts
 .specify/
 

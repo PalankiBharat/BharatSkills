@@ -29,19 +29,19 @@ assert_eq "$(get_status "$ROOT" dev)" "working"
 # --- unknown role is rejected (non-zero, no write) ---
 ( set_status "$ROOT" hacker working 2>/dev/null ) && _FAIL "should refuse unknown role"
 
-# --- name -> role resolution (personas AND role keys) ---
-assert_eq "$(resolve_role manish)"    "tech-lead"
-assert_eq "$(resolve_role Manish)"    "tech-lead"   # case-insensitive
-assert_eq "$(resolve_role mohit-dev)" "dev"
-assert_eq "$(resolve_role bharat-dev)" "dev"
-assert_eq "$(resolve_role rohit)"     "qa"
-assert_eq "$(resolve_role bharat-qa)" "qa"
-assert_eq "$(resolve_role mohit-arch)" "architect"
-assert_eq "$(resolve_role dev)"       "dev"         # a role key resolves to itself
+# --- name -> role resolution (one persona per role + role keys) ---
+assert_eq "$(resolve_role manish)" "tech-lead"
+assert_eq "$(resolve_role Manish)" "tech-lead"   # case-insensitive
+assert_eq "$(resolve_role bharat)" "dev"
+assert_eq "$(resolve_role rohit)"  "qa"
+assert_eq "$(resolve_role mohit)"  "architect"
+assert_eq "$(resolve_role dev)"       "dev"       # a role key resolves to itself
 assert_eq "$(resolve_role architect)" "architect"
 
-# --- ambiguous first name (Mohit = Dev or Arch) is refused ---
-( resolve_role mohit 2>/dev/null ) && _FAIL "ambiguous 'mohit' should be refused"
+# --- retired persona names no longer resolve ---
+for old in mohit-dev bharat-dev bharat-qa mohit-arch; do
+  ( resolve_role "$old" 2>/dev/null ) && _FAIL "retired persona '$old' should not resolve"
+done
 # --- unknown name is refused ---
 ( resolve_role nobody 2>/dev/null ) && _FAIL "unknown name should be refused"
 
@@ -59,11 +59,5 @@ assert_eq "$(HARNESS_MODEL_TECH_LEAD=haiku role_model tech-lead)" "haiku"
 assert_eq "$(HARNESS_MODEL=opus role_model dev)"                  "opus"
 # --- role_model: per-role key beats the global default ---
 assert_eq "$(HARNESS_MODEL=opus HARNESS_MODEL_QA=sonnet role_model qa)" "sonnet"
-
-# --- is_launch_model: aliases + full ids are launch-flag; /model modes are not ---
-for m in opus sonnet haiku claude-opus-4-8; do
-  is_launch_model "$m" || _FAIL "$m should be a launch-flag model"
-done
-is_launch_model opusplan && _FAIL "opusplan must NOT be a launch-flag model"
 
 echo OK
