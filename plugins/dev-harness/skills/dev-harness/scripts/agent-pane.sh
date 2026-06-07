@@ -7,7 +7,7 @@ set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; . "$HERE/lib.sh"
 ROLE="${1:?role required}"
 PERSONA="$(lead_persona "$ROLE" 2>/dev/null || echo "$ROLE")"
-CLAUDE_BIN="${CLAUDE_BIN:-/opt/homebrew/bin/claude}"   # absolute — never the zsh shell-function
+CLAUDE_BIN="${CLAUDE_BIN:-$HOME/.claude-kimi/bin/claude-kimi}"   # from env or prompt user
 
 # Opt-in OS sandbox (same settings as the headless path).
 SANDBOX_OPT=""

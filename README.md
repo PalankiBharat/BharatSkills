@@ -31,30 +31,30 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 ### 1. Add the marketplace
 
 ```shell
-/plugin marketplace add PunchHQ/claude-code-skills
+/plugin marketplace add BharatSkills/BharatSkills
 ```
 
 ### 2. Install plugins
 
 ```shell
-/plugin install feature-analyzer@punchhq-skills
-/plugin install qa-autopilot@punchhq-skills
-/plugin install skill-feedback@punchhq-skills
-/plugin install clean-code@punchhq-skills
-/plugin install skill-tester@punchhq-skills
-/plugin install bug-finder@punchhq-skills
-/plugin install om-pipeline@punchhq-skills
-/plugin install branch-manager@punchhq-skills
-/plugin install legacy-refactor@punchhq-skills
-/plugin install release@punchhq-skills
-/plugin install instructions-feedback@punchhq-skills
-/plugin install review-pr@punchhq-skills
-/plugin install preview-compose@punchhq-skills
-/plugin install kmm-migration-workflow@punchhq-skills
-/plugin install sniper-ops@punchhq-skills
-/plugin install kmm-qa-autopilot@punchhq-skills
-/plugin install retro-triage@punchhq-skills
-/plugin install dev-harness@punchhq-skills
+/plugin install feature-analyzer@bharat-skills
+/plugin install qa-autopilot@bharat-skills
+/plugin install skill-feedback@bharat-skills
+/plugin install clean-code@bharat-skills
+/plugin install skill-tester@bharat-skills
+/plugin install bug-finder@bharat-skills
+/plugin install om-pipeline@bharat-skills
+/plugin install branch-manager@bharat-skills
+/plugin install legacy-refactor@bharat-skills
+/plugin install release@bharat-skills
+/plugin install instructions-feedback@bharat-skills
+/plugin install review-pr@bharat-skills
+/plugin install preview-compose@bharat-skills
+/plugin install kmm-migration-workflow@bharat-skills
+/plugin install sniper-ops@bharat-skills
+/plugin install kmm-qa-autopilot@bharat-skills
+/plugin install retro-triage@bharat-skills
+/plugin install dev-harness@bharat-skills
 ```
 
 ### 3. Use the skills
@@ -96,10 +96,10 @@ Add this to your project's `.claude/settings.json` to auto-prompt teammates to i
 ```json
 {
   "extraKnownMarketplaces": {
-    "punchhq-skills": {
+    "bharat-skills": {
       "source": {
         "source": "github",
-        "repo": "PunchHQ/claude-code-skills"
+        "repo": "BharatSkills/BharatSkills"
       }
     }
   }
@@ -111,10 +111,10 @@ To pre-enable specific plugins:
 ```json
 {
   "enabledPlugins": {
-    "feature-analyzer@punchhq-skills": true,
-    "qa-autopilot@punchhq-skills": true,
-    "skill-feedback@punchhq-skills": true,
-    "clean-code@punchhq-skills": true,
+    "feature-analyzer@bharat-skills": true,
+    "qa-autopilot@bharat-skills": true,
+    "skill-feedback@bharat-skills": true,
+    "clean-code@bharat-skills": true,
   }
 }
 ```
