@@ -31,7 +31,7 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 ### 1. Add the marketplace
 
 ```shell
-/plugin marketplace add BharatSkills/BharatSkills
+/plugin marketplace add PalankiBharat/BharatSkills
 ```
 
 ### 2. Install plugins
@@ -99,7 +99,7 @@ Add this to your project's `.claude/settings.json` to auto-prompt teammates to i
     "bharat-skills": {
       "source": {
         "source": "github",
-        "repo": "BharatSkills/BharatSkills"
+        "repo": "PalankiBharat/BharatSkills"
       }
     }
   }
