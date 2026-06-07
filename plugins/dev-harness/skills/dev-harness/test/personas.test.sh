@@ -38,4 +38,23 @@ assert_contains "$(cat "$AG/orchestrator.md")" "Final QA regression"
 assert_contains "$(cat "$AG/orchestrator.md")" "qa-cases.md"
 assert_contains "$(cat "$AG/orchestrator.md")" "restart qa"
 
+# --- figma-to-compose is MANDATORY for UI, for both devs (never optional) ---
+assert_contains "$(cat "$AG/mohit-dev.md")"  "MANDATORY"
+assert_contains "$(cat "$AG/mohit-dev.md")"  "figma-to-compose"
+assert_contains "$(cat "$AG/bharat-dev.md")" "figma-to-compose"
+assert_contains "$(cat "$AG/bharat-dev.md")" "MANDATORY"
+
+# --- dev does NOT decide: a doubt = ask the orchestrator and stop ---
+assert_contains "$(cat "$AG/mohit-dev.md")"  "do NOT make decisions"
+assert_contains "$(cat "$AG/mohit-dev.md")"  "ask and stop"
+assert_contains "$(cat "$AG/bharat-dev.md")" "do not make decisions"
+
+# --- architect: technical only, never UI ---
+assert_contains "$(cat "$AG/mohit-arch.md")" "never touch UI"
+
+# --- orchestrator: react to the periodic SWEEP, route a dev doubt to the user ---
+assert_contains "$(cat "$AG/orchestrator.md")" "SWEEP"
+assert_contains "$(cat "$AG/orchestrator.md")" "figma-to-compose"
+assert_contains "$(cat "$AG/orchestrator.md")" "user gate"
+
 echo OK
