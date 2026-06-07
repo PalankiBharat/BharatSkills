@@ -26,9 +26,9 @@ launch() {
 # --- every pane launches as its persona with bypass perms ---
 assert_contains "$(launch orchestrator)" "--agent orchestrator"
 assert_contains "$(launch tech-lead)"    "--agent manish"
-assert_contains "$(launch dev)"          "--agent mohit-dev"
+assert_contains "$(launch dev)"          "--agent bharat"
 assert_contains "$(launch qa)"           "--agent rohit"
-assert_contains "$(launch architect)"    "--agent mohit-arch"
+assert_contains "$(launch architect)"    "--agent mohit"
 assert_contains "$(launch dev)"          "--permission-mode bypassPermissions"
 
 # --- deep panes are pinned to opus at launch ---

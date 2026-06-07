@@ -7,7 +7,7 @@ harness_init_layout "$HARNESS_ROOT"
 FB="$HERE/../scripts/feedback.sh"
 
 # task lane by persona -> the persona's role feedback file
-"$FB" task mohit-dev "handle the empty-cart case"
+"$FB" task bharat "handle the empty-cart case"
 assert_contains "$(cat "$HARNESS_ROOT/dev/feedback.md")" "empty-cart"
 
 # task lane by role key
