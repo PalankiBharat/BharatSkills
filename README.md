@@ -1,4 +1,4 @@
-# PunchHQ Claude Code Skills Marketplace
+# BharatSkills Claude Code Marketplace
 
 A plugin marketplace for Claude Code, distributing skills for development workflows.
 

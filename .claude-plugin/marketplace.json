@@ -1,8 +1,8 @@
 {
-  "name": "punchhq-skills",
+  "name": "bharatskills",
   "owner": {
-    "name": "PunchHQ",
-    "email": "manish@punchhq.com"
+    "name": "BharatNeo",
+    "email": "bharat@example.com"
   },
   "metadata": {
     "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",

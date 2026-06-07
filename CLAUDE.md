@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A Claude Code **plugin marketplace** (`punchhq-skills`) — not application code. It distributes skills/commands/hooks for Android + KMM development workflows. There is no build system; "shipping" means committing JSON/Markdown/shell/Python and bumping versions. Users install via `/plugin marketplace add PunchHQ/claude-code-skills` and then `/plugin install <name>@punchhq-skills`.
+A Claude Code **plugin marketplace** (`bharatskills`) — not application code. It distributes skills/commands/hooks for Android + KMM development workflows. There is no build system; "shipping" means committing JSON/Markdown/shell/Python and bumping versions. Users install via `/plugin marketplace add BharatNeo/BharatSkills` and then `/plugin install <name>@bharatskills`.
 
 ## Validation
 
