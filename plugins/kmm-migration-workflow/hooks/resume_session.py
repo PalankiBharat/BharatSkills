@@ -25,6 +25,7 @@ Phase file format (per SKILL.md "Phase file format"):
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -172,6 +173,64 @@ def git_dirty() -> bool | None:
     if result.returncode != 0:
         return None
     return bool(result.stdout.strip())
+
+
+def autopilot_banner(active_phase_id: str | None) -> str:
+    """Emit a deterministic mode banner when running under the tmux autopilot.
+
+    Mode is signalled by KMM_AUTOPILOT_ROLE so worker/orchestrator behaviour
+    does not depend on the model noticing an env var.
+    """
+    role = os.environ.get("KMM_AUTOPILOT_ROLE")
+    if not role:
+        return ""
+    if role == "worker":
+        want = os.environ.get("KMM_AUTOPILOT_PHASE")
+        lines = ["", "### AUTOPILOT WORKER MODE"]
+        if want and active_phase_id and want != active_phase_id:
+            lines.append(
+                f"⚠️ **PHASE MISMATCH** — orchestrator asked for phase `{want}` "
+                f"but the serialized state's active phase is `{active_phase_id}`. "
+                f"Do NOT run. Write `orchestration/phase-{want}.status` = "
+                f"`FAILED` with this mismatch as the reason, then stop."
+            )
+            return "\n".join(lines) + "\n"
+        phase_id = active_phase_id or want or "?"
+        lines += [
+            f"You are a headless phase worker for phase **{phase_id}**. Run only the "
+            "active phase to completion (including its blocking retro). Do NOT "
+            "advance to the next phase and do NOT wait for interactive input.",
+            "- First, check `orchestration/decision-response.md` — if present, "
+            "consume the human's answer(s), then delete it and continue.",
+            "- On any of the four gated decision classes (dependency/library "
+            "swap, behavior-changing fix, scope/plan flip, real-money/mutating "
+            "journey) or an inherent escalation (missing device/login, PII, "
+            "first-time detekt): append the question to "
+            "`orchestration/decision-request.md` (plain-language: problem, "
+            "options, impacts, your recommendation), write "
+            f"`orchestration/phase-{phase_id}.status` = `BLOCKED`, then stop.",
+            "- Batch independent gated decisions into one decision-request "
+            "before stopping — never stop once per decision.",
+            f"- On clean completion write `orchestration/phase-{phase_id}.status` = "
+            "`COMPLETE` and stop.",
+            "- On unrecoverable failure write "
+            f"`orchestration/phase-{phase_id}.status` = `FAILED` + a one-line "
+            "diagnostic (gradle log path / error summary) and stop.",
+            "- Consult `references/orchestration.md` §Autopilot phase overrides "
+            "for this phase's auto-decisions (e.g. Phase G opens a DRAFT PR).",
+        ]
+        return "\n".join(lines) + "\n"
+    if role == "orchestrator":
+        return (
+            "\n### AUTOPILOT ORCHESTRATOR MODE\n"
+            "You are the orchestrator and the single human touchpoint. Run "
+            "Phases 0 and A interactively here as normal. From Phase B onward, "
+            "do NOT run phases yourself — for each phase, spawn a headless "
+            "worker via `scripts/run-phase-worker.sh`, then act on its status "
+            "file. Follow `references/orchestration.md` (drive-loop, "
+            "escalation, pre-flight, retry).\n"
+        )
+    return ""
 
 
 def format_report(branch: str, folder: Path, states: dict[str, dict | None]) -> str:
@@ -349,6 +408,11 @@ def main() -> int:
         states[phase_id] = parse_phase_file(folder / filename)
 
     print(format_report(branch, folder, states))
+    active = active_phase(states)
+    active_id = active[0] if active else None
+    banner = autopilot_banner(active_id)
+    if banner:
+        print(banner)
     return 0
 
 
