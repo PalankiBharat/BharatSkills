@@ -1,6 +1,6 @@
 # Agent-device reference
 
-Reference for the skill's use of the `agent-device` CLI to drive real devices during runtime-golden capture and parity QA. Loaded by Phase F (smoke) and Phase I (parity QA).
+Reference for the skill's use of the `agent-device` CLI to drive real devices during runtime-golden capture and parity QA. Loaded by Phase F (F.3 HTTP-parity checks) and Phase I (parity QA).
 
 **Prerequisites:** Node 22+, Xcode (iOS simulator / device), Android SDK + ADB on `PATH`.
 

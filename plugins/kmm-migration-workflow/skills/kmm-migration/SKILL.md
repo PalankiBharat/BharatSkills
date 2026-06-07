@@ -1,6 +1,6 @@
 ---
 name: kmm-migration
-description: Orchestrates structured Android-to-KMM migration with strict behavioral-equivalence safety. Discovers scope via the user's described navigation flow, writes baseline tests proving current Android behavior, freezes them, migrates code via `git mv` + surgical edits, validates on Android and iOS, produces a clean PR. Use this skill whenever the user wants to migrate any Android feature, screen, module, or specific files (ViewModel, UseCase, Repository, Mapper, etc.) to Kotlin Multiplatform / shared module — even if they only mention 'KMM', 'shared module', 'commonMain', or name a specific file/feature to migrate. Triggers on phrases like 'migrate the funds screen to KMM', 'KMM migration plan', 'baseline tests for migration', 'move this to shared', or any preparation/execution phrase. The skill enforces a prevention-first phased workflow with user-confirmed transitions; do not bypass it for ad-hoc migration work even when individual files look simple — bypass corrupts the equivalence safety net.
+description: Orchestrates structured Android-to-KMM migration with strict behavioral-equivalence safety. Discovers scope via the user's described navigation flow, writes baseline tests proving current Android behavior, freezes them, migrates code via `git mv` + surgical edits, validates on Android and iOS, produces a clean PR. Use this skill whenever the user wants to migrate any Android feature, screen, module, or specific files (ViewModel, UseCase, Repository, Mapper, etc.) to Kotlin Multiplatform / shared module — even if they only mention 'KMM', 'shared module', 'commonMain', or name a specific file/feature to migrate. Triggers on phrases like 'migrate the funds screen to KMM', 'KMM migration plan', 'baseline tests for migration', 'move this to shared', or any preparation/execution phrase. The skill enforces a prevention-first phased workflow with user-confirmed transitions; do not bypass it for ad-hoc migration work even when individual files look simple — bypass corrupts the equivalence safety net. Supports an autonomous 'autopilot' mode (tmux-orchestrated) — also triggers on 'migrate X on autopilot', 'autonomous KMM migration', 'run the migration headless'.
 ---
 
 # KMM Migration Orchestrator
@@ -362,7 +362,7 @@ Phase-specific gates are listed in each phase's reference file.
         ├── freeze.md               # Phase C
         ├── migration.md            # Phase D
         ├── move.md                 # Phase E
-        ├── validation.md           # Phase F (automated checks + smoke; no manual-QA gate)
+        ├── validation.md           # Phase F (automated checks; no runtime smoke, no manual-QA gate)
         ├── heatmap.md              # Phase F — QA checklist artifact (embedded into the PR body at Phase G)
         ├── pr.md                   # Phase G — phase artifact (audit wrapper; never the --body-file source)
         ├── pr-body.md              # Phase G — the raw PR body shipped via --body-file
@@ -411,7 +411,7 @@ The skill defines what slots exist; each repo's `project.md` fills them in. The 
 
 ## Realistic expectations
 
-A non-trivial migration session takes **5–9 hours end-to-end**, distributed across phases (mostly waiting on gradle). Fully resumable — start one day, continue the next. Phase F runs automated checks plus a runtime-crash smoke and the PR opens at Phase G. After the PR, **Phase H ingests external code-review feedback** and resolves blockers through the workflow, then **Phase I is an in-skill autonomous parity loop**: agent-device A/B replays the runtime golden (the journeys catalog captured in Phase B) against the migrated build and fixes parity-restoring bugs through the workflow until the heatmap is green. Deterministic replay makes computed financial values comparable to the digit; live A/B is the narrow exception for flows that can't be seeded. Review feedback and QA bugs are never live-patched (see §Late-change discipline); both are structured intakes that carry their own retro.
+A non-trivial migration session takes **5–9 hours end-to-end**, distributed across phases (mostly waiting on gradle). Fully resumable — start one day, continue the next. Phase F runs automated checks (no runtime smoke — Phase I's parity loop exercises the build) and the PR opens at Phase G. After the PR, **Phase H ingests external code-review feedback** and resolves blockers through the workflow, then **Phase I is an in-skill autonomous parity loop (ProductionDebug iteration + a binding ProductionRelease final-sanity pass)**: agent-device A/B replays the runtime golden (the journeys catalog captured in Phase B) against the migrated build and fixes parity-restoring bugs through the workflow until the heatmap is green. Deterministic replay makes computed financial values comparable to the digit; live A/B is the narrow exception for flows that can't be seeded. Review feedback and QA bugs are never live-patched (see §Late-change discipline); both are structured intakes that carry their own retro.
 
 ---
 
@@ -427,12 +427,35 @@ The migration runs through 10 phases. **Load the relevant phase reference file w
 | **C** | Freeze | `freeze.md` | `references/phases/phase-c-freeze.md` |
 | **D** | KMM-ification (abstract Android deps + `git mv` `androidMain` → `commonMain` for files that ripen this session) | `migration.md` | `references/phases/phase-d-migration.md` |
 | **E** | Baseline promotion (`git mv` baseline `androidUnitTest` → `commonTest` for files whose code reached `commonMain`) | `move.md` | `references/phases/phase-e-move.md` |
-| **F** | Validation — automated checks (build, baseline tests JVM+iOS, pre-merge integration, code-quality/iOS-surface) + runtime-crash smoke + heatmap draft. **No manual-QA gate.** | `validation.md` + `heatmap.md` | `references/phases/phase-f-validation.md` |
+| **F** | Validation — automated checks (build, baseline tests JVM+iOS, pre-merge integration, code-quality/iOS-surface) + heatmap draft. **No runtime smoke, no manual-QA gate.** | `validation.md` + `heatmap.md` | `references/phases/phase-f-validation.md` |
 | **G** | PR Creation (heatmap embedded as a checklist in the PR body's QA section; concise, value-driven body) | `pr.md` + `pr-body.md` | `references/phases/phase-g-pr.md` |
 | **H** | Receive & Resolve Review — ingest external code-review feedback on the PR, resolve blockers *through the workflow* (test + exception + commit + retro), user-approval gate to proceed | `review.md` | `references/phases/phase-h-review.md` |
 | **I** | Parity-QA + Bug-fixing — in-skill autonomous parity loop: agent-device A/B replay of the runtime golden (journeys catalog) against the migrated build; fixes parity-restoring bugs through the workflow until the heatmap is green; conditional iOS forward-check. Final phase. | `qa.md` | `references/phases/phase-i-qa.md` |
 
 Read phase references **on demand** — when the workflow enters or resumes a phase, before executing its sub-phases. This keeps context focused on the current work.
+
+---
+
+## Autopilot mode (optional, tmux-orchestrated)
+
+Invoked via `scripts/kmm-autopilot.sh <feature>-<depth>` (or when the user asks to
+run the migration autonomously / headless / "on autopilot"). The mode is governed
+by `references/orchestration.md` — load it when `KMM_AUTOPILOT_ROLE` is set.
+
+- **Orchestrator** (interactive, the single human touchpoint): runs Phases 0 + A
+  here as normal, then drives B→I by spawning one headless worker per phase via
+  `scripts/run-phase-worker.sh`, handling each worker's status file. It never runs
+  a phase itself from B onward.
+- **Worker** (headless `claude -p`, one phase, then exits): runs exactly the active
+  phase incl. its blocking retro, escalating only the irreversible decision classes
+  and inherent escalations through the file control plane (see `references/orchestration.md`); on
+  start it consumes `orchestration/decision-response.md` if present.
+
+The `resume_session` hook emits a mode banner (worker vs orchestrator) so behaviour
+is deterministic. Non-autopilot (plain interactive) sessions are unaffected — the
+banner is empty and phases run exactly as today.
+
+---
 
 **Cross-phase references:**
 

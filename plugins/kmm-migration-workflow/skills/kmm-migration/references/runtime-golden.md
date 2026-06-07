@@ -44,7 +44,7 @@ Never mask a value the migrated code computes (P&L, totals, derived prices, orde
 
 ## Replay vs live decision rule
 
-**Replay is the default.** Replay is deterministic, produces an exact computed-value diff, carries no login or real-money risk, and exercises serialization under R8. Use replay for every journey that can be recorded.
+**Replay is the default.** Replay is deterministic, produces an exact computed-value diff, carries no login or real-money risk, and exercises serialization under R8 (specifically at the Phase I ProductionRelease final-sanity pass, I.2.8; the Phase I iteration loop runs ProductionDebug). Use replay for every journey that can be recorded.
 
 **Live A/B + narrow masking is the exception** — for surfaces where replay is infeasible (e.g., a streaming chart that cannot be frozen by wire replay). A journey where replay is infeasible falls back to live and is **flagged** in the session report so the deviation is visible.
 

@@ -1,5 +1,5 @@
 {
   "name": "kmm-migration-workflow",
   "description": "Orchestrates structured Android-to-KMM migration with strict behavioral-equivalence safety. Phased workflow: discovery, diagnostic, baseline tests, freeze, git mv + surgical migration, validation, PR, receive-and-resolve code review, then parity-QA + bug-fixing.",
-  "version": "1.13.0"
+  "version": "1.14.0"
 }
