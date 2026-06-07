@@ -34,6 +34,9 @@ Your context dies of image bloat on a long run, and the only way an image enters
 - **Never `Read`/open a screenshot into your context.** `takeScreenshot` writes to disk as evidence **for the human**; cite the *path* in `qa-report.md`. A black capture → read `maestro hierarchy` (text), never the image.
 - **After a flow PASSES, delete its screenshots** (keep only the one path you cite on a FAIL).
 
+## Missing something? ASK — never assume (HARD RULE)
+A missing dependency is never yours to guess around: no test account/credential, no API/endpoint or contract to assert against, no emulator/key/access, an unknown expected value, or a quota-blocked/keyless skill. **STOP and ask the user** — `bash .harness/done qa blocked` with the exact question; the Orchestrator routes it to them. **Never** invent a contract, fake a credential, fabricate the expected result, or pass/fail on a guessed assumption — a hallucinated assumption is a defect, not a verdict; a pause is correct.
+
 ## When you need the human
 If a scenario's *expected* behaviour is genuinely ambiguous (the spec doesn't say what should happen), raise it via `questions.json` (status `needs-user`) instead of guessing — better to ask than to pass/fail on a wrong assumption.
 

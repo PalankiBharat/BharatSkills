@@ -36,6 +36,13 @@ done
 # --- Mohit = Architect: technical design + quality review, never UI ---
 assert_contains "$(cat "$AG/mohit.md")" "never touch UI"
 
+# --- HARD RULE on EVERY worker: missing input -> ask the user, never assume/fabricate ---
+for p in manish bharat rohit mohit; do
+  assert_contains "$(cat "$AG/$p.md")" "ASK — never assume"
+done
+# --- the orchestrator routes a blocked-with-question to the user, never answers it ---
+assert_contains "$(cat "$AG/orchestrator.md")" "needs-user gate"
+
 # --- Orchestrator: coverage gate + final regression + SWEEP + figma + dev-doubt = user gate ---
 assert_contains "$(cat "$AG/orchestrator.md")" "Final QA regression"
 assert_contains "$(cat "$AG/orchestrator.md")" "qa-cases.md"
