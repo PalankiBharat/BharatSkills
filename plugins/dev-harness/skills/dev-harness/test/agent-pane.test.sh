@@ -36,9 +36,9 @@ assert_contains "$(launch orchestrator)" "--model opus"
 assert_contains "$(launch tech-lead)"    "--model opus"
 assert_contains "$(launch architect)"    "--model opus"
 
-# --- build lanes default to opusplan, which is NOT a launch flag -> no --model ---
-case "$(launch dev)" in *"--model"*) _FAIL "dev (opusplan) must not pass --model at launch";; esac
-case "$(launch qa)"  in *"--model"*) _FAIL "qa (opusplan) must not pass --model at launch";; esac
+# --- build lanes launch directly on opusplan (a valid --model alias; opus plans, sonnet executes) ---
+assert_contains "$(launch dev)" "--model opusplan"
+assert_contains "$(launch qa)"  "--model opusplan"
 
 # --- per-role override turns a build lane into a real launch-flag model ---
 assert_contains "$(launch dev HARNESS_MODEL_DEV=sonnet)" "--model sonnet"

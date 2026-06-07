@@ -60,10 +60,4 @@ assert_eq "$(HARNESS_MODEL=opus role_model dev)"                  "opus"
 # --- role_model: per-role key beats the global default ---
 assert_eq "$(HARNESS_MODEL=opus HARNESS_MODEL_QA=sonnet role_model qa)" "sonnet"
 
-# --- is_launch_model: aliases + full ids are launch-flag; /model modes are not ---
-for m in opus sonnet haiku claude-opus-4-8; do
-  is_launch_model "$m" || _FAIL "$m should be a launch-flag model"
-done
-is_launch_model opusplan && _FAIL "opusplan must NOT be a launch-flag model"
-
 echo OK
