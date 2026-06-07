@@ -15,9 +15,9 @@ resolve_role() {
   case "$key" in
     tech-lead|dev|qa|architect) printf '%s' "$key" ;;
     manish)                     printf 'tech-lead' ;;
-    mohit-dev|bharat-dev)       printf 'dev' ;;
-    rohit|bharat-qa)            printf 'qa' ;;
-    mohit-arch)                 printf 'architect' ;;
+    bharat)                     printf 'dev' ;;
+    rohit)                      printf 'qa' ;;
+    mohit)                      printf 'architect' ;;
     *) echo "unresolved role/name: $1" >&2; return 3 ;;
   esac
 }
@@ -74,24 +74,24 @@ pane_alive() {
   tmux list-panes -a -F '#{pane_id}' 2>/dev/null | grep -qx "$1"
 }
 
-# lead_persona <role> -> the opus lead agent name for that pane.
+# lead_persona <role> -> the persona agent name for that pane.
 lead_persona() {
   case "$1" in
     tech-lead) echo manish ;;
-    dev)       echo mohit-dev ;;
+    dev)       echo bharat ;;
     qa)        echo rohit ;;
-    architect) echo mohit-arch ;;
+    architect) echo mohit ;;
     *) return 1 ;;
   esac
 }
 
-# role_model <role> -> the model a pane launches with. Keeps token cost honest:
-# deep-reasoning panes stay on opus; the build lanes run opusplan (opus plans, sonnet
-# executes) and delegate the typing to sonnet juniors. Override precedence:
+# role_model <role> -> the model a pane launches with (passed straight to `claude --model`).
+# Keeps token cost honest: deep-reasoning panes (orchestrator/tech-lead/architect) stay on
+# opus; the build lanes (dev/qa) run opusplan (opus plans, sonnet executes). `opusplan` is a
+# valid --model alias (verified on the CLI), so every value here is applied at launch — no
+# post-boot switching. Override precedence:
 #   HARNESS_MODEL_<ROLE>  >  HARNESS_MODEL  >  the per-role default below.
-# Values opus|sonnet|haiku|<full-id> are launch-flag models (agent-pane passes --model);
-# any /model MODE (e.g. opusplan) can't be a launch flag, so harness-init switches the
-# booted pane with `/model <mode>` instead. ROLE is upper-cased and '-'->'_' for the env key.
+# ROLE is upper-cased and '-'->'_' for the env key (e.g. tech-lead -> HARNESS_MODEL_TECH_LEAD).
 role_model() {
   _rm_role="$1"
   _rm_key="HARNESS_MODEL_$(printf '%s' "$_rm_role" | tr 'a-z-' 'A-Z_')"
@@ -101,15 +101,6 @@ role_model() {
   case "$_rm_role" in
     dev|qa) printf '%s\n' opusplan ;;
     *)      printf '%s\n' opus ;;
-  esac
-}
-
-# is_launch_model <model> -> 0 if it can be passed to `claude --model`, 1 if it's a
-# /model-only mode (opusplan etc.) that must be applied to a running pane post-boot.
-is_launch_model() {
-  case "$1" in
-    opus|sonnet|haiku|claude-*) return 0 ;;
-    *) return 1 ;;
   esac
 }
 

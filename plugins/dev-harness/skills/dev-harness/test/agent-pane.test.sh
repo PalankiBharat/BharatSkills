@@ -26,9 +26,9 @@ launch() {
 # --- every pane launches as its persona with bypass perms ---
 assert_contains "$(launch orchestrator)" "--agent orchestrator"
 assert_contains "$(launch tech-lead)"    "--agent manish"
-assert_contains "$(launch dev)"          "--agent mohit-dev"
+assert_contains "$(launch dev)"          "--agent bharat"
 assert_contains "$(launch qa)"           "--agent rohit"
-assert_contains "$(launch architect)"    "--agent mohit-arch"
+assert_contains "$(launch architect)"    "--agent mohit"
 assert_contains "$(launch dev)"          "--permission-mode bypassPermissions"
 
 # --- deep panes are pinned to opus at launch ---
@@ -36,9 +36,9 @@ assert_contains "$(launch orchestrator)" "--model opus"
 assert_contains "$(launch tech-lead)"    "--model opus"
 assert_contains "$(launch architect)"    "--model opus"
 
-# --- build lanes default to opusplan, which is NOT a launch flag -> no --model ---
-case "$(launch dev)" in *"--model"*) _FAIL "dev (opusplan) must not pass --model at launch";; esac
-case "$(launch qa)"  in *"--model"*) _FAIL "qa (opusplan) must not pass --model at launch";; esac
+# --- build lanes launch directly on opusplan (a valid --model alias; opus plans, sonnet executes) ---
+assert_contains "$(launch dev)" "--model opusplan"
+assert_contains "$(launch qa)"  "--model opusplan"
 
 # --- per-role override turns a build lane into a real launch-flag model ---
 assert_contains "$(launch dev HARNESS_MODEL_DEV=sonnet)" "--model sonnet"
