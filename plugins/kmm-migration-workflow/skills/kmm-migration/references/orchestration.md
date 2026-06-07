@@ -31,6 +31,8 @@ Under `.kmm/migrations/kmm/<feature>-<depth>/orchestration/`:
 The orchestrator waits on the worker's **process exit** (reliable), then reads the
 status file. A worker that dies leaves state on disk → relaunch resumes via hook.
 
+Paths are absolute: `run-phase-worker.sh` derives the orchestration dir from the `kmm/<suffix>` branch and passes it to the worker as `KMM_ORCH_DIR`, and the resume-hook banner emits that same absolute path — so worker-write and orchestrator-read always coincide, independent of CWD.
+
 ## Drive-loop (orchestrator, Phases B→I)
 
 ```
@@ -50,6 +52,8 @@ for phase in B C D E F G H I:
             if not retried: run `./gradlew --stop`; retried = true; continue loop   # one auto-retry
             escalate the diagnostic to the human; break
 ```
+
+Status matching is on the leading token — a `FAILED` line may carry a `: <reason>` suffix.
 
 **Run the worker as a background task.** A phase can run for hours; do not block a
 single foreground tool call on it. The orchestrator launches `run-phase-worker.sh

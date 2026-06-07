@@ -4,10 +4,11 @@ here="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"
 mkdir -p "$tmp/orchestration"
 
-# stub claude: pretends to be the worker — writes a COMPLETE status then exits 0
-cat > "$tmp/claude" <<STUB
+# stub claude: pretends to be the worker — writes COMPLETE to the dir the script
+# told it (KMM_ORCH_DIR), proving worker-write and script-read agree.
+cat > "$tmp/claude" <<'STUB'
 #!/usr/bin/env bash
-echo "COMPLETE" > "$tmp/orchestration/phase-D.status"
+echo "COMPLETE" > "$KMM_ORCH_DIR/phase-D.status"
 exit 0
 STUB
 chmod +x "$tmp/claude"

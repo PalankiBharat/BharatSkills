@@ -175,7 +175,7 @@ def git_dirty() -> bool | None:
     return bool(result.stdout.strip())
 
 
-def autopilot_banner(active_phase_id: str | None) -> str:
+def autopilot_banner(folder, active_phase_id: str | None) -> str:
     """Emit a deterministic mode banner when running under the tmux autopilot.
 
     Mode is signalled by KMM_AUTOPILOT_ROLE so worker/orchestrator behaviour
@@ -184,6 +184,7 @@ def autopilot_banner(active_phase_id: str | None) -> str:
     role = os.environ.get("KMM_AUTOPILOT_ROLE")
     if not role:
         return ""
+    orch = os.environ.get("KMM_ORCH_DIR") or f"{folder}/orchestration"
     if role == "worker":
         want = os.environ.get("KMM_AUTOPILOT_PHASE")
         lines = ["", "### AUTOPILOT WORKER MODE"]
@@ -191,7 +192,7 @@ def autopilot_banner(active_phase_id: str | None) -> str:
             lines.append(
                 f"⚠️ **PHASE MISMATCH** — orchestrator asked for phase `{want}` "
                 f"but the serialized state's active phase is `{active_phase_id}`. "
-                f"Do NOT run. Write `orchestration/phase-{want}.status` = "
+                f"Do NOT run. Write `{orch}/phase-{want}.status` = "
                 f"`FAILED` with this mismatch as the reason, then stop."
             )
             return "\n".join(lines) + "\n"
@@ -200,21 +201,21 @@ def autopilot_banner(active_phase_id: str | None) -> str:
             f"You are a headless phase worker for phase **{phase_id}**. Run only the "
             "active phase to completion (including its blocking retro). Do NOT "
             "advance to the next phase and do NOT wait for interactive input.",
-            "- First, check `orchestration/decision-response.md` — if present, "
+            f"- First, check `{orch}/decision-response.md` — if present, "
             "consume the human's answer(s), then delete it and continue.",
             "- On any of the four gated decision classes (dependency/library "
             "swap, behavior-changing fix, scope/plan flip, real-money/mutating "
             "journey) or an inherent escalation (missing device/login, PII, "
             "first-time detekt): append the question to "
-            "`orchestration/decision-request.md` (plain-language: problem, "
+            f"`{orch}/decision-request.md` (plain-language: problem, "
             "options, impacts, your recommendation), write "
-            f"`orchestration/phase-{phase_id}.status` = `BLOCKED`, then stop.",
+            f"`{orch}/phase-{phase_id}.status` = `BLOCKED`, then stop.",
             "- Batch independent gated decisions into one decision-request "
             "before stopping — never stop once per decision.",
-            f"- On clean completion write `orchestration/phase-{phase_id}.status` = "
+            f"- On clean completion write `{orch}/phase-{phase_id}.status` = "
             "`COMPLETE` and stop.",
             "- On unrecoverable failure write "
-            f"`orchestration/phase-{phase_id}.status` = `FAILED` + a one-line "
+            f"`{orch}/phase-{phase_id}.status` = `FAILED` + a one-line "
             "diagnostic (gradle log path / error summary) and stop.",
             "- Consult `references/orchestration.md` §Autopilot phase overrides "
             "for this phase's auto-decisions (e.g. Phase G opens a DRAFT PR).",
@@ -410,7 +411,7 @@ def main() -> int:
     print(format_report(branch, folder, states))
     active = active_phase(states)
     active_id = active[0] if active else None
-    banner = autopilot_banner(active_id)
+    banner = autopilot_banner(folder, active_id)
     if banner:
         print(banner)
     return 0
