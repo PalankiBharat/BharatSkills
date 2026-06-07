@@ -226,36 +226,27 @@ git commit -m "feat(kmm): Phase I ProductionDebug loop + binding ProductionRelea
 
 ## Group B — Autopilot orchestration layer
 
-### Task B1: Probe the `claude` CLI headless capability (verification, no code change)
+### Task B1: Confirm the `claude` CLI headless capability (already investigated — verify only)
 
-Some flags are version-dependent. Lock the exact flag-set the scripts will use BEFORE writing them, so the scripts target the installed CLI.
+The controller probed the installed CLI live (2026-06-07). **Recorded findings — do not re-derive, just confirm the version still matches:**
 
-**Files:** none (records findings into the next tasks' scripts).
+- CLI **2.1.168**.
+- **No `--max-turns` flag exists** (and no default turn cap in `-p` mode) — a `claude -p` session runs until the model finishes or errors. Workers therefore **omit `--max-turns`**; the worker's own `phase-<X>.status` file is the authoritative completion signal, and the process exit code / `is_error` is the "crashed before writing status" backstop.
+- Confirmed available: `-p/--print`, `--dangerously-skip-permissions`, `--permission-mode`, `--model`, `--output-format` (text/json/stream-json), `--no-session-persistence`.
+- `claude -p --output-format json --dangerously-skip-permissions` returns `{"subtype":"success","is_error":false,"num_turns":N,"result":...}` and exits 0 on success.
 
-- [ ] **Step 1: Print the CLI version + relevant flags**
-
-Run:
-```bash
-claude --version
-claude --help 2>&1 | grep -iE "print|dangerously|model|max-turns|output-format|session|permission-mode|setting"
+**Locked worker invocation (used in Task B3):**
 ```
-Expected: confirms `-p/--print`, `--dangerously-skip-permissions`, `--model`. Note whether `--max-turns`, `--output-format`, and a no-session-persistence flag exist (names vary by version).
-
-- [ ] **Step 2: Smoke a one-shot headless run that proves hooks fire**
-
-Run (from the worktree root, on a non-kmm branch so the resume hook stays silent — this only proves headless + exit code):
-```bash
-echo "say only the word PONG" | claude -p "respond with exactly: PONG" --dangerously-skip-permissions; echo "exit=$?"
+env KMM_AUTOPILOT_ROLE=worker KMM_AUTOPILOT_PHASE=<X> \
+  claude -p "<prompt>" --dangerously-skip-permissions --no-session-persistence
 ```
-Expected: output contains `PONG`, `exit=0`. Confirms run-to-completion + clean exit code.
 
-- [ ] **Step 3: Record the locked flag-set**
+**Files:** none.
 
-Write the confirmed worker invocation into a comment at the top of `scripts/run-phase-worker.sh` (Task B3). Baseline (adjust to what Step 1 confirmed):
-```
-claude -p "<prompt>" --dangerously-skip-permissions [--max-turns <N> if supported] [--model <m> if pinning]
-```
-If `--max-turns` exists, set it high (e.g. 400) so a long phase (D, I) cannot silently truncate; if it does NOT exist, note that workers rely on the phase's own completion and the status file. No commit (no file change yet).
+- [ ] **Step 1: Confirm the version matches the recorded findings**
+
+Run: `claude --version`
+Expected: `2.1.168` (or compatible). If MAJOR.MINOR differs materially, re-run `claude --help 2>&1 | grep -iE "max-turns|print|dangerously|output-format|no-session-persistence"` and reconcile the locked invocation before Task B3. No commit (no file change).
 
 ---
 
@@ -482,8 +473,8 @@ Create `SK/scripts/run-phase-worker.sh`:
 # Spawn one headless KMM-migration phase worker in a fresh tmux window, wait for
 # it to exit, then echo its status (COMPLETE | BLOCKED | FAILED).
 #
-# Worker invocation (locked in Task B1 — adjust --max-turns to the installed CLI):
-#   claude -p "<prompt>" --dangerously-skip-permissions
+# Worker invocation (locked in Task B1; CLI 2.1.168 has no --max-turns):
+#   claude -p "<prompt>" --dangerously-skip-permissions --no-session-persistence
 #
 # Usage: run-phase-worker.sh <PHASE_ID>
 # Env:   ORCH_DIR  = path to .../orchestration  (default: $PWD/.kmm-orch fallback)
@@ -504,7 +495,7 @@ prompt="Resume this KMM migration. Per the AUTOPILOT WORKER MODE banner, run onl
 # then the window's command exits. We block until the window is gone.
 tmux new-window -d -P -t "$session" -n "$window" -- \
   env KMM_AUTOPILOT_ROLE=worker KMM_AUTOPILOT_PHASE="$phase" \
-  claude -p "$prompt" --dangerously-skip-permissions
+  claude -p "$prompt" --dangerously-skip-permissions --no-session-persistence
 
 # Wait for the worker window to disappear (process exited).
 while tmux list-windows -t "$session" -F '#{window_name}' 2>/dev/null \
