@@ -263,10 +263,9 @@ def format_report(branch: str, folder: Path, states: dict[str, dict | None]) -> 
         lines.append("")
         lines.append(
             "All phases through I report `complete` — PR opened, code review "
-            "resolved, and parity QA handed off to kmm-qa-autopilot. If the PR "
-            "has not yet merged, the next action is the autopilot QA run / "
-            "merge. If the session is post-merge, offer worktree cleanup per "
-            "Phase E post-session steps."
+            "resolved, and the in-skill Phase I parity loop converged. If the "
+            "PR has not yet merged, the next action is merge. If the session is "
+            "post-merge, offer worktree cleanup per Phase E post-session steps."
         )
     else:
         phase_id, filename, name = active

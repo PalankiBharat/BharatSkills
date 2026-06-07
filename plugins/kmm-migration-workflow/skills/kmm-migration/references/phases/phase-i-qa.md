@@ -6,8 +6,6 @@
 
 **The loop reuses the migration's discipline — it does not bypass it.** Every parity-restoring fix routes through §Late-change discipline (failing-test-first → subagent edit → green → exception-if-behavior-shifts → commit → retro). The loop **schedules** that discipline per iteration; it never live-patches. A behavior-shifting fix, dependency change, plan-flip, eviction, or mutating/real-money journey **pauses** the loop at a human gate.
 
-(The standalone `kmm-qa-autopilot` skill still exists as a separate, optional, user-triggered tool, but it is **no longer the Phase I mechanism** — Phase I is self-contained.)
-
 **Inputs:** `pr.md` (PR URL, recorded at G.4), `review.md` (Phase H), `heatmap.md`, `journeys.md`, the frozen `golden/` tree, `validation.md`, `plan.md`, `coverage.md`, `project.md`.
 
 ---
