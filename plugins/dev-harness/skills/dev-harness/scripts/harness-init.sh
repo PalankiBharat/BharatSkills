@@ -175,19 +175,6 @@ if [ "$DO_TMUX" -eq 1 ]; then
   done
   tmux select-layout -t "$WIN" tiled >/dev/null 2>&1 || true
 
-  # Per-pane model switch for /model-only modes (e.g. opusplan): these can't be a launch
-  # flag, so once the pane's Claude has booted we send `/model <mode>` the same way we nudge
-  # (literal text, pause, separate Enter). Launch-flag models were already set in agent-pane.
-  ( sleep 8
-    for r in orchestrator tech-lead dev qa architect; do
-      m="$(role_model "$r" 2>/dev/null || echo opus)"
-      is_launch_model "$m" && continue
-      pane="$(cat "$ROOT/$r/pane" 2>/dev/null)"; [ -n "$pane" ] || continue
-      tmux send-keys -t "$pane" -l "/model $m" 2>/dev/null || true; sleep 0.5
-      tmux send-keys -t "$pane" Enter 2>/dev/null || true
-    done
-  ) >/dev/null 2>&1 &
-
   # Self-start the driver: write its standing order, let Claude boot, then nudge it.
   # From here the main session is LAUNCHER-ONLY — it must not also drive state.json.
   printf 'BEGIN. Drive the run for the story in .harness/story.md.\nDispatch the Tech Lead first, then loop: poll, advance on settle, pause for the user only at needs-user gates. Stay in your turn until the run is done, blocked, or needs the user.\n' \

@@ -29,6 +29,11 @@ BOOT_GRACE="${WATCHDOG_BOOT_GRACE:-30}"
 STUCK="${WATCHDOG_STUCK:-1800}"            # 30m of no activity before a gentle check-in
 CHECKIN_GRACE="${WATCHDOG_CHECKIN_GRACE:-600}"   # +10m re-confirmed silence before escalating
 PROJECTS_DIR="${WATCHDOG_PROJECTS_DIR:-$HOME/.claude/projects}"
+# Periodic full-pane SWEEP: every SWEEP_INTERVAL, regardless of in_flight, report every
+# role's status+activity and nudge the orchestrator to RECONCILE ALL panes. This is the
+# safety net for a missed settle / a dropped poll — the orchestrator can otherwise sit
+# polling one role while another already went done/blocked unnoticed.
+SWEEP_INTERVAL="${WATCHDOG_SWEEP_INTERVAL:-300}"   # 5m
 
 _mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
 _now()   { date +%s; }
@@ -62,12 +67,25 @@ send_pane() {  # <pane> <text>
 pane_of() { cat "$ROOT/$1/pane" 2>/dev/null; }
 
 settle_last=""
+sweep_last="$(_now)"   # first sweep one full interval after boot (panes are still starting)
 while :; do
   sleep "$INTERVAL"
   [ -f "$ROOT/.stop-watchdog" ] && break
   # Self-reap when the orchestrator pane is gone (window closed/crash) — never poll forever.
   [ -z "${WATCHDOG_WAKE_CMD:-}" ] && { pane_alive "$OPANE" || break; }
   now="$(_now)"
+
+  # ---- periodic SWEEP: reconcile ALL panes (runs before any early `continue` below) ----
+  if [ $(( now - sweep_last )) -ge "$SWEEP_INTERVAL" ]; then
+    sweep_last="$now"
+    report=""
+    for r in $HARNESS_ROLES; do
+      st="?"; [ -f "$ROOT/$r/status" ] && st="$(tr -d '\n' < "$ROOT/$r/status")"
+      report="$report$r=$st($(( now - $(last_activity "$r") ))s) "
+    done
+    printf '%s | SWEEP %s\n' "$(date -u +%FT%TZ)" "$report" >> "$ROOT/log.md"
+    send_pane "$OPANE" "SWEEP Reconcile ALL panes now — re-read each role's status file (not memory): $report. Handle any done/blocked you haven't acted on; if you stopped polling, resume. Don't stop until the run is done, blocked, or needs the user."
+  fi
 
   # ---- per-role liveness (independent of in_flight; the sole nudge path, also sandbox-safe) ----
   for r in $HARNESS_ROLES; do

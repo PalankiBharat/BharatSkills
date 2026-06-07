@@ -1,41 +1,54 @@
 #!/usr/bin/env bash
-# Contract for the lead personas — the regression that made juniors never spawn:
-# a lead told to dispatch its junior but whose tools: frontmatter never granted the
-# Agent tool. Lock the scoped grant so execution always delegates to the sonnet junior.
+# Contract for the merged team personas: one pane per role, no sub-workers.
+#   tech-lead=manish · dev=bharat · qa=rohit · architect=mohit (+ orchestrator)
+# Locks the strict rules that came out of live failures.
 . "$(dirname "$0")/_assert.sh"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 AG="$HERE/../../../agents"
 
 tools_line() { sed -n '1,8p' "$1" | grep -iE '^tools:'; }
 
-# --- the leads MUST grant the scoped Agent spawn tool for their own junior ---
-assert_contains "$(tools_line "$AG/mohit-dev.md")" "Agent(dev-harness:bharat-dev)"
-assert_contains "$(tools_line "$AG/rohit.md")"     "Agent(dev-harness:bharat-qa)"
+# --- the team is exactly these five files; the retired personas are gone ---
+for p in manish bharat rohit mohit orchestrator; do assert_file "$AG/$p.md"; done
+for old in mohit-dev bharat-dev bharat-qa mohit-arch; do
+  [ -f "$AG/$old.md" ] && _FAIL "retired persona file still present: $old.md"
+done
 
-# --- the juniors are leaf workers: they never spawn (no Agent tool) ---
-case "$(tools_line "$AG/bharat-dev.md")" in *Agent*) _FAIL "bharat-dev must not grant Agent (leaf worker)";; esac
-case "$(tools_line "$AG/bharat-qa.md")"  in *Agent*) _FAIL "bharat-qa must not grant Agent (leaf worker)";;  esac
+# --- no role spawns sub-workers anymore: no Agent tool anywhere ---
+for p in manish bharat rohit mohit orchestrator; do
+  case "$(tools_line "$AG/$p.md")" in *Agent*) _FAIL "$p must not grant the Agent tool (no sub-workers)";; esac
+done
 
-# --- the personas state the delegation as a hard rule, not a preference ---
-assert_contains "$(cat "$AG/mohit-dev.md")" "never type app code"
-assert_contains "$(cat "$AG/mohit-dev.md")" "process failure"
-assert_contains "$(cat "$AG/rohit.md")"     "never write or run test code"
-assert_contains "$(cat "$AG/rohit.md")"     "process failure"
+# --- Bharat = the sole Dev: figma mandatory, never decides, plans+codes itself ---
+assert_contains "$(cat "$AG/bharat.md")" "figma-to-compose"
+assert_contains "$(cat "$AG/bharat.md")" "MANDATORY"
+assert_contains "$(cat "$AG/bharat.md")" "do NOT make decisions"
+assert_contains "$(cat "$AG/bharat.md")" "ask and stop"
 
-# --- bharat-qa context hygiene: verdict from text, never read screenshots into context ---
-assert_contains "$(cat "$AG/bharat-qa.md")" "never read screenshots"
-assert_contains "$(cat "$AG/bharat-qa.md")" "qa-cases.md"
-
-# --- rohit thinks like a real user + quality analyst, and coverage is a structured checklist ---
+# --- Rohit = the sole QA: real user + analyst, structured coverage, context hygiene, runs Maestro itself ---
 assert_contains "$(cat "$AG/rohit.md")" "real-world user"
 assert_contains "$(cat "$AG/rohit.md")" "qa-cases.md"
+assert_contains "$(cat "$AG/rohit.md")" "never read screenshots"
 for cat in "Invalid" "Boundary" "Interruption" "network"; do
   assert_contains "$(cat "$AG/rohit.md")" "$cat"
 done
 
-# --- the orchestrator gates on coverage, runs a final regression, relieves QA context ---
+# --- Mohit = Architect: technical design + quality review, never UI ---
+assert_contains "$(cat "$AG/mohit.md")" "never touch UI"
+
+# --- HARD RULE on EVERY worker: missing input -> ask the user, never assume/fabricate ---
+for p in manish bharat rohit mohit; do
+  assert_contains "$(cat "$AG/$p.md")" "ASK — never assume"
+done
+# --- the orchestrator routes a blocked-with-question to the user, never answers it ---
+assert_contains "$(cat "$AG/orchestrator.md")" "needs-user gate"
+
+# --- Orchestrator: coverage gate + final regression + SWEEP + figma + dev-doubt = user gate ---
 assert_contains "$(cat "$AG/orchestrator.md")" "Final QA regression"
 assert_contains "$(cat "$AG/orchestrator.md")" "qa-cases.md"
 assert_contains "$(cat "$AG/orchestrator.md")" "restart qa"
+assert_contains "$(cat "$AG/orchestrator.md")" "SWEEP"
+assert_contains "$(cat "$AG/orchestrator.md")" "figma-to-compose"
+assert_contains "$(cat "$AG/orchestrator.md")" "user gate"
 
 echo OK
