@@ -28,8 +28,18 @@ The harness runs a visible team across **6 tiled tmux panes** — a **driving Or
 ## Loop bounds
 Dev pair: no cap (bounded by the plan's chunks). QA fix: **7**/phase. Architect: **3**. Global QA→Architect cycles: **3**. Then escalate to the user.
 
-## Read next
-`agents/orchestrator.md` (the driver persona — runs in the Orchestrator pane) · `references/orchestrator.md` (the playbook) · `orchestrator-prompts.md` · `protocol.md` · `skill-bindings.md` · the team agents in `agents/` (manish · bharat · rohit · mohit) · `restart.md` · `resume.md` · `html-interaction.md`.
+## Read next — load on demand, not up front
+| When you are… | Read |
+|---|---|
+| driving the run (the Orchestrator pane persona) | `agents/orchestrator.md` (authoritative; `references/orchestrator.md` is its summary — agent file wins) |
+| composing a dispatch or handling a user command | `references/orchestrator-prompts.md` |
+| unsure about the mailbox/status/state file contract | `references/protocol.md` |
+| picking which skill a role should use | `references/skill-bindings.md` |
+| respawning a pane mid-run | `references/restart.md` |
+| recovering after a dead session / user says "continue" | `references/resume.md` |
+| rendering a human gate page | `references/html-interaction.md` |
+| launching with `--sandbox` or `--worktree` | `references/sandbox.md` · `references/multirun.md` |
+| acting as a team role | `agents/manish.md` · `agents/bharat.md` · `agents/rohit.md` · `agents/mohit.md` |
 
 ## Scope
 v1.5: full single-run phased pipeline. **v2 (built):** opt-in OS sandbox (`--sandbox`, see `references/sandbox.md`), themed review pages, and the multi-run core (`--worktree` + cross-run registry + heartbeat + per-run lock, see `references/multirun.md`). **Still deferred:** auto-raising skill-feedback PRs; the reattach/picker flow is smoke-only.

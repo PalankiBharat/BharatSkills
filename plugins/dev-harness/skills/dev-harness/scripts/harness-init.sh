@@ -25,6 +25,11 @@ done
 [ -n "$STORY" ] && [ -n "$SLUG" ] || { echo "usage: harness-init.sh --story <s> --slug <slug>" >&2; exit 2; }
 [ -d .git ] || { echo "run from a git repo root" >&2; exit 2; }
 
+# Pin the run's git coordinates BEFORE any branch is created — agents have pushed to the
+# wrong fork and rebased onto the wrong base when these were recalled from memory mid-run.
+BASE="$(git rev-parse --abbrev-ref HEAD)"
+REMOTE="$(git remote get-url origin 2>/dev/null || echo '')"
+
 DATE="$(date +%Y%m%d)"; RUN_ID="$SLUG-$(date +%Y%m%d-%H%M%S)"; BRANCH="harness/$SLUG-$DATE"
 WIN="harness-$SLUG-$DATE"   # tmux window name carries the branch identity
 
@@ -124,8 +129,8 @@ EOF
 chmod +x "$ROOT/resume"
 printf '%s\n' "$STORY" > "$ROOT/story.md"
 printf '# Orchestrator ledger\n\n- init  run=%s  branch=%s\n' "$RUN_ID" "$BRANCH" > "$ROOT/log.md"
-printf '{"run_id":"%s","slug":"%s","branch":"%s","stage":"init","phase":null,"in_flight":null,"heartbeat":"%s"}\n' \
-  "$RUN_ID" "$SLUG" "$BRANCH" "$(date -u +%FT%TZ)" > "$ROOT/state.json"
+printf '{"run_id":"%s","slug":"%s","branch":"%s","base":"%s","remote":"%s","stage":"init","phase":null,"in_flight":null,"heartbeat":"%s"}\n' \
+  "$RUN_ID" "$SLUG" "$BRANCH" "$BASE" "$REMOTE" "$(date -u +%FT%TZ)" > "$ROOT/state.json"
 
 registry_add "$RUN_ID" "$PWD" "$PWD" "$BRANCH" "$WIN"   # cross-run registry (v2)
 

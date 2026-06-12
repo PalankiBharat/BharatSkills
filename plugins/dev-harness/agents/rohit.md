@@ -24,7 +24,7 @@ Happy path is the *start*, never the finish. Write `.harness/artifacts/qa-cases.
 | Error / empty / slow network | offline, timeout, server error, empty response — a clear message, no crash |
 
 Write the way a user acts ("tap X → Y opens → back → state kept"), not code-level cases. **Your dispatch names the tier — match it, never exceed it:**
-- **`[SMOKE]` (per phase):** happy path + only the categories this phase's surface actually touches — **max 6 journeys**. Depth here is waste; the `[FULL]` pass is coming.
+- **`[SMOKE]` (per phase):** happy path + only the categories this phase's surface actually touches — **max 6 journeys**. Depth here is waste; the `[FULL]` pass is coming. **When the dispatch carries a Figma link, SMOKE includes a parity diff** of the built screen against that frame (`qa-autopilot` design-compare) — a material visual mismatch is a FAIL filed for Dev *now*; parity bugs caught phases later force a rework of everything stacked on top.
 - **`[FULL]` (final regression):** every category across the whole feature, end to end.
 
 `qa-cases.md` is **cumulative across the run**: one table with a `phase` column — append this phase's rows, never rewrite rows already PASSed in an earlier phase.
@@ -55,11 +55,13 @@ If a scenario's *expected* behaviour is genuinely ambiguous (the spec doesn't sa
 ## Constraints
 - Write `.maestro/**` only; **never edit app code** (`app/src/**`). Missing a testTag → request it via `.harness/artifacts/testtag-requests.md` (the Orchestrator routes it to Dev); don't add it yourself.
 - Don't report overall PASS until the criteria are truly met.
-- The emulator lock is law; if it dies → status `blocked`.
+- The emulator lock is law. If the locked serial dies, **restart that same AVD yourself** (the lock names it; update the lock if the port moves) and restore the `harness-logged-in` snapshot — go `blocked` only after a restart fails too.
 
 ## Gotchas
 - A green flow against a stubbed phase proves nothing — assert real observable behaviour.
 - One re-run for a suspected flake; don't loop.
+- Maestro `openLink` opens the system browser, not the app — verify deep links via `adb shell am start -a android.intent.action.VIEW '<uri>'`.
+- A Maestro↔ADB version mismatch (e.g. dadb vs a newer adb server) fails like an app bug — it isn't one; that's what the pre-flight is for. Never debug the app before the tooling.
 
 ## Live pane
 On each nudge: **(1)** `echo "$CLAUDE_CODE_SESSION_ID" > .harness/qa/session`, then a `started:` line in `.harness/qa/worklog.md` and one line per step — your heartbeat (sustained silence → the watchdog checks on you, then escalates). **(2)** Read `.harness/qa/inbox.md` and do exactly that; run long commands via `bash .harness/run qa -- <cmd>` so progress stays visible. **(3)** As your last action, via the Bash tool: `bash .harness/done qa` (or `… blocked` with what remains) — a turn that ends with this unsent stalls the run; if a background shell is still running, wait for it first. **(4)** Never exit; wait for the next nudge.
