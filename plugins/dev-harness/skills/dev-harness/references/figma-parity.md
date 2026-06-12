@@ -2,9 +2,26 @@
 
 The moment a phase carries a Figma link, parity becomes a **generated artifact** (a parity sheet + a number), not an opinion. Dev produces it before QA ever sees the phase; once approved it is locked as a regression gate.
 
-## One-time module setup — only if the plugin is missing
+## Render source — use the project's own screenshot tool first
 
-**Check first**: `grep -r "com.android.compose.screenshot" <module>/build.gradle*` and the version catalog. **Already applied → skip this whole section.** If missing, add (test-only — zero effect on production code, the APK, or iOS builds; note the build change in `dev-handoff.md`):
+**Detect before adding anything**: grep the module build files **and** the version catalog for the plugin ids below, and **use the first headless tool you find in its own idiom** — never install a second screenshot stack beside an existing one.
+
+| Plugin id | Tool | Record (render) | Verify (drift lock) | Render PNGs land in |
+|---|---|---|---|---|
+| `com.android.compose.screenshot` | Google CPST | `:m:update<Variant>ScreenshotTest` | `:m:validate<Variant>ScreenshotTest` | `src/screenshotTest/<variant>/reference/` |
+| `io.github.takahirom.roborazzi` | Roborazzi | `:m:recordRoborazzi<Variant>` | `:m:verifyRoborazzi<Variant>` | `build/outputs/roborazzi/` |
+| `app.cash.paparazzi` | Paparazzi | `:m:recordPaparazzi<Variant>` | `:m:verifyPaparazzi<Variant>` | `src/test/snapshots/images/` |
+| `shot` · `dropshots` · `dev.testify` | instrumentation | runs on the locked emulator — slow; don't extend it for parity, add CPST below instead | | |
+
+Whatever the tool: write the **frame-sized composable test/preview in that tool's idiom**, run its record task, take the PNG from its output dir, and feed `bash .harness/figma-parity diff` — the diff, sheet, DIFF_PCT and gate are tool-agnostic. After approval, the **drift lock is that tool's verify task** (same role as `validateScreenshotTest` everywhere this doc or a dispatch mentions it).
+
+Tool quirks worth knowing:
+- **Paparazzi runs only in library modules** — if the screen lives in `:app`, put the test in the UI library module that owns the composable, or fall back to CPST.
+- **Roborazzi can auto-generate tests from `@Preview`**: `roborazzi { generateComposePreviewRobolectricTests { enable = true } }`.
+
+## No headless tool in the project? Add Google's CPST (the default)
+
+Only when the table above found nothing headless, add (test-only — zero effect on production code, the APK, or iOS builds; note the build change in `dev-handoff.md`):
 
 ```properties
 # gradle.properties
@@ -64,7 +81,7 @@ The approved renders ARE the goldens. Every later chunk/phase/fix keeps
 
 ## Gotchas
 
-- The plugin is **alpha**: pin the version; a rendering crash is a tooling `blocked`, not an app bug.
-- Memory-hungry on big modules: `android.compose.screenshot.maxHeapSize=4g` in `gradle.properties`.
+- Google's CPST plugin is **alpha**: pin the version; a rendering crash is a tooling `blocked`, not an app bug. (If it misbehaves, Roborazzi is the drop-in fallback — same workflow shape.)
+- CPST is memory-hungry on big modules: `android.compose.screenshot.maxHeapSize=4g` in `gradle.properties`.
 - Renaming a preview function orphans its golden — regenerate via `updateScreenshotTest` in the same commit.
 - The Figma export must be the **frame node**, not a group inside it, or dimensions won't correspond.

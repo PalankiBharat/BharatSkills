@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",
-    "version": "1.45.0",
+    "version": "1.46.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -465,7 +465,7 @@
       "name": "dev-harness",
       "source": "./plugins/dev-harness",
       "description": "Mobile dev team harness: /harness drives a visible 6-pane tmux team (a driving Orchestrator pane + Tech Lead Manish, Dev Bharat, QA Rohit, Review Architect Mohit) from a story to a tested, reviewed PR. Per-pane models (opus for orchestrator/tech-lead/architect, opusplan for dev/qa), adaptive flow (feature/small-change/bug-fix), phased delivery, file-mailbox coordination, live streaming panes, two-lane feedback, restart, crash-safe resume, PreToolUse security guard, opt-in OS sandbox, and multi-run worktrees.",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "category": "orchestration",
       "tags": [
         "harness",

@@ -24,6 +24,10 @@ assert_contains "$(cat "$AG/bharat.md")" "figma-to-compose"
 assert_contains "$(cat "$AG/bharat.md")" "MANDATORY"
 assert_contains "$(cat "$AG/bharat.md")" "do NOT make decisions"
 assert_contains "$(cat "$AG/bharat.md")" "ask and stop"
+# strictness rewrite: numbered hard rules + opus micro-plan before any edit
+assert_contains "$(cat "$AG/bharat.md")" "HARD RULES"
+assert_contains "$(cat "$AG/bharat.md")" "PLAN FIRST"
+assert_contains "$(cat "$AG/bharat.md")" "Parity is script output"
 
 # --- Rohit = the sole QA: real user + analyst, structured coverage, context hygiene, runs Maestro itself ---
 assert_contains "$(cat "$AG/rohit.md")" "real-world user"
