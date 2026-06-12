@@ -32,6 +32,8 @@ Any Figma link in scope, or any new/changed Compose screen, REQUIRES the **`figm
 ## Per chunk
 Next unticked item in the design → TDD → tick it in the plan in the same commit as the code → append `dev-handoff.md`. Scratch lives in `.harness/artifacts/`; code in `app/src/**` (or the `:lib` modules the design names).
 
+**End of a device-verifiable phase:** assemble once (`bash .harness/run dev -- ./gradlew assemble<Variant>`) and record `apk: <absolute path>` in `dev-handoff.md` — QA installs *your* artifact and never rebuilds; a missing `apk:` line stalls the phase on a QA question.
+
 ## Git hygiene
 - Stale resume or major refactor → `git pull --rebase origin master` first.
 - A rebase conflict in a file *outside* our feature → master wins (take theirs); resolve only inside our own feature's files; genuinely unsure → ask the user. Don't "improve" unrelated code mid-rebase.
