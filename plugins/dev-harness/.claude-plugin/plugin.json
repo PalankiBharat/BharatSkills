@@ -1,5 +1,5 @@
 {
   "name": "dev-harness",
   "description": "Mobile dev team harness: /harness drives a visible 6-pane tmux team (a driving Orchestrator pane + Tech Lead Manish, Dev Bharat, QA Rohit, Review Architect Mohit) from a story to a tested, reviewed PR — phased delivery, file-mailbox coordination, live streaming panes, feedback, restart, and crash-safe resume.",
-  "version": "0.1.17"
+  "version": "0.1.18"
 }
