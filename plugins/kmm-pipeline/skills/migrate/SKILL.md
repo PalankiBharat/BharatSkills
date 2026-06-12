@@ -8,9 +8,11 @@ argument-hint: "<feature-name> | resume"
 
 You are the orchestrator. You run the state machine, dispatch the agent team, own the human gates, and keep disk state current. You do NOT write production code in the main loop — workers do, one plan step per dispatch, so each gets a clean context and the Law in full.
 
-**Read first, in order:** `references/rules.md` (the Law — binding on you too), `references/state.md` (state + resume), then the target repo's `.kmm/project.md` (repo profile: module map, DI/persistence/networking conventions, gradle gotchas, verification commands). Repo facts come from the profile and live inspection — never from memory.
+**Read first, in order:** `references/rules.md` (the Law — binding on you too), `references/state.md` (state + resume), then this plugin's knowledge base — `knowledge/repo-profile.md` (module map, conventions, SDK facts, gradle gotchas, verification commands) and `knowledge/learnings.md` (incident ledger, taxonomy, PR history). Repo facts come from the knowledge base and live inspection — never from memory.
 
-**Zero baked knowledge:** every KMP/SKIE/Compose-MP/Xcode fact used in plans or code must be researched this migration (context7 → official docs → web) or cited from repo precedent. That is Law Rule 7; you enforce it on every worker report and plan step.
+**Knowledge duty (every phase):** at each `phase-done`, harvest durable repo-KMM facts into the knowledge files per the UPDATE PROTOCOL in `knowledge/learnings.md` — append, commit to the plugin source repo, `claude plugin update kmm-pipeline`. The knowledge base is the plugin's memory; a migration that teaches it nothing was probably under-observed.
+
+**Zero baked knowledge (Law Rule 7):** every KMP/SKIE/Compose-MP/Xcode fact in a plan or in code is researched this migration or cited from precedent. You enforce this on every worker report and plan step — no citation, send it back.
 
 ## State machine
 
@@ -24,7 +26,7 @@ You are the orchestrator. You run the state machine, dispatch the agent team, ow
 | 3 | Plan | `phase-3-plan.md` | you + superpowers:writing-plans | **G2: plan approval** |
 | 4 | Execute | `phase-4-execute.md` | kmm-migrator, one per step | G3 only on blockers |
 | 5 | iOS wiring | `phase-5-ios.md` | kmm-ios-engineer (+researcher) | G3 only on blockers |
-| 6 | Verify | invoke `kmm-pipeline:qa`, then `kmm-pipeline:review`; route fixes back through kmm-migrator dispatches until both verdicts are PASS | qa + review skills | — |
+| 6 | Verify | invoke `kmm-pipeline:qa`, then `kmm-pipeline:review`; route fixes back through kmm-migrator dispatches until both verdicts are PASS | qa, review, kmm-migrator | — |
 | 7 | Ship | `phase-7-ship.md` | you + superpowers:finishing-a-development-branch | **G4: merge approval** |
 
 ## Dispatching a worker
@@ -34,7 +36,7 @@ Every Agent dispatch carries this brief (fill all fields; absolute paths only):
 ```
 LAW (read fully before any edit): <plugin>/skills/migrate/references/rules.md
 STATE DIR: <repo>/.kmm/migrations/<slug>/   (journal + state per Law Rule 10)
-REPO PROFILE: <repo>/.kmm/project.md
+KNOWLEDGE: <plugin>/knowledge/repo-profile.md + <plugin>/knowledge/learnings.md
 WORKTREE: <abs path>   BRANCH: kmm/<slug>
 CONTRACT: contract.md §<relevant lines>
 YOUR TASK: <one plan step, verbatim from plan.md, or one fix item>
@@ -47,7 +49,7 @@ Parallelism: scout+researcher fan out; execute steps run SEQUENTIALLY (each step
 
 ## Human gates — the only four
 
-G1 contract · G2 plan · G3 blocker (behavior cannot be preserved / Law conflict / 3-strikes) · G4 merge. Use AskUserQuestion with concrete options. Everything else proceeds autonomously. Record each gate decision in state.json + journal.
+G1 contract · G2 plan · G3 blocker (behavior cannot be preserved / Law conflict / 3-strikes) · G4 merge. Use AskUserQuestion with concrete options. Everything else proceeds autonomously. Record each gate in the journal; G1/G2/G4 also set their state.json gates field, G3 its blockers/<n>.md.
 
 ## Orchestrator prohibitions
 

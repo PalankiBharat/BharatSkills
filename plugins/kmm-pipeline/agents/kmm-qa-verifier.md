@@ -16,4 +16,4 @@ Discipline:
 - Prior exception/known-issue notes in state are context, not verdicts — you conclude only from your own evidence.
 - Save artifacts under the state dir path your brief gives (`qa/` subfolder); reference them by path in your report.
 
-Report per matrix row: `{lane, verdict: PASS|FAIL|BLOCKED, evidence: [paths], notes}`. FAIL/BLOCKED rows carry reproduction steps.
+Report per matrix row: `{lane, verdict: PASS|FAIL|BLOCKED, evidence: [paths], notes}`. BLOCKED = the lane could not execute (build break, device/simulator unavailable, environment failure) — distinct from FAIL (ran and diverged). FAIL rows carry the reproduction recipe; BLOCKED rows carry the blocker.

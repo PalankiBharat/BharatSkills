@@ -4,8 +4,8 @@ End-to-end, resumable KMM feature migration for **sniper-v2-android**: Android f
 
 ## Why it looks like this
 
-- **Zero baked KMM knowledge.** KMP/SKIE/CMP facts go stale; a `kmm-researcher` agent fetches them live (context7 → official docs → web) per migration, with citations mandatory and `UNKNOWN` allowed. Repo facts live in the repo's committed `.kmm/project.md`, which the pipeline reads at start and grows at close.
-- **Discipline is enforced, not requested.** A PreToolUse guard (`scripts/migration_guard.py`, armed only while `.kmm/migrations/ACTIVE` exists) hard-blocks: copy-instead-of-`git mv`, android/ios/apple/darwin names, comment additions, `.broken` test silencing, untracked `@Ignore`, swallowed `CancellationException`, `Clock.System.now()` in commonMain, log-line deletion, ObjectBox schema edits, pre-release versions, raw dependency coordinates, `--rerun-tasks`, and `rm -r` on migration state. 27-case test suite: `tests/test-guard.sh`.
+- **Platform knowledge is fetched, project knowledge is owned.** KMP/SKIE/CMP facts go stale, so a `kmm-researcher` agent fetches them live (context7 → official docs → web) with citations mandatory and `UNKNOWN` allowed. Project-specific KMM knowledge lives IN this plugin — `knowledge/repo-profile.md` (modules, SDKs, conventions, gotchas) and `knowledge/learnings.md` (incident ledger, PR-history taxonomy) — and updates at each phase boundary that surfaces a durable fact: harvest → commit to the plugin repo → `claude plugin update`. The next migration always starts with everything the last one learned, with no sniper-PR merge in the way; team sharing rides a plugin-repo PR at ship.
+- **Discipline is enforced, not requested.** A PreToolUse guard (`scripts/migration_guard.py`, armed only while `.kmm/migrations/ACTIVE` exists) hard-blocks: copy-instead-of-`git mv`, android/ios/apple/darwin names, comment additions, `.broken` test silencing, untracked `@Ignore`, swallowed `CancellationException`, raw `viewModelScope.launch` in commonMain (K/N-fatal class), `Clock.System.now()` in commonMain, log-line deletion, ObjectBox schema edits, pre-release versions, raw dependency coordinates, `--rerun-tasks`, and `rm -r` on migration state. 32-case test suite: `tests/test-guard.sh`.
 - **State on disk, resume anywhere.** `.kmm/migrations/<slug>/` (git-excluded) holds the cursor, journal, contract, plan, research, and reports. A SessionStart banner surfaces in-flight migrations; `/kmm-pipeline:migrate resume` reconciles journal vs git and continues.
 - **Humans gate only what changes behavior**: contract (G1), plan (G2), blockers (G3), ship (G4). Everything else is autonomous.
 
@@ -19,7 +19,7 @@ End-to-end, resumable KMM feature migration for **sniper-v2-android**: Android f
 
 Agents (the team): `kmm-scout`, `kmm-researcher`, `kmm-migrator`, `kmm-ios-engineer`, `kmm-qa-verifier`, `kmm-reviewer`.
 
-It composes rather than rebuilds: superpowers (writing-plans, TDD, systematic-debugging, receiving-code-review, verification, worktrees, finishing-a-branch), graphify (scoping + post-change update), context7/web (live docs), Maestro (one flow, both platforms — `accessibilityIdentifier` mirrors `testTag`).
+It composes rather than rebuilds: superpowers (writing-plans, TDD, systematic-debugging, receiving-code-review, worktrees, finishing-a-branch), graphify (scoping + post-change update), context7/web (live docs), Maestro (one flow, both platforms — `accessibilityIdentifier` mirrors `testTag`).
 
 ## Install
 

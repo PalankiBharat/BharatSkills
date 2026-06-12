@@ -1,6 +1,6 @@
 {
   "name": "kmm-pipeline",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "End-to-end KMM feature migration pipeline for sniper-v2-android — one feature at a time from scoping to merged PR: graphify-driven boundary mapping, live-docs research (context7/web, zero baked KMM knowledge), human-gated parity contract and plan, TDD git-mv migration into :shared with surgical-edit discipline, Punch/ iOS wiring via SKIE, cross-platform Maestro parity QA, adversarial KMM-specific review, and resumable disk state with PreToolUse guard hooks that block copy-instead-of-move, android/ios naming, comment additions, and known-broken gradle flags.",
   "author": {
     "name": "PunchHQ",

@@ -61,6 +61,13 @@ print(json.dumps({"tool_name": "Bash", "tool_input": {"command": sys.argv[1]}}))
 PY
 }
 
+multiedit_payload() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import json, sys
+print(json.dumps({"tool_name": "MultiEdit", "tool_input": {"file_path": sys.argv[1], "edits": [{"old_string": sys.argv[2], "new_string": sys.argv[3]}]}}))
+PY
+}
+
 run_case "D1 copy-instead-of-move into shared" deny \
   "$(write_payload "$ROOT/shared/src/commonMain/kotlin/com/x/LoginPresenter.kt" 'package com.x')"
 run_case "D2 banned affix in new filename" deny \
@@ -106,6 +113,16 @@ run_case "D17 git mv to banned name" deny \
 run_case "D18 rm -r on migration state" deny \
   "$(bash_payload "rm -rf .kmm/migrations/demo-feature")"
 
+run_case "D19 raw viewModelScope.launch in commonMain" deny \
+  "$(edit_payload "$ROOT/shared/src/commonMain/kotlin/com/x/V.kt" 'class V' 'class V {
+fun load() { viewModelScope.launch { fetch() } }
+}')"
+run_case "D20 git mv test to .broken" deny \
+  "$(bash_payload "git mv shared/src/commonTest/kotlin/com/x/T.kt shared/src/commonTest/kotlin/com/x/T.kt.broken")"
+run_case "D21 comment addition via MultiEdit" deny \
+  "$(multiedit_payload "$ROOT/app/src/main/java/com/x/LoginPresenter.kt" 'fun load()' '// migrated
+fun load()')"
+
 run_case "A1 write outside guarded scope" allow \
   "$(write_payload "$ROOT/.kmm/migrations/demo-feature/state.json" '{"phase":0}')"
 run_case "A2 clean new shared file" allow \
@@ -124,6 +141,15 @@ run_case "A6 clean swift addition" allow \
 func bindState()')"
 run_case "A7 rm ACTIVE marker (close-out)" allow \
   "$(bash_payload "rm .kmm/migrations/ACTIVE")"
+run_case "A11 @Ignore with tracking ref" allow \
+  "$(edit_payload "$ROOT/shared/src/commonTest/kotlin/com/x/T.kt" 'fun a()' '@Ignore("flaky — #123")
+fun a()')"
+
+run_case "A10 safeLaunch in commonMain" allow \
+  "$(edit_payload "$ROOT/shared/src/commonMain/kotlin/com/x/V.kt" 'class V' 'class V {
+fun load() { safeLaunch(onError = ::show) { fetch() } }
+}')"
+
 run_case "A8 catch with rethrow" allow \
   "$(edit_payload "$ROOT/shared/src/commonMain/kotlin/com/x/R.kt" 'val x = 1' 'val x = 1
 try { load() } catch (e: CancellationException) { throw e } catch (e: Exception) { log(e) }')"

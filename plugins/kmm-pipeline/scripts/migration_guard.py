@@ -18,15 +18,16 @@ BANNED_PLATFORM_TOKENS = {"android", "ios", "apple", "darwin"}
 CODE_SUFFIXES = (".kt", ".kts", ".swift")
 BUILD_SUFFIXES = (".gradle", ".gradle.kts", ".toml")
 
-COMMENT_LINE = re.compile(r"^\s*(//|/\*|\*/|\*([^/=*]|$))")
+COMMENT_LINE = re.compile(r"^\s*(//|/\*|\*/|\*(\s|$))")
 LOG_CALL = re.compile(r"\b(Log|Timber|Napier|NSLog|os_log)[.(]")
 DECL_NAME = re.compile(
     r"\b(?:class|object|interface|fun|val|var|typealias|struct|enum|protocol|func|actor|let)\s+`?([A-Za-z_]\w*)"
 )
 CATCH_BROAD = re.compile(r"catch\s*\(\s*\w+\s*:\s*(?:Exception|Throwable)\b")
+RAW_VIEWMODEL_LAUNCH = re.compile(r"viewModelScope\.launch\s*[({]")
 WALL_CLOCK = re.compile(r"Clock\.System\.now\s*\(")
-IGNORE_ANNOTATION = re.compile(r"@Ignore\b")
-IGNORE_WITH_TRACKING = re.compile(r"@Ignore\s*\(\s*\"[^\"]*(?:#\d+|https?://)")
+IGNORE_BLOCK = re.compile(r"@Ignore\b\s*(\([^()]*\))?", re.S)
+TRACKING_REF = re.compile(r"#\d+|https?://")
 UNPORTABLE_TEST_NAME = re.compile(r"fun\s+`[^`]*[,()./\\\[\]<>][^`]*`")
 PRERELEASE_VERSION = re.compile(
     r"[\"'][^\"']*\d+\.\d+[^\"']*(alpha|beta|rc[.\-0-9]|snapshot|-local)[^\"']*[\"']", re.I
@@ -176,10 +177,12 @@ def guard_file_tool(tool, tool_input, project_dir):
             deny("Rule 1: " + basename + " exists under app/src — relocations are `git mv`, never a fresh Write (copy severs history and invites drift).")
 
     for line in added_all:
-        for declaration in DECL_NAME.finditer(line):
+        declaration_scan = re.sub(r"\"[^\"]*\"", "\"\"", line)
+        for declaration in DECL_NAME.finditer(declaration_scan):
             if name_has_banned_platform_token(declaration.group(1)):
                 deny("Rule 4: new declaration '" + declaration.group(1) + "' carries a platform affix — express the platform split via source sets, not names.")
-        if IGNORE_ANNOTATION.search(line) and not IGNORE_WITH_TRACKING.search(line):
+    for annotation in IGNORE_BLOCK.finditer(added_text):
+        if not TRACKING_REF.search(annotation.group(1) or ""):
             deny("Rule 9: @Ignore requires a tracking reference in its message, e.g. @Ignore(\"flaky — #123\").")
 
     if comment_delta > 0:
@@ -190,6 +193,12 @@ def guard_file_tool(tool, tool_input, project_dir):
         deny("M3: a broad catch in shared code must rethrow CancellationException first — swallowing it has shipped 5 identical review blockers here.")
     if "/shared/src/commonMain/" in normalized and WALL_CLOCK.search(added_text):
         deny("M14: no Clock.System.now() in commonMain production code — inject a Clock so baselines can pin time.")
+    if (
+        "/shared/src/commonMain/" in normalized
+        and RAW_VIEWMODEL_LAUNCH.search(added_text)
+        and "safeLaunch" not in added_text
+    ):
+        deny("kn-fatal-coroutine: raw viewModelScope.launch in commonMain — an escaping exception is fatal on Kotlin/Native (10 of 12 blockers in the #439 review). Use the KMMViewModel safeLaunch primitive.")
     if "/shared/src/commonTest/" in normalized and UNPORTABLE_TEST_NAME.search(added_text):
         deny("M4: backtick test names with ,()./\\[]<> break Kotlin/Native test compilation — use plain words.")
 

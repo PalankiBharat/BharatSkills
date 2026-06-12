@@ -5,27 +5,20 @@ Goal: every plan step done, journaled, and green. One kmm-migrator dispatch per 
 ## Loop, per step S<n>
 
 1. Mark `in-progress` in state.json (atomic: write temp file, `mv` over). Journal `dispatch`.
-2. Dispatch kmm-migrator with the standard brief (SKILL.md) + the verbatim step. The worker:
-   - reads the Law, the step, relevant contract lines, and the profile's verification commands;
-   - S0 only: writes baselines per Law Rule 9 (red-first where pinning new assertions, then green, then commit);
-   - move steps: `git mv` first, then whitelist edits only, compile-test gates, one commit per coherent unit using the repo's KMM commit style — `[Kmm - <Feature>] - If applied, this commit will <effect>`;
-   - appends journal events itself; returns the report contract.
-3. **Verify the report**: SHAs exist on the branch; gates list shows the step's commands with green results (JUnit XML checked, not task output — profile gotcha); `git diff -M90% --name-status <step-base>..HEAD` shows `R` for every moved file (Rule 1 evidence); journal entries present.
+2. Dispatch kmm-migrator with the standard brief (SKILL.md) + the verbatim step. Its method — baselines-first for S0, `git mv`-then-whitelist for moves, gates, commit style, journaling, report — lives in the agent file; don't re-spec it in the brief.
+3. **Verify the report** — beyond SKILL.md's baseline (SHAs + journal exist): the gates list shows the step's commands green via JUnit XML, not task output (knowledge-base gotcha); `git diff -M90% --name-status <step-base>..HEAD` shows `R` for every moved file (Rule 1 evidence).
 4. `done` → next step. `blocked` → blocker protocol below.
 
 ## Fix-loop doctrine (when a step's gate goes red)
 
-The worker invokes superpowers:systematic-debugging — root cause before any fix. After a FAILED fix attempt: the diagnosis is invalidated, not refined — re-investigate with a fresh lens treating the failed fix as data about what the root cause is NOT. Patch-chains (Fix N.1 on Fix N) are forbidden. Useful KMM-specific lenses: "does the sibling platform / an already-migrated feature implement this shape correctly — converge to it"; "is the cleanest KMM implementation different from the Android shape we're preserving — if so, STOP (behavior risk, G3)". Three failed dispatches on one step → G3 with the blocker file; never a fourth identical attempt.
+The worker runs its own failure protocol (systematic-debugging, fresh lens after a failed fix, no patch-chains — agent file). Pass these KMM lenses into any re-dispatch: "does the sibling platform / an already-migrated feature implement this shape correctly — converge to it"; "is the cleanest KMM implementation different from the Android shape we're preserving — if so, STOP (behavior risk, G3)". Three failed dispatches on one step → G3 with the blocker file; never a fourth identical attempt.
 
 ## Standing constraints
 
-- `:app` never stays red between steps — each step ends compiling with its tests green; there is no multi-step broken window.
-- Touching `:shared` → `:shared:compileKotlinIosArm64` is part of that step's gate, and `:shared:compileTestKotlinIosSimulatorArm64` whenever the step moved or added commonTest code (test sources have their own Kotlin/Native portability failures — JVM-only idioms, illegal backtick names). The iOS klib keeps compiling all the way through, not just at phase 5.
+- Steps touching `:shared` gate on all four compile targets — `:shared:compileDebugKotlinAndroid`, `:shared:compileKotlinMetadata`, `:shared:compileKotlinIosArm64`, `:app:compileProductionDebugKotlin` (the app compile catches cross-module call-site breaks pre-CI) — plus `:shared:compileTestKotlinIosSimulatorArm64` whenever the step moved or added commonTest code (test sources have their own Kotlin/Native portability failures). The iOS klib keeps compiling all the way through, not just at phase 5.
 - **One gradle build at a time, anywhere.** Never dispatch a second worker whose gates run gradle while another build is in flight (same or sibling worktree) — daemon/build-dir contention produces stuck workers and missing JUnit XML. This is the main reason execute steps run sequentially.
 - **Every gradle invocation gets a watchdog.** This host has no coreutils `timeout` (profile gotcha): run via background task with a per-task ceiling (compile ~10m, unit tests ~20m, assemble ~30m), monitor the log, kill + record a blocker on breach. A silent hang is a `blocked` step, not a longer wait.
-- **Rename-safe revert protocol.** Never `git checkout -- <path>` on a file that was `git mv`-ed this session — with a staged rename it restores the PRE-migration blob and destroys work. Revert = `git stash push` (snapshot first) or `git reset`/revert of whole commits, per the step's rollback line.
-- Baselines are frozen (Law Rule 9). A step that "needs" a baseline edit is either mis-planned (back to phase 3 for that step) or a behavior change (G3) — record the exception either way in `blockers/`, append-only.
-- Unrelated breakage discovered mid-step: quarantine + flag, never fix (Rules 3/9).
+- A step that "needs" a baseline edit (frozen, Law Rule 9) is either mis-planned (back to phase 3 for that step) or a behavior change (G3) — record the exception either way in `blockers/`, append-only.
 - Scope drift check on every report: files touched ⊆ files the step names. Anything extra → reject the report, re-dispatch with the violation named.
 
 Journal `phase-done` when all steps are `done`; set phase 5.
