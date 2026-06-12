@@ -1,0 +1,5 @@
+{
+  "name": "figma-to-compose",
+  "description": "Generates Jetpack Compose Kotlin code from Figma designs — Compose Multiplatform by default, Android via a flag — including design tokens, drawable assets, and multi-screen batch export. Enforces token/composable reuse, render verification, and a review checklist that prevent hallucinated elements and duplicated design systems.",
+  "version": "8.0.0"
+}

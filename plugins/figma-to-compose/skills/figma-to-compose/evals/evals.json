@@ -1,0 +1,54 @@
+{
+  "skill_name": "figma-to-compose",
+  "notes": "Structure follows the Anthropic skill-authoring guide's evaluation format. There is no built-in runner; execute each query against a fresh Claude instance with the skill loaded (Claude Code or claude.ai) and judge against expected_behavior. URLs must be replaced with real frames from a test Figma file the FIGMA_TOKEN can read. Each eval targets a previously observed failure mode.",
+  "evals": [
+    {
+      "skills": ["figma-to-compose"],
+      "query": "Implement this design in our app: https://www.figma.com/design/<KEY>/<File>?node-id=<single-frame> — the repo is at ./app",
+      "files": [],
+      "expected_behavior": [
+        "Copies the progress checklist into the response and checks items off while working",
+        "Runs figma-to-json.js and opens BOTH screen.json and screen-render.png before writing any code",
+        "Runs extract-tokens.js with --match-existing pointed at the repo, and references reusedName (not a new val) for every matched token",
+        "Generated screen code contains zero Color(0xFF...) literals, zero inline TextStyle constructors, and at most 1-2 Modifier.offset calls",
+        "Every Res.drawable / R.drawable reference corresponds to a file exported into assets/ during this run",
+        "Verifies the result against the render (Maestro capture, screenshot test, or explicit side-by-side review) before declaring done",
+        "Final summary lists reused tokens and composables by name"
+      ]
+    },
+    {
+      "skills": ["figma-to-compose"],
+      "query": "Build all the screens in this section: https://www.figma.com/design/<KEY>/<File>?node-id=<section-with-3+-frames>",
+      "files": [],
+      "expected_behavior": [
+        "One exporter run produces a separate figma-out/<screen>/ directory per frame plus index.json (no single tree spanning all screens)",
+        "Reports the screen list and processing order to the user before generating",
+        "Runs detect-components.js over ALL screen.json files in one invocation and acts on ACROSS SCREENS findings: shared structures become one composable, created once and reused",
+        "Processes screens sequentially through the full pipeline, re-running find-composables.js between screens",
+        "Does not run cleanup.js until after the final screen's review passes"
+      ]
+    },
+    {
+      "skills": ["figma-to-compose"],
+      "query": "Give me the Compose code for just this button: https://www.figma.com/design/<KEY>/<File>?node-id=<component-node>",
+      "files": [],
+      "expected_behavior": [
+        "Exports only the component subtree (node-id pins the export; no whole-screen export)",
+        "If detect-variants.js exits non-zero, STOPS and asks about missing states instead of inventing pressed/disabled colours",
+        "Searches composable-inventory.json before writing a new composable; if an equivalent exists in the repo, reuses or wraps it instead of emitting a parallel implementation",
+        "Emits a single parameterised @Composable named from the component (PascalCase), with tokens not hex literals"
+      ]
+    },
+    {
+      "skills": ["figma-to-compose"],
+      "query": "Implement this screen: https://www.figma.com/design/<KEY>/<File>?node-id=<frame> — note our design system already has SurfacePrimary, OnSurface, and AppTopBar in shared/designsystem/",
+      "files": [],
+      "expected_behavior": [
+        "figma-token-reuse.json drives every colour decision: hexes matching SurfacePrimary/OnSurface reference the existing names with correct imports; no parallel vals are created",
+        "The top bar reuses AppTopBar directly or via a feature-local wrapper; shared/designsystem/ files are not modified without the explicit-confirmation handshake",
+        "Dimensions.kt (if emitted) contains only values used 2+ times per dimensions.json; one-off dp values stay inline",
+        "Review checklist items a-i are explicitly walked before the final summary"
+      ]
+    }
+  ]
+}
