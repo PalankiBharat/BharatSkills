@@ -38,6 +38,7 @@ Dev pair: no cap (bounded by the plan's chunks). QA fix: **7**/phase. Architect:
 | respawning a pane mid-run | `references/restart.md` |
 | recovering after a dead session / user says "continue" | `references/resume.md` |
 | rendering a human gate page | `references/html-interaction.md` |
+| building or verifying UI against a Figma link | `references/figma-parity.md` |
 | launching with `--sandbox` or `--worktree` | `references/sandbox.md` · `references/multirun.md` |
 | acting as a team role | `agents/manish.md` · `agents/bharat.md` · `agents/rohit.md` · `agents/mohit.md` |
 

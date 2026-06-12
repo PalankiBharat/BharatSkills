@@ -122,6 +122,12 @@ for f in "$@"; do [ -s "$f" ] || { echo "MISSING/EMPTY: $f" >&2; miss=1; }; done
 exit $miss
 EOF
 chmod +x "$ROOT/require"
+# Figma parity: `bash .harness/figma-parity export|diff …` — design-vs-render sheet + DIFF_PCT.
+cat > "$ROOT/figma-parity" <<EOF
+#!/usr/bin/env bash
+exec bash "$HERE/figma-parity.sh" "\$@"
+EOF
+chmod +x "$ROOT/figma-parity"
 # Resume after a session reset: `bash .harness/resume` restarts the orchestrator pane if it's alive.
 cat > "$ROOT/resume" <<EOF
 #!/usr/bin/env bash
