@@ -128,6 +128,13 @@ cat > "$ROOT/figma-parity" <<EOF
 exec bash "$HERE/figma-parity.sh" "\$@"
 EOF
 chmod +x "$ROOT/figma-parity"
+# Parity gate page: `bash .harness/parity-review .harness/artifacts/parity` — design|render
+# per screen with a verdict + comment each; the user pastes the PARITY REVIEW block back.
+cat > "$ROOT/parity-review" <<EOF
+#!/usr/bin/env bash
+exec env HARNESS_ROOT="$ROOT" bash "$HERE/render-parity.sh" "\$@"
+EOF
+chmod +x "$ROOT/parity-review"
 # Resume after a session reset: `bash .harness/resume` restarts the orchestrator pane if it's alive.
 cat > "$ROOT/resume" <<EOF
 #!/usr/bin/env bash

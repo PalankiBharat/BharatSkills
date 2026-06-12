@@ -53,7 +53,9 @@ cmd_diff() {  # <design.png> <render.png> <out-dir>
   metric="$(magick compare -metric RMSE "$out/design-normalized.png" "$render" "$out/diff-heatmap.png" 2>&1 >/dev/null || true)"
   magick montage "$out/design-normalized.png" "$render" "$out/diff-heatmap.png" \
     -tile 3x1 -geometry +6+6 -background '#1e1e1e' "$out/parity-sheet.png"
-  echo "DIFF_PCT=$(rmse_pct "$metric")"
+  cp "$render" "$out/render.png"                      # self-contained: the review page reads only this dir
+  rmse_pct "$metric" > "$out/diff-pct.txt"
+  echo "DIFF_PCT=$(cat "$out/diff-pct.txt")"
   echo "SHEET=$out/parity-sheet.png"
 }
 

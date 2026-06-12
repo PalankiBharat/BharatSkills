@@ -39,6 +39,16 @@ HARNESS ANSWERS
 - writes `.harness/review/<kind>-<ts>.html`, prints the path, and `open`s it (skips with `--no-open` or when `open` is absent)
 - the page has a comment box + a **Copy reply** button (clipboard API, with a select-the-preview fallback for `file://`)
 
+## Figma parity gate → per-screen visual review
+
+`scripts/render-parity.sh <parity-root> [--no-open]` (wrapper: `bash .harness/parity-review …`) renders every screen under `.harness/artifacts/parity/` as **design left / render right** with the diff heatmap, an `approve | needs changes` verdict and a comment box per screen. **Copy reply** emits the parseable block the Orchestrator routes to Dev:
+
+```
+PARITY REVIEW
+[screen-a] approve
+[screen-b] needs-changes: header spacing too tight
+```
+
 ## The contract
 1. Orchestrator writes the payload (e.g. spec + phase plan) to a file.
 2. Calls `render-review.sh plan <file>` → page opens.

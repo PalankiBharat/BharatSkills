@@ -45,6 +45,18 @@ dependencies {
 
 Renders never byte-match a Figma export (font anti-aliasing, shadows). A low single-digit `DIFF_PCT` with a **quiet heatmap** is parity; localized hot spots are real mistakes (wrong color, spacing, missing element) regardless of the total. The sheet is the evidence a human approves in seconds.
 
+## The PARITY GATE — a human approves every screen
+
+When Dev signals done on a Figma phase, the Orchestrator (1) **file-checks** every screen (`bash .harness/require …/parity-sheet.png …/diff-pct.txt` — a claim without script-generated files is not done), then (2) renders the gate: `bash .harness/parity-review .harness/artifacts/parity` — a page with **design left, render right**, the heatmap, and an `approve | needs changes` verdict + comment box **per screen**. The user clicks Copy reply and pastes back:
+
+```
+PARITY REVIEW
+[chart-screen] approve
+[watchlist] needs-changes: header spacing too tight; CTA color wrong
+```
+
+All approve → QA dispatch. Any needs-changes → the verbatim block goes to Dev (`.harness/answer dev`), Dev fixes those screens, regenerates their sheets, gate repeats. Under `--auto` the page is skipped; the file check never is.
+
 ## After approval — parity is locked
 
 The approved renders ARE the goldens. Every later chunk/phase/fix keeps
