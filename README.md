@@ -1,6 +1,6 @@
-# BharatSkills Claude Code Marketplace
+# BharatSkills — Claude Code Plugin Marketplace
 
-A plugin marketplace for Claude Code, distributing skills for development workflows.
+Bharat's curated Claude Code skills for Android, Kotlin Multiplatform, and AI-assisted development workflows — feature analysis, multi-agent dev harnesses, QA automation, KMM migration, PR review, and release tooling. Install once, and the skills auto-trigger inside Claude Code as you work.
 
 ## Available Plugins
 
@@ -37,24 +37,24 @@ A plugin marketplace for Claude Code, distributing skills for development workfl
 ### 2. Install plugins
 
 ```shell
-/plugin install feature-analyzer@bharat-skills
-/plugin install qa-autopilot@bharat-skills
-/plugin install skill-feedback@bharat-skills
-/plugin install clean-code@bharat-skills
-/plugin install skill-tester@bharat-skills
-/plugin install bug-finder@bharat-skills
-/plugin install om-pipeline@bharat-skills
-/plugin install branch-manager@bharat-skills
-/plugin install legacy-refactor@bharat-skills
-/plugin install release@bharat-skills
-/plugin install instructions-feedback@bharat-skills
-/plugin install review-pr@bharat-skills
-/plugin install preview-compose@bharat-skills
-/plugin install kmm-migration-workflow@bharat-skills
-/plugin install sniper-ops@bharat-skills
-/plugin install kmm-qa-autopilot@bharat-skills
-/plugin install retro-triage@bharat-skills
-/plugin install dev-harness@bharat-skills
+/plugin install feature-analyzer@bharatskills
+/plugin install qa-autopilot@bharatskills
+/plugin install skill-feedback@bharatskills
+/plugin install clean-code@bharatskills
+/plugin install skill-tester@bharatskills
+/plugin install bug-finder@bharatskills
+/plugin install om-pipeline@bharatskills
+/plugin install branch-manager@bharatskills
+/plugin install legacy-refactor@bharatskills
+/plugin install release@bharatskills
+/plugin install instructions-feedback@bharatskills
+/plugin install review-pr@bharatskills
+/plugin install preview-compose@bharatskills
+/plugin install kmm-migration-workflow@bharatskills
+/plugin install sniper-ops@bharatskills
+/plugin install kmm-qa-autopilot@bharatskills
+/plugin install retro-triage@bharatskills
+/plugin install dev-harness@bharatskills
 ```
 
 ### 3. Use the skills
@@ -96,7 +96,7 @@ Add this to your project's `.claude/settings.json` to auto-prompt teammates to i
 ```json
 {
   "extraKnownMarketplaces": {
-    "bharat-skills": {
+    "bharatskills": {
       "source": {
         "source": "github",
         "repo": "PalankiBharat/BharatSkills"
@@ -111,10 +111,10 @@ To pre-enable specific plugins:
 ```json
 {
   "enabledPlugins": {
-    "feature-analyzer@bharat-skills": true,
-    "qa-autopilot@bharat-skills": true,
-    "skill-feedback@bharat-skills": true,
-    "clean-code@bharat-skills": true,
+    "feature-analyzer@bharatskills": true,
+    "qa-autopilot@bharatskills": true,
+    "skill-feedback@bharatskills": true,
+    "clean-code@bharatskills": true
   }
 }
 ```
@@ -130,7 +130,7 @@ Users get updates automatically at startup, or manually:
 ## Repository Structure
 
 ```
-claude-code-skills/
+BharatSkills/
 ├── .claude-plugin/
 │   └── marketplace.json              # Marketplace catalog
 ├── plugins/
