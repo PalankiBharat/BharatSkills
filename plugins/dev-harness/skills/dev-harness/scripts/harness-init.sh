@@ -30,8 +30,9 @@ done
 BASE="$(git rev-parse --abbrev-ref HEAD)"
 REMOTE="$(git remote get-url origin 2>/dev/null || echo '')"
 
-DATE="$(date +%Y%m%d)"; RUN_ID="$SLUG-$(date +%Y%m%d-%H%M%S)"; BRANCH="harness/$SLUG-$DATE"
-WIN="harness-$SLUG-$DATE"   # tmux window name carries the branch identity
+DATE="$(date +%Y%m%d)"; RUN_ID="$SLUG-$(date +%Y%m%d-%H%M%S)"
+BRANCH="$SLUG"              # the branch IS the slug — plain and readable, no harness prefix/date (user standard)
+WIN="harness-$SLUG-$DATE"   # the tmux window keeps the harness- prefix so harness windows stay identifiable
 
 # Preflight only the tools the requested live features actually need.
 preflight() {
