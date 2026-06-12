@@ -3,7 +3,7 @@
 Each run is isolated by a **git worktree**; a cross-run **registry** tracks status + liveness.
 
 ## Per run
-- `run-id` = `<slug>-<timestamp>`; branch `harness/<slug>-<date>`.
+- `run-id` = `<slug>-<timestamp>`; branch = `<slug>` verbatim (plain and readable — no harness prefix, no date).
 - `/harness --worktree` → `harness-init.sh` creates `git worktree add .harness-worktrees/<run-id>` (own checkout + own `.harness/`), tmux session `harness-<run-id>`, and runs inside it. Git's worktree lockfiles prevent two runs clobbering the same tree.
 - Each run needs its **own booted emulator** (QA can't share a phone); if none is free that run's QA is `blocked`.
 

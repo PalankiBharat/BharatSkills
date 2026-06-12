@@ -2,11 +2,9 @@
 
 **Purpose.** Phase I is a **closed autonomous `/loop`** that runs in-skill agent-device A/B parity QA and converges the heatmap checklist to all-green — fixing every parity-restoring bug **through the workflow** as it goes. **This is the final phase.** Phase I does **not** hand the PR to a separate QA skill; the migration skill now runs parity QA itself, deterministically, against the frozen runtime golden.
 
-**The contract is behavioral equivalence for a trading app.** Computed financial values (P&L, totals, order values, derived prices) must match **to the digit**. That forces the verification design: **deterministic replay of the frozen golden is the primary path** — frozen wires in, exact computed-value diff out, no market-movement false positives, R8/serialization exercised on real payloads. **Live A/B with narrow masking is the exception**, used only for un-recordable streaming surfaces. See `references/runtime-golden.md` (capture, PII gate, masking, replay-vs-live) and `references/agent-device.md` (command surface, `.ad` scripts, checkpoint format, subagent-mediation) — this phase cites those, it does not restate them.
+**The contract is behavioral equivalence for a trading app.** Computed financial values (P&L, totals, order values, derived prices) must match **to the digit**. That forces the verification design: **deterministic replay of the frozen golden is the primary path** — frozen wires in, exact computed-value diff out, no market-movement false positives, R8/serialization exercised on real payloads (R8 specifically at the I.2.8 Release pass). **Live A/B with narrow masking is the exception**, used only for un-recordable streaming surfaces. See `references/runtime-golden.md` (capture, PII gate, masking, replay-vs-live) and `references/agent-device.md` (command surface, `.ad` scripts, checkpoint format, subagent-mediation) — this phase cites those, it does not restate them.
 
 **The loop reuses the migration's discipline — it does not bypass it.** Every parity-restoring fix routes through §Late-change discipline (failing-test-first → subagent edit → green → exception-if-behavior-shifts → commit → retro). The loop **schedules** that discipline per iteration; it never live-patches. A behavior-shifting fix, dependency change, plan-flip, eviction, or mutating/real-money journey **pauses** the loop at a human gate.
-
-(The standalone `kmm-qa-autopilot` skill still exists as a separate, optional, user-triggered tool, but it is **no longer the Phase I mechanism** — Phase I is self-contained.)
 
 **Inputs:** `pr.md` (PR URL, recorded at G.4), `review.md` (Phase H), `heatmap.md`, `journeys.md`, the frozen `golden/` tree, `validation.md`, `plan.md`, `coverage.md`, `project.md`.
 
@@ -19,7 +17,7 @@
 Done once before the first iteration; nothing here repeats inside the loop body.
 
 1. **Reuse the PR URL from `pr.md`** (recorded at G.4) directly — do **not** re-query `gh pr view --json` (a jq-quoting flake cost a needless detour in a prior session). If G.4 only emitted `pr-body.md` for a manual open, prompt the user for the PR URL once it's up.
-2. **Build both APKs as ProductionRelease (R8).** Master baseline + migrated head, both the shipped R8-minified artifact (never Debug — debug skips R8 and false-greens serialization migrations, per `references/runtime-golden.md`). **Master is built ONCE and reused** across all iterations; **only the migrated side rebuilds after a fix**.
+2. **Build APKs per the two-stage flavor policy.** The iteration loop runs on **`ProductionDebug`** so logcat is available for diagnosis; the binding final-sanity pass runs on **`ProductionRelease`** (R8 — see I.2.8). Build **master ProductionDebug ONCE** and reuse it across all iterations; **only the migrated `ProductionDebug` side rebuilds after a fix**. The `ProductionRelease` pair is built later, at I.2.8, not here. Any single A/B comparison uses the **same flavor on both legs** (master-Debug vs migrated-Debug in the loop; master-Release vs migrated-Release at I.2.8) — never cross-flavor.
 3. **Open agent-device session(s)** (subagent-mediated, per `references/agent-device.md` §Subagent-mediation; every command device-scoped). **For live-A/B journeys only**, perform the **single manual prod login** — the sole manual step; the session persists across iterations via **force-stop + relaunch, never `clearState`**. **Replay journeys need NO login** (frozen wires carry the authenticated responses).
 4. **Seed per-journey `.ad` probes from the catalog.** Each `journeys.md` entry → an agent-device `.ad` script that drives the interaction **invoking the migrated logic** (not just opening the screen), each paired with its frozen golden under `golden/<journey>/`. Per-journey `.ad` probes are recorded via `agent-device record` (deferred replay-mechanism research); `scripts/ad-capture.sh` is used during the loop to capture each checkpoint into the normalized JSON that `compare-golden.py` consumes. The `.ad` + golden are the durable, reusable QA assets (replay subsequent iterations).
 
@@ -38,8 +36,8 @@ The skill drives this as the `/loop` body (see I.3). One pass over all pending j
    1. **Failing-test-first** — the divergence becomes a red, KMM-portable baseline-style test proving the bug. No fix before the red test.
    2. **Surgical subagent edit** — every edit via a dispatched subagent (never the orchestrator, per SKILL.md §Subagent-mediated execution). Make the red test green.
    3. **Migration-exception BEFORE the edit if it touches a frozen / `migrated` / `promoted` baseline or the frozen golden** — the orchestrator creates/confirms the `.kmm/exceptions/*.md` entry (under `Authorizes.baseline-edit`) **before dispatching**, because the `frozen_baseline_guard` hook does not fire on subagent calls (per SKILL.md §Migration-exception process and `references/runtime-golden.md` §Freeze protection). Commit carries `[migration-exception <id>]`.
-   4. **Commit** (two-commit cadence), then **re-validate at the Phase F.6 mechanical scope** — surgical (≤5 LOC, single file, no new types/signatures) → F.3 + F.5 smoke; non-surgical → full F.1. Announce the scope + one-line justification.
-   5. **Rebuild only the migrated APK** (master is untouched, never rebuilt) and **re-run only the affected probe** — not the whole catalog.
+   4. **Commit** (two-commit cadence), then **re-validate at the Phase F.6 mechanical scope** — surgical (≤5 LOC, single file, no new types/signatures) → F.3 (build + tests) only; non-surgical → full F.1. Announce the scope + one-line justification.
+   5. **Rebuild only the migrated `ProductionDebug` APK** (master Debug is untouched, never rebuilt) and **re-run only the affected probe** — not the whole catalog. (Exception: when the bug was surfaced by the I.2.8 Release pass, rebuild the migrated `ProductionRelease` APK instead — see I.2.8.)
    6. **Retro entry** for the fix (the loop keeps learning per iteration).
 5. **PAUSE at a gate** (do not fix autonomously; surface and wait) when the fix:
    - **shifts observable behavior** → migration-exception **+ explicit user sign-off** before proceeding;
@@ -50,6 +48,7 @@ The skill drives this as the `/loop` body (see I.3). One pass over all pending j
    When the right process isn't obvious, surface to the user — never improvise around a gate (per SKILL.md §When in doubt).
 6. **Update outputs:** the heatmap Result cells + the `qa.md` bug-fixing log (repro, failing test, fix, exception ref, re-validation scope, commit SHA).
 7. **(Conditional) iOS forward-check.** If an iOS UI path **consumes the migrated commonMain code this session**, drive the same journey on the iOS simulator via agent-device and assert **crash-free + the computed output matches the frozen golden** (the same commonMain logic, consumed from iOS, must produce the same numbers). This is a *forward* check only — there is no pre-migration iOS behavior to A/B against. **No consuming iOS path → a named gap** recorded in `qa.md`. (The deterministic test for "an iOS UI path consumes the migrated code this session," and iOS replay-vs-forward, are defined by research spike **R4** — forward-reference it; do not invent the detector here.)
+8. **(Loop-exit gate) ProductionRelease final-sanity A/B.** **Run once, after the Debug iteration loop (steps 1–7) has converged to all-🟢 across every journey — not per iteration.** A green ProductionDebug loop is **necessary but not sufficient** — Debug skips R8, which can strip `@Serializable` keep rules that only fail under Release, producing serialization false-greens (per `references/runtime-golden.md`). So before the completion promise can be emitted: build the **master + migrated `ProductionRelease`** pair (R8-minified shipped artifact), and re-run **every catalog journey's replay probe** master-Release vs migrated-Release with `compare-golden.py` exact-diff. **Parity is NOT declared green until this Release pass is all-🟢.** A Release-only divergence (green in Debug, red in Release) is a real parity bug — diagnose and fix it through the same I.2.4 workflow (its failing-test-first proof runs against the Release artifact), then rebuild the migrated Release side and re-run the affected Release probe. The master Release APK is built once and reused like the Debug master.
 
 ### I.3 — Convergence: the `/loop` completion promise
 
@@ -57,12 +56,13 @@ The skill drives I.2 via the harness **`/loop` mechanism**, with the completion 
 
 **Completion promise (emitted ONLY when genuinely true; verbatim):**
 
-> Every catalog journey is 🟢 with a real anchor reached, zero open 🔴, zero ⚪-indeterminate, the iOS forward-check passed-or-is-a-named-gap, and any remaining finding is an explicitly user-deferred recorded follow-up.
+> Every catalog journey is 🟢 with a real anchor reached **on the ProductionRelease A/B pass (I.2.8)**, zero open 🔴, zero ⚪-indeterminate, the iOS forward-check passed-or-is-a-named-gap, and any remaining finding is an explicitly user-deferred recorded follow-up.
 
 **Convergence guards (non-negotiable):**
 - **Max-iterations safety cap.** If the loop cannot converge within the cap, it **PAUSES and surfaces** the open rows — it **never false-passes** to escape. A stuck loop ends in a human gate, not a green wall.
 - **Anti-false-exit guards.** Empty baseline↔PR diff = **hard stop** (I.1). Anchor-absent-on-both = **⚪, not 🟢** (I.2.2). A ⚪ row is never counted toward green.
 - **Emitting the completion promise while it is not genuinely true is prohibited.** A false promise to escape the loop is the single worst failure mode this phase guards against — the promise is a factual claim about the heatmap, not a loop-exit convenience.
+- **Release-sanity is binding.** The completion promise may not be emitted on Debug-loop greenness alone — the ProductionRelease A/B pass (I.2.8) must be all-🟢 first. A Debug-green / Release-red state is an open 🔴.
 
 Only when the promise is genuinely true (or every remaining row is an explicit, recorded user-deferral) does the loop exit to I.4.
 
@@ -111,3 +111,4 @@ Beyond universals:
 - **Convergence** is on the verbatim completion promise, or the loop **pauses at the max-iterations cap** — it never false-passes. Anti-false-exit guards (empty-diff hard stop; anchor-absent-on-both = ⚪) hold.
 - **iOS forward-check passed-or-named-gap.**
 - Phase I retro captured (blocking) and session-end consolidation run before the session is declared complete.
+- **ProductionDebug for the loop, ProductionRelease for the binding final-sanity** — parity is not green until the I.2.8 Release A/B pass is all-🟢 (Debug skips R8 → serialization false-greens).

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# File-based watchdog: wakes a never-woke role ONCE, stays quiet for an alive role, escalates a stuck
-# role via check-in -> escalate, and wakes the orchestrator when the in_flight role settles.
+# File-based watchdog: wakes a never-woke role (re-sent on a WAKE_RETRY cadence while still silent),
+# stays quiet for an alive role, escalates a stuck role via check-in -> escalate, and wakes the
+# orchestrator when the in_flight role settles.
 . "$(dirname "$0")/_assert.sh"
 HERE="$(cd "$(dirname "$0")" && pwd)"; . "$HERE/../scripts/lib.sh"
 WD="$HERE/../scripts/watchdog.sh"
@@ -20,16 +21,24 @@ EOF
 }
 tag() { grep -c "^$1" "$WL"; }
 
-# 1) NEVER WOKE -> exactly one WAKE (marker prevents repeats), no escalation yet
+# 1) NEVER WOKE -> exactly one WAKE inside the retry window (default WAKE_RETRY is 5m), no escalation yet
 new_root
 set_status "$ROOT" dev working          # status now; worklog/activity older -> no activity since dispatch
 bash "$WD" "$ROOT" "%orch" & W=$!; sleep 4; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
 assert_eq "$(tag WAKE)" "1"
 
+# 1b) STILL NEVER WOKE past WAKE_RETRY -> the wake is RE-SENT (a dropped boot-time nudge must not stall the run)
+new_root
+export WATCHDOG_WAKE_RETRY=1
+set_status "$ROOT" dev working
+bash "$WD" "$ROOT" "%orch" & W=$!; sleep 5; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
+[ "$(tag WAKE)" -ge 2 ] || _FAIL "never-woke role must be re-woken after WAKE_RETRY"
+unset WATCHDOG_WAKE_RETRY
+
 # 2) ALIVE -> stay quiet (recent worklog activity after dispatch)
 new_root
 set_status "$ROOT" dev working
-sleep 1; : > "$ROOT/dev/worklog.md"     # activity AFTER dispatch -> woke + alive
+sleep 2; : > "$ROOT/dev/worklog.md"     # activity a full second AFTER dispatch (deterministic mtime gap) -> woke + alive
 bash "$WD" "$ROOT" "%orch" & W=$!; sleep 2; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
 assert_eq "$(tag WAKE)" "0"
 assert_eq "$(tag CHECKIN)" "0"
@@ -55,11 +64,19 @@ proj="$(mktemp -d)"; mkdir -p "$proj/slug"; sid="sess-xyz"
 export WATCHDOG_PROJECTS_DIR="$proj" WATCHDOG_STUCK=2 WATCHDOG_CHECKIN_GRACE=2
 echo "$sid" > "$ROOT/qa/session"
 set_status "$ROOT" qa working
-: > "$proj/slug/$sid.jsonl"              # transcript fresh AFTER dispatch -> woke
+sleep 2; : > "$proj/slug/$sid.jsonl"    # transcript a full second AFTER dispatch (deterministic) -> woke
 bash "$WD" "$ROOT" "%orch" & W=$!
 for i in 1 2 3 4 5 6; do sleep 1; : > "$proj/slug/$sid.jsonl"; done   # transcript keeps advancing
 touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
 unset WATCHDOG_PROJECTS_DIR
 assert_eq "$(tag WAKE)" "0"
 assert_eq "$(tag CHECKIN)" "0"          # transcript activity => never "stuck" despite stale worklog
+
+# 6) SWEEP -> periodic full-pane reconcile wakes the orchestrator regardless of in_flight
+new_root
+export WATCHDOG_SWEEP_INTERVAL=2
+set_status "$ROOT" dev working
+bash "$WD" "$ROOT" "%orch" & W=$!; sleep 5; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
+[ "$(tag SWEEP)" -ge 1 ] || _FAIL "periodic sweep must wake the orchestrator"
+unset WATCHDOG_SWEEP_INTERVAL
 echo OK
