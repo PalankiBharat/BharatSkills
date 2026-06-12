@@ -99,7 +99,7 @@ Both stored in session folder so the PR can be regenerated or referenced post-me
 
 Beyond universals:
 
-- Phase F complete (`validation.md` status `complete`) — automated checks + crash-free smoke. (No manual-QA sign-off gate; parity QA is Phase I.)
+- Phase F complete (`validation.md` status `complete`) — automated checks. (No runtime smoke or manual-QA sign-off gate; parity QA is Phase I.)
 - PR body has no process bleed (workflow internals invisible), is concise/value-driven, and **embeds the heatmap as a pre-merge QA checklist** in the QA section.
 - User confirms before PR opens.
 - `pr-body.md` (never `pr.md`) is the `--body-file` source.

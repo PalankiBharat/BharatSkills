@@ -1,10 +1,10 @@
 # Phase F — Validation
 
-**Purpose.** Prove the migration is structurally sound and behavior-preserving *as far as automated checks can show*, then hand a clean, installable build to Phase G (PR), Phase H (code-review intake), and Phase I (parity QA). Multi-layered automated sanity check: code, docs, build, tests, pre-merge integration — plus a runtime-crash smoke. **Behavioral parity QA is NOT in this phase** — it runs in-skill at Phase I, as an autonomous agent-device replay loop against the frozen runtime golden. Any blocker here → loop back through the relevant prior phase → re-validate.
+**Purpose.** Prove the migration is structurally sound and behavior-preserving *as far as automated static checks can show*, then hand a clean, installable build to Phase G (PR), Phase H (code-review intake), and Phase I (parity QA). Multi-layered automated sanity check: code, docs, build, tests, pre-merge integration. **Behavioral parity QA — and any runtime exercise of the app — is NOT in this phase**; it runs in-skill at Phase I, as an autonomous agent-device replay loop against the frozen runtime golden. Any blocker here → loop back through the relevant prior phase → re-validate.
 
-**What moved out of Phase F.** The old F.6 user-driven manual-QA gate and F.7 "migration complete" sign-off are gone. Parity QA now happens post-PR, in the Phase I loop, off the frozen golden + the embedded heatmap. Phase F's job is: *does it build on both platforms, are the baselines green, does it integrate with the latest base branch, and does it launch without crashing?* The heatmap is still **drafted** here (F.5) because Phase G embeds it into the PR body and the Phase I loop consumes it (filling its Result cells).
+**What moved out of Phase F.** The old F.6 user-driven manual-QA gate and F.7 "migration complete" sign-off are gone. The runtime-crash smoke is also gone — Phase I's parity loop launches and drives the app, so a separate launch smoke here is redundant (and Phase I would catch a dead build on its first iteration anyway). Phase F's job is now purely static + build-time: *does it build on both platforms, are the baselines green, and does it integrate with the latest base branch?* The heatmap is still **drafted** here (F.5) because Phase G embeds it into the PR body and the Phase I loop consumes it (filling its Result cells).
 
-**The smoke test stays — as a runtime-crash gate, not a QA walk.** Its only job is to confirm the build installs and runs without crashing, so we don't hand a dead build to the Phase I parity loop and burn a full parity cycle (two ProductionRelease APKs + agent-device session) only to crash on launch. It is not a behavioral walk and does not gate on user-visible behavior.
+**No Android device is required for Phase F.** Removing the smoke removes Phase F's Android device/emulator dependency. Two conditional requirements remain: the `iosSimulatorArm64Test` baseline run in F.3 needs a **booted iOS simulator** (only when the host supports iOS testing / Phase E promoted baselines to `commonTest`), and the HTTP-parity checks in F.3 that use `agent-device network` need a device **only when the project produced a timeout/server-registration table in Phase A**. Surface either requirement at the start of F.3, not after a long build.
 
 **Inputs:** all prior session files (`scope.md` through `move.md`, status complete), `project.md`, `searches/`, `git diff <base>..HEAD`, `project.md.git.pr_merge_policy`.
 
@@ -54,7 +54,7 @@ Held files (`androidMain`) skip the SKIE surface review — they're not exposed 
 - Baseline suites green:
   - `<dest>/androidUnitTest` — baselines for held files + any feature-surface baselines that stayed.
   - `<dest>/commonTest` (if Phase E ran) — baselines for promoted files.
-  - `<dest>/iosSimulatorArm64Test` (or equivalent, if host supports) — same commonTest baselines on iOS runtime. **Requires a provisioned + booted simulator device** (see F.5 note) — a cold/missing sim yields a misleading "Xcode does not support simulator tests" error, not a code failure.
+  - `<dest>/iosSimulatorArm64Test` (or equivalent, if host supports) — same commonTest baselines on iOS runtime. **Requires a provisioned + booted simulator device** (provision + boot it before this task) — a cold/missing sim yields a misleading "Xcode does not support simulator tests" error, not a code failure.
 - Full `:app/src/test/` unit test suite (regression check — pre-existing tests untouched apart from Phase B import updates).
   - **Baseline against the MERGE-BASE (fork point), not `origin/<base>`.** `origin/master` may itself be non-compiling or red — diffing against it manufactures phantom regressions. Use `git merge-base HEAD origin/<base>` as the comparison point. **If the base can't compile its tests, replicate the branch's known compile-exclusions on the baseline before diffing** so it's apples-to-apples (a prior session found both `origin/master` and the fork-base failed `:app:compileProductionDebugUnitTestKotlin`, so the suite was non-compilable *before* this branch — only after replicating the exclusion did a clean HEAD-vs-fork diff prove 0 regressions). Generalize this "the baseline may itself be broken" handling.
   - **When the full suite hangs on a pre-existing pathological test, bound the run** to the enumerated failing/relevant set + a structural diff argument — don't fight a hang that predates the branch (one app test pegged a worker at ~100% CPU for 27 min with no output). Pair with the gradle timeout-with-grace wrapper (SKILL.md Tooling discipline) so a hang can't run for hours.
@@ -83,20 +83,11 @@ Held files (`androidMain`) skip the SKIE surface review — they're not exposed 
 
 If conflicts surface: user resolves; skill assists with diff-confirm. Recon first (cheap `merge`/divergence/sibling-ripple scan) **before** launching the expensive full build — don't blind-build a conflicted or leaky integration.
 
-### F.5 — Runtime-crash smoke + heatmap draft (in parallel)
-
-**Smoke test (Sonnet subagent, via `agent-device`) — runtime-crash gate only, NOT a behavioral walk.** See `references/agent-device.md` for the full command surface and subagent-mediation pattern.
-- **Check `agent-device apps` FIRST** (or `adb devices` for Android-only context). If no device/emulator is connected, surface it and boot one *before* building — never discover "no device" after a ~15-min build. (Emulator binary may not be on PATH; project.md records the AVD names + path.)
-- Build the ProductionRelease APK (the shipped, R8-minified artifact — never Debug; debug skips R8 and false-greens serialization migrations) and install on the device.
-- Launch via `agent-device open <bundle-id>`; take a snapshot with `agent-device snapshot -i`; assert known stable state (e.g., the app shell or splash element is visible: `agent-device assert <ref> role <expected-role>`). Login/OTP-gated deep walks are user territory — the smoke does not attempt them. **The launch smoke cannot exercise post-login serialization paths**, so R8/ProductionRelease serialization runtime parity (the kotlinx keep-rule + decode behavior on real payloads) is **explicitly deferred to Phase I parity QA** — a crash-free launch is not evidence of serialization parity.
-- **Crash evidence gate:** collect `agent-device logs --pid <app-pid>` scoped to the launch window. Any unhandled exception, ANR, or crash appended to the session log by agent-device is a hard blocker. Goal met = installs + `open` succeeds + snapshot reaches known state + logs contain no crash.
-- Output: `agent-device snapshot` result + `agent-device logs` excerpt. The subagent does NOT back-gesture walk (back-gestures exit the app and invalidate the check).
-
-**Heatmap draft (Opus subagent, in parallel).**
+### F.5 — Heatmap draft
 
 Drafted as a **pre-QA checklist** that Phase G embeds into the PR body and the Phase I parity loop consumes. Result column starts `TBD` and is **never** pre-filled — it is filled during the in-skill parity QA (Phase I), not here.
 
-**Primary source: `journeys.md`.** Each row in the heatmap maps directly to one entry in the journey catalog. The Opus subagent reads `journeys.md` (produced by Phase A) and renders one heatmap row per journey, carrying a pointer to that journey's frozen golden reference (the `golden/<journey>/` directory under the session's migration root). diff-derived behavior discovery is no longer the primary source here — it lives in Phase A as the coverage cross-check that validates `journeys.md` is complete.
+**Primary source: `journeys.md`.** Each row in the heatmap maps directly to one entry in the journey catalog. An **Opus subagent** reads `journeys.md` (produced by Phase A) and renders one heatmap row per journey, carrying a pointer to that journey's frozen golden reference (the `golden/<journey>/` directory under the session's migration root). diff-derived behavior discovery is no longer the source here — it lives in Phase A as the coverage cross-check that validates `journeys.md` is complete.
 
 Format (tickable markdown saved as `heatmap.md`):
 
@@ -116,15 +107,14 @@ Any failure in F.1–F.5 → **Opus** categorizes:
 | API drift | Phase D fix |
 | Quality issue | Phase D code edit |
 | Build / test failure | Investigate, Phase D fix |
-| Smoke crash | Phase D fix, or Phase D plan flip to `hold` via D.3 |
 | Integration conflict / leak | Resolve in F.4; re-run |
 
 **Re-validation scope after fix — depends on fix surface area:**
 
-- **Surgical fix (≤5 LOC, single file, no new types / methods / public-API signatures):** re-run F.3 (build + tests, incl. JUnit-XML execution check) + F.5 smoke. **Skip** F.1 (goal/doc consistency unchanged), F.2 (code quality, single-file is trivially reviewable), F.4 (pre-merge integration — only if the base moved since the last F.4). Example: changing a single timeout literal, fixing one off-by-one, swapping one constant.
+- **Surgical fix (≤5 LOC, single file, no new types / methods / public-API signatures):** re-run F.3 (build + tests, incl. JUnit-XML execution check) only. **Skip** F.1 (goal/doc consistency unchanged), F.2 (code quality, single-file is trivially reviewable), F.4 (pre-merge integration — only if the base moved since the last F.4). Example: changing a single timeout literal, fixing one off-by-one, swapping one constant.
 - **Non-surgical fix (≥6 LOC, multiple files, new identifiers introduced, or behavioral diff beyond the immediate fix):** return to F.1, re-validate fully. No partial re-validation.
 
-Skill announces which scope it's using before re-running, with one-line justification (e.g., *"Surgical: 1-line socket timeout swap, re-running F.3 + F.5 only"*). User can override with `re-run fully` or `re-run targeted`. **The threshold is mechanical, derivable from the diff** — not a judgment call to be made under fatigue.
+Skill announces which scope it's using before re-running, with one-line justification (e.g., *"Surgical: 1-line socket timeout swap, re-running F.3 only"*). User can override with `re-run fully` or `re-run targeted`. **The threshold is mechanical, derivable from the diff** — not a judgment call to be made under fatigue.
 
 When all F passes → `validation.md` status complete → proceed to Phase G (PR). **There is no manual-QA sign-off here** — parity QA is Phase I, post-PR. (Provenance note: also run the exception-provenance check now, so orphan exceptions surface before Phase G composes the body — see phase-g.)
 
@@ -147,5 +137,5 @@ Beyond universals:
 - Every F sub-phase passes (or has documented exception).
 - Test green-ness is confirmed via JUnit-XML execution + counts, not "BUILD SUCCESSFUL" alone.
 - F.4 integration uses the operation dictated by `project.md.git.pr_merge_policy` (merge for squash-merge repos), and conflict detection uses that same operation.
-- Smoke confirms the ProductionRelease build installs + launches **crash-free**; `heatmap.md` is drafted with `TBD` cells and never pre-filled (it's filled during Phase I parity QA).
+- `heatmap.md` is drafted with `TBD` cells and never pre-filled (it's filled during Phase I parity QA). Phase F runs no runtime smoke — the build's runtime health is established by the Phase I parity loop.
 - `validation.md` status `complete` before Phase G. **No manual-QA sign-off gate** — parity QA is Phase I, post-PR.

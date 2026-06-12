@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# File-based watchdog: wakes a never-woke role ONCE, stays quiet for an alive role, escalates a stuck
-# role via check-in -> escalate, and wakes the orchestrator when the in_flight role settles.
+# File-based watchdog: wakes a never-woke role (re-sent on a WAKE_RETRY cadence while still silent),
+# stays quiet for an alive role, escalates a stuck role via check-in -> escalate, and wakes the
+# orchestrator when the in_flight role settles.
 . "$(dirname "$0")/_assert.sh"
 HERE="$(cd "$(dirname "$0")" && pwd)"; . "$HERE/../scripts/lib.sh"
 WD="$HERE/../scripts/watchdog.sh"
@@ -20,11 +21,19 @@ EOF
 }
 tag() { grep -c "^$1" "$WL"; }
 
-# 1) NEVER WOKE -> exactly one WAKE (marker prevents repeats), no escalation yet
+# 1) NEVER WOKE -> exactly one WAKE inside the retry window (default WAKE_RETRY is 5m), no escalation yet
 new_root
 set_status "$ROOT" dev working          # status now; worklog/activity older -> no activity since dispatch
 bash "$WD" "$ROOT" "%orch" & W=$!; sleep 4; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
 assert_eq "$(tag WAKE)" "1"
+
+# 1b) STILL NEVER WOKE past WAKE_RETRY -> the wake is RE-SENT (a dropped boot-time nudge must not stall the run)
+new_root
+export WATCHDOG_WAKE_RETRY=1
+set_status "$ROOT" dev working
+bash "$WD" "$ROOT" "%orch" & W=$!; sleep 5; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
+[ "$(tag WAKE)" -ge 2 ] || _FAIL "never-woke role must be re-woken after WAKE_RETRY"
+unset WATCHDOG_WAKE_RETRY
 
 # 2) ALIVE -> stay quiet (recent worklog activity after dispatch)
 new_root

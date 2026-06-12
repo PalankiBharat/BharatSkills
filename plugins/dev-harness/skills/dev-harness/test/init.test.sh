@@ -50,6 +50,8 @@ assert_file "$T/.harness/dev/activity.log"
 assert_file "$T/.harness/answer"
 assert_file "$T/.harness/require"
 assert_file "$T/.harness/resume"
+assert_file "$T/.harness/figma-parity"
+assert_file "$T/.harness/parity-review"
 bash "$T/.harness/send" dev "ANALYSE: do the thing"
 assert_eq "$(cat "$T/.harness/dev/inbox.md")" "ANALYSE: do the thing"
 assert_eq "$(cat "$T/.harness/dev/status")" "working"
@@ -58,6 +60,9 @@ assert_contains "$(cat "$T/.harness/story.md")" "Make it pop"
 assert_file "$T/.harness/log.md"
 assert_file "$T/.harness/state.json"
 assert_contains "$(cat "$T/.harness/state.json")" "demo"
+# git coordinates are pinned at init so no agent works from memory mid-run
+assert_contains "$(cat "$T/.harness/state.json")" "\"base\":"
+assert_contains "$(cat "$T/.harness/state.json")" "\"remote\":"
 # .harness/ must be gitignored (security rail)
 assert_contains "$(cat "$T/.gitignore")" ".harness/"
 # the run is registered in the cross-run registry (v2)

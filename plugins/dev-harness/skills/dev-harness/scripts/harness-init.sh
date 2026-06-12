@@ -25,8 +25,14 @@ done
 [ -n "$STORY" ] && [ -n "$SLUG" ] || { echo "usage: harness-init.sh --story <s> --slug <slug>" >&2; exit 2; }
 [ -d .git ] || { echo "run from a git repo root" >&2; exit 2; }
 
-DATE="$(date +%Y%m%d)"; RUN_ID="$SLUG-$(date +%Y%m%d-%H%M%S)"; BRANCH="harness/$SLUG-$DATE"
-WIN="harness-$SLUG-$DATE"   # tmux window name carries the branch identity
+# Pin the run's git coordinates BEFORE any branch is created — agents have pushed to the
+# wrong fork and rebased onto the wrong base when these were recalled from memory mid-run.
+BASE="$(git rev-parse --abbrev-ref HEAD)"
+REMOTE="$(git remote get-url origin 2>/dev/null || echo '')"
+
+DATE="$(date +%Y%m%d)"; RUN_ID="$SLUG-$(date +%Y%m%d-%H%M%S)"
+BRANCH="$SLUG"              # the branch IS the slug — plain and readable, no harness prefix/date (user standard)
+WIN="harness-$SLUG-$DATE"   # the tmux window keeps the harness- prefix so harness windows stay identifiable
 
 # Preflight only the tools the requested live features actually need.
 preflight() {
@@ -116,6 +122,19 @@ for f in "$@"; do [ -s "$f" ] || { echo "MISSING/EMPTY: $f" >&2; miss=1; }; done
 exit $miss
 EOF
 chmod +x "$ROOT/require"
+# Figma parity: `bash .harness/figma-parity export|diff …` — design-vs-render sheet + DIFF_PCT.
+cat > "$ROOT/figma-parity" <<EOF
+#!/usr/bin/env bash
+exec bash "$HERE/figma-parity.sh" "\$@"
+EOF
+chmod +x "$ROOT/figma-parity"
+# Parity gate page: `bash .harness/parity-review .harness/artifacts/parity` — design|render
+# per screen with a verdict + comment each; the user pastes the PARITY REVIEW block back.
+cat > "$ROOT/parity-review" <<EOF
+#!/usr/bin/env bash
+exec env HARNESS_ROOT="$ROOT" bash "$HERE/render-parity.sh" "\$@"
+EOF
+chmod +x "$ROOT/parity-review"
 # Resume after a session reset: `bash .harness/resume` restarts the orchestrator pane if it's alive.
 cat > "$ROOT/resume" <<EOF
 #!/usr/bin/env bash
@@ -124,8 +143,8 @@ EOF
 chmod +x "$ROOT/resume"
 printf '%s\n' "$STORY" > "$ROOT/story.md"
 printf '# Orchestrator ledger\n\n- init  run=%s  branch=%s\n' "$RUN_ID" "$BRANCH" > "$ROOT/log.md"
-printf '{"run_id":"%s","slug":"%s","branch":"%s","stage":"init","phase":null,"in_flight":null,"heartbeat":"%s"}\n' \
-  "$RUN_ID" "$SLUG" "$BRANCH" "$(date -u +%FT%TZ)" > "$ROOT/state.json"
+printf '{"run_id":"%s","slug":"%s","branch":"%s","base":"%s","remote":"%s","stage":"init","phase":null,"in_flight":null,"heartbeat":"%s"}\n' \
+  "$RUN_ID" "$SLUG" "$BRANCH" "$BASE" "$REMOTE" "$(date -u +%FT%TZ)" > "$ROOT/state.json"
 
 registry_add "$RUN_ID" "$PWD" "$PWD" "$BRANCH" "$WIN"   # cross-run registry (v2)
 
@@ -157,23 +176,28 @@ if [ "$DO_TMUX" -eq 1 ]; then
     exit 6; }
   trust_workdir "$PWD"; trust_workdir "$(pwd -P)"
   SBX=""; [ "$DO_SANDBOX" -eq 1 ] && SBX="HARNESS_SANDBOX=1 "
-  # A NEW window in the CURRENT session, named after the branch. Pane 0 = live log.
-  tmux new-window -n "$WIN" -c "$PWD" "exec tail -f '$ROOT/log.md'" \
+  # A NEW window in the CURRENT session, named after the branch. The grid is FIXED at
+  # 2 columns x 3 rows (the user's standard — never `tiled`, which reshapes with the
+  # terminal, and never a question to the user). Needs tmux >= 3.1 for `-l N%`.
+  #   left:  log | tech-lead | dev      right: orchestrator | qa | architect
+  logp="$(tmux new-window -n "$WIN" -c "$PWD" -P -F '#{pane_id}' "exec tail -f '$ROOT/log.md'")" \
     || { echo "could not open the harness window (terminal too small?)" >&2; exit 7; }
-  # The Orchestrator pane — the visible, persistent driver (claude --agent orchestrator).
-  # It replaces the old invisible main-session driver, so it can never "kill itself".
-  opid="$(tmux split-window -t "$WIN" -c "$PWD" -P -F '#{pane_id}' "${SBX}exec bash '$HERE/agent-pane.sh' orchestrator" 2>/dev/null)" \
-    || { echo "could not split the harness window for the orchestrator (terminal too small for 6 panes?)" >&2; exit 7; }
-  printf '%s\n' "$opid" > "$ROOT/orchestrator/pane"
-  tmux select-layout -t "$WIN" tiled >/dev/null 2>&1 || true
-  # One pane per agent — a visible interactive Claude as that persona. Record each pane id.
-  for r in tech-lead dev qa architect; do
-    pid="$(tmux split-window -t "$WIN" -c "$PWD" -P -F '#{pane_id}' "${SBX}exec bash '$HERE/agent-pane.sh' $r" 2>/dev/null)" \
-      || { echo "could not split the harness window for '$r' (terminal too small for 6 panes?)" >&2; exit 7; }
-    printf '%s\n' "$pid" > "$ROOT/$r/pane"
-    tmux select-layout -t "$WIN" tiled >/dev/null 2>&1 || true
-  done
-  tmux select-layout -t "$WIN" tiled >/dev/null 2>&1 || true
+  # Split a parent pane into a role's persona pane and record its id: <role> <parent> <-h|-v> <size>
+  role_pane() {
+    local role="$1" parent="$2" dir="$3" size="$4" pid
+    pid="$(tmux split-window "$dir" -l "$size" -t "$parent" -c "$PWD" -P -F '#{pane_id}' "${SBX}exec bash '$HERE/agent-pane.sh' $role" 2>/dev/null)" \
+      || { echo "could not split the harness window for '$role' (terminal too small for the 2x3 grid?)" >&2; exit 7; }
+    printf '%s\n' "$pid" > "$ROOT/$role/pane"
+    printf '%s\n' "$pid"
+  }
+  # The Orchestrator pane — the visible, persistent driver (claude --agent orchestrator) —
+  # opens the right column. It replaces the old invisible main-session driver.
+  opid="$(role_pane orchestrator "$logp" -h '50%')"
+  # Three even rows per column: the first split takes 66% of the column, the second 50% of that.
+  tlp="$(role_pane tech-lead "$logp" -v '66%')"
+  role_pane dev "$tlp" -v '50%' >/dev/null
+  qap="$(role_pane qa "$opid" -v '66%')"
+  role_pane architect "$qap" -v '50%' >/dev/null
 
   # Self-start the driver: write its standing order, let Claude boot, then nudge it.
   # From here the main session is LAUNCHER-ONLY — it must not also drive state.json.

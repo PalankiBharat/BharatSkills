@@ -7,15 +7,17 @@
 # WRITES are nudges (send-keys) — never reads.
 #
 # Per `working` role:
-#   - never woke (no activity since dispatch, past boot grace) -> ONE wake nudge.
+#   - never woke (no activity since dispatch, past boot grace) -> a wake nudge, RE-SENT every
+#     WAKE_RETRY while still silent (a single wake can be dropped while the pane is still booting).
 #   - alive (recent activity)                                  -> stay quiet.
 #   - stuck (working but no activity > STUCK)                  -> ONE gentle check-in;
 #       still no activity after CHECKIN_GRACE                  -> ESCALATE to the user (via orchestrator).
 # Plus: when the in_flight role SETTLES (done|blocked) -> wake the orchestrator. Self-reaps when the
 # orchestrator pane disappears. Stops on <root>/.stop-watchdog.
 #
-# Test seams: WATCHDOG_INTERVAL, WATCHDOG_BOOT_GRACE, WATCHDOG_STUCK, WATCHDOG_CHECKIN_GRACE, and
-# WATCHDOG_WAKE_CMD (called with a tagged message instead of tmux; also disables self-reap/skip-real-send).
+# Test seams: WATCHDOG_INTERVAL, WATCHDOG_BOOT_GRACE, WATCHDOG_STUCK, WATCHDOG_CHECKIN_GRACE,
+# WATCHDOG_WAKE_RETRY, and WATCHDOG_WAKE_CMD (called with a tagged message instead of tmux; also
+# disables self-reap/skip-real-send).
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; . "$HERE/lib.sh"   # HARNESS_ROLES
 ROOT="${1:?usage: watchdog.sh <root> <orchestrator-pane>}"
@@ -28,6 +30,7 @@ BOOT_GRACE="${WATCHDOG_BOOT_GRACE:-30}"
 # after sustained silence across ALL liveness signals.
 STUCK="${WATCHDOG_STUCK:-1800}"            # 30m of no activity before a gentle check-in
 CHECKIN_GRACE="${WATCHDOG_CHECKIN_GRACE:-600}"   # +10m re-confirmed silence before escalating
+WAKE_RETRY="${WATCHDOG_WAKE_RETRY:-300}"   # re-send the wake every 5m while a dispatched role has never woken
 PROJECTS_DIR="${WATCHDOG_PROJECTS_DIR:-$HOME/.claude/projects}"
 # Periodic full-pane SWEEP: every SWEEP_INTERVAL, regardless of in_flight, report every
 # role's status+activity and nudge the orchestrator to RECONCILE ALL panes. This is the
@@ -95,9 +98,12 @@ while :; do
     p="$(pane_of "$r")"; [ -n "$p" ] || continue
 
     if [ "$act" -le "$smt" ]; then
-      # never woke since dispatch. After boot grace, send ONE wake (marker prevents repeats per dispatch).
+      # never woke since dispatch. After boot grace, wake — and RE-wake every WAKE_RETRY while still
+      # silent: a wake sent while the pane is still booting claude gets dropped (observed 33-40 min
+      # of dead time per incident when the single wake was lost).
       [ $(( now - smt )) -lt "$BOOT_GRACE" ] && continue
-      [ "$(_mtime "$ROOT/$r/.wd-wake")" -gt "$smt" ] && continue   # already woke this dispatch
+      wmt="$(_mtime "$ROOT/$r/.wd-wake")"
+      [ "$wmt" -gt "$smt" ] && [ $(( now - wmt )) -lt "$WAKE_RETRY" ] && continue
       : > "$ROOT/$r/.wd-wake"
       send_pane "$p" "WAKE Read .harness/$r/inbox.md and do exactly that now; first append a 'started' line to .harness/$r/worklog.md; when finished run: bash .harness/done $r"
       continue
