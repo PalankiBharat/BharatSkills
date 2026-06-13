@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Claude Code skills for Android development workflows — feature analysis, QA automation, and more.",
-    "version": "1.46.0",
+    "version": "1.47.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -399,6 +399,37 @@
         "diff hprof",
         "heap diff",
         "sniper"
+      ]
+    },
+    {
+      "name": "kmm-pipeline",
+      "source": "./plugins/kmm-pipeline",
+      "description": "End-to-end resumable KMM feature migration for sniper-v2-android — scope (graphify) to merged PR: human-gated parity contract and plan, live-docs research with mandatory citations (KMM platform knowledge fetched fresh; project knowledge owned and self-updated in the plugin's knowledge base every phase), TDD git-mv migration with surgical-edit law, Punch iOS wiring via SKIE/CMP, 9-lane cross-platform parity QA (Maestro on both platforms, R8 release gate, observable-surface diff), two-lens adversarial review, and PreToolUse guard hooks that hard-block copy-instead-of-move, platform-affix names, comment additions, .broken/@Ignore test silencing, CancellationException swallowing, raw viewModelScope.launch in commonMain, schema edits, and pre-release versions while a migration is ACTIVE.",
+      "version": "1.1.0",
+      "category": "migration",
+      "tags": [
+        "kmm",
+        "kotlin-multiplatform",
+        "migration",
+        "android",
+        "ios",
+        "shared-module",
+        "parity",
+        "tdd",
+        "orchestration",
+        "resume"
+      ],
+      "keywords": [
+        "migrate to kmm",
+        "kmm migration",
+        "kmm pipeline",
+        "port to shared",
+        "commonMain",
+        "ios parity",
+        "resume migration",
+        "kmm qa",
+        "kmm review",
+        "expect actual"
       ]
     },
     {
