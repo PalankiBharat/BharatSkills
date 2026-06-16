@@ -43,4 +43,4 @@ Dev pair: no cap (bounded by the plan's chunks). QA fix: **7**/phase. Architect:
 | acting as a team role | `agents/manish.md` · `agents/bharat.md` · `agents/rohit.md` · `agents/mohit.md` |
 
 ## Scope
-v1.5: full single-run phased pipeline. **v2 (built):** opt-in OS sandbox (`--sandbox`, see `references/sandbox.md`), themed review pages, and the multi-run core (`--worktree` + cross-run registry + heartbeat + per-run lock, see `references/multirun.md`). **Still deferred:** auto-raising skill-feedback PRs; the reattach/picker flow is smoke-only.
+v1.5: full single-run phased pipeline. **v2 (built):** opt-in OS sandbox (`--sandbox`, see `references/sandbox.md`), themed review pages, and the multi-run core — **every run is isolated in its own git worktree + `.harness/` by default** (cross-run registry + heartbeat + per-run lock, see `references/multirun.md`), so concurrent runs in one repo never collide. **Still deferred:** auto-raising skill-feedback PRs; the reattach/picker flow is smoke-only.
