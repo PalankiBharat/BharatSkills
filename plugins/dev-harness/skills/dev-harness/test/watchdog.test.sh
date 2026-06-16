@@ -78,5 +78,18 @@ export WATCHDOG_SWEEP_INTERVAL=2
 set_status "$ROOT" dev working
 bash "$WD" "$ROOT" "%orch" & W=$!; sleep 5; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
 [ "$(tag SWEEP)" -ge 1 ] || _FAIL "periodic sweep must wake the orchestrator"
+# log.md dedup: status never changed across the run -> exactly ONE SWEEP line (the reconcile
+# pane message above still fired every interval; only the log append is deduped)
+assert_eq "$(grep -c '| SWEEP ' "$ROOT/log.md")" "1"
+unset WATCHDOG_SWEEP_INTERVAL
+
+# 7) SWEEP dedup writes a NEW line when a status actually changes
+new_root
+export WATCHDOG_SWEEP_INTERVAL=1
+set_status "$ROOT" dev working
+bash "$WD" "$ROOT" "%orch" & W=$!
+sleep 2; set_status "$ROOT" dev done      # status flips mid-run -> a second SWEEP line
+sleep 2; touch "$ROOT/.stop-watchdog"; sleep 1; kill $W 2>/dev/null || true
+[ "$(grep -c '| SWEEP ' "$ROOT/log.md")" -ge 2 ] || _FAIL "a status change must emit a new SWEEP line"
 unset WATCHDOG_SWEEP_INTERVAL
 echo OK
