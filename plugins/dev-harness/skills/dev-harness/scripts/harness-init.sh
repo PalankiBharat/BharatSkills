@@ -63,6 +63,7 @@ HR="$(cd "$(dirname "$0")" && pwd)"
 case "$STATE" in done|blocked) ;; *) echo "state must be done|blocked" >&2; exit 2 ;; esac
 printf '%s\n' "$STATE" > "$HR/$ROLE/status"
 printf '%s [%s] sentinel: %s\n' "$(date +%H:%M:%S)" "$ROLE" "$STATE" >> "$HR/$ROLE/worklog.md"
+printf '%s ← %-9s %s\n' "$(date +%H:%M:%S)" "$ROLE" "$STATE" >> "$HR/log.md" 2>/dev/null || true
 DONE
 chmod +x "$ROOT/done"
 # Path-independent driver wrappers so the Orchestrator persona dispatches/polls with

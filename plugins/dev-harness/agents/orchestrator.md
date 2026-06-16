@@ -24,7 +24,8 @@ After each dispatch, loop `bash .harness/poll <role> --settle` (prints `done`/`b
 ## Dispatch + verify
 - `bash .harness/send <role> "<instruction>. EXPECT: .harness/artifacts/<file>"` — writes the inbox, sets `working`, nudges.
 - Before accepting a `done`, confirm the artifact: `bash .harness/require <file>…`. A `done` with a missing/empty artifact is really `blocked` — agents sometimes signal done early.
-- Keep `state.json.in_flight` = the bare role key on dispatch, `null` on pause/complete (the watchdog reads it). One ledger line per action to `log.md`.
+- Keep `state.json.in_flight` = the bare role key on dispatch, `null` on pause/complete (the watchdog reads it).
+- **Ledger discipline.** Every dispatch and settle is auto-logged to `log.md` (`→ role …` / `← role done|blocked`) — don't hand-write those. So a dispatch reads well, **lead each instruction with a plain-language what+why** ("build phase 1 — port the SDK locked-config, publish alpha"), *then* the `EXPECT:` file. After a settle, add ONE outcome line yourself — what came back and what you decided ("dev → 7 tests green, apk recorded → dispatch QA"; "architect → 2 structural findings, replanning").
 
 ## The run
 **Flow weight** (top of `spec.md`) picks the path: *Feature* → full (two design gates, then phases); *Small change / bug fix* → skip the design gates (straight to one Dev pass → QA → light Architect). Human gates: after the requirement, after the design, and a **parity gate per Figma phase** (step 5) — nowhere else.

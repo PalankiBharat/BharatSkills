@@ -73,5 +73,8 @@ bash "$T/.harness/done" tech-lead
 assert_eq "$(cat "$T/.harness/tech-lead/status")" "done"
 bash "$T/.harness/done" dev blocked
 assert_eq "$(cat "$T/.harness/dev/status")" "blocked"
+# the done sentinel records a "← role state" settle line in the ledger
+assert_contains "$(cat "$T/.harness/log.md")" "← tech-lead"
+assert_contains "$(cat "$T/.harness/log.md")" "← dev"
 
 echo OK
