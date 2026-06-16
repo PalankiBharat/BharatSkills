@@ -8,7 +8,7 @@ set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"; . "$HERE/lib.sh"
 CLAUDE_BIN="${CLAUDE_BIN:-/opt/homebrew/bin/claude}"   # never the zsh shell-function
 
-STORY="" SLUG="" SERIAL="" DO_BRANCH=1 DO_TMUX=1 DO_EMU=1 DO_SANDBOX=0 DO_WORKTREE=0
+STORY="" SLUG="" SERIAL="" DO_BRANCH=1 DO_TMUX=1 DO_EMU=1 DO_SANDBOX=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --story) STORY="$2"; shift 2 ;;
@@ -18,7 +18,7 @@ while [ $# -gt 0 ]; do
     --no-tmux) DO_TMUX=0; shift ;;
     --no-emulator) DO_EMU=0; shift ;;
     --sandbox) DO_SANDBOX=1; shift ;;
-    --worktree) DO_WORKTREE=1; shift ;;
+    --worktree) shift ;;   # accepted for back-compat — worktree isolation is now the DEFAULT
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -30,7 +30,7 @@ done
 BASE="$(git rev-parse --abbrev-ref HEAD)"
 REMOTE="$(git remote get-url origin 2>/dev/null || echo '')"
 
-DATE="$(date +%Y%m%d)"; RUN_ID="$SLUG-$(date +%Y%m%d-%H%M%S)"
+DATE="$(date +%Y%m%d)"; RUN_ID="$SLUG-$(date +%Y%m%d-%H%M%S)-$$"   # PID keeps RUN_ID unique even for two same-slug runs in the same second
 BRANCH="$SLUG"              # the branch IS the slug — plain and readable, no harness prefix/date (user standard)
 WIN="harness-$SLUG-$DATE"   # the tmux window keeps the harness- prefix so harness windows stay identifiable
 
@@ -44,12 +44,18 @@ preflight() {
 }
 preflight
 
-if [ "$DO_WORKTREE" -eq 1 ]; then
-  WORKTREE_DIR="$PWD/.harness-worktrees/$RUN_ID"
-  git worktree add -b "$BRANCH" "$WORKTREE_DIR" 2>/dev/null || git worktree add "$WORKTREE_DIR"
+MAIN_REPO="$PWD"   # remember the main checkout before we cd into the worktree
+if [ "$DO_BRANCH" -eq 1 ]; then
+  # EVERY real run gets its OWN git worktree + its OWN .harness/ — so two runs in the same
+  # repo never share a checkout or clobber each other's state. (The old in-place `git
+  # checkout -b` switched the single shared checkout, so a second run silently stole the
+  # first's branch, state.json, and panes.) `--no-branch` keeps the scriptable in-place path.
+  WORKTREE_DIR="$MAIN_REPO/.harness-worktrees/$RUN_ID"
+  # branch = slug (plain/readable); if it already exists (a second same-slug run or a re-run)
+  # use the unique RUN_ID instead — git refuses to check out one branch in two worktrees.
+  git show-ref --verify --quiet "refs/heads/$BRANCH" && BRANCH="$RUN_ID"
+  git worktree add -b "$BRANCH" "$WORKTREE_DIR"
   cd "$WORKTREE_DIR"
-elif [ "$DO_BRANCH" -eq 1 ]; then
-  git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
 fi
 ROOT="$PWD/.harness"
 
@@ -147,10 +153,11 @@ printf '# Orchestrator ledger\n\n- init  run=%s  branch=%s\n' "$RUN_ID" "$BRANCH
 printf '{"run_id":"%s","slug":"%s","branch":"%s","base":"%s","remote":"%s","stage":"init","phase":null,"in_flight":null,"heartbeat":"%s"}\n' \
   "$RUN_ID" "$SLUG" "$BRANCH" "$BASE" "$REMOTE" "$(date -u +%FT%TZ)" > "$ROOT/state.json"
 
-registry_add "$RUN_ID" "$PWD" "$PWD" "$BRANCH" "$WIN"   # cross-run registry (v2)
+registry_add "$RUN_ID" "$MAIN_REPO" "$PWD" "$BRANCH" "$WIN"   # cross-run registry (v2): repo, worktree
 
+# .harness/ lives in this run's checkout ($PWD); .harness-worktrees/ lives in the MAIN repo.
 grep -q '^\.harness/$' .gitignore 2>/dev/null || printf '\n.harness/\n' >> .gitignore
-grep -q '^\.harness-worktrees/$' .gitignore 2>/dev/null || printf '.harness-worktrees/\n' >> .gitignore
+grep -q '^\.harness-worktrees/$' "$MAIN_REPO/.gitignore" 2>/dev/null || printf '.harness-worktrees/\n' >> "$MAIN_REPO/.gitignore"
 
 if [ "$DO_EMU" -eq 1 ]; then
   if [ -z "$SERIAL" ]; then SERIAL="$(pick_serial "$(adb devices)")"; fi
