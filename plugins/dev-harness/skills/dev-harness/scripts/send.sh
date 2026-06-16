@@ -35,7 +35,8 @@ set_status "$ROOT" "$ROLE" working
   _art="${_art##*/}"
   _body="$(printf '%s' "$MSG" | head -1 \
             | sed -e 's/[[:space:]]*EXPECT:.*//' -e 's#\.harness/[^ ]*##g' \
-            | sed -e 's/  */ /g' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | cut -c1-100)"
+            | sed -e 's/  */ /g' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  _body="${_body:0:100}"                      # char-based cap (bash is UTF-8-aware; never splits a glyph)
   _sum="$_body"; [ -n "$_art" ] && _sum="$_body  ⇒ $_art"
   printf '%s → %-9s %s\n' "$(date +%H:%M:%S)" "$ROLE" "$_sum" >> "$ROOT/log.md"
 } || true
