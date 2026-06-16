@@ -26,6 +26,21 @@ printf '%s' "$MSG" > "$ROOT/$ROLE/inbox.md.tmp"
 mv "$ROOT/$ROLE/inbox.md.tmp" "$ROOT/$ROLE/inbox.md"
 set_status "$ROOT" "$ROLE" working
 
+# Ledger: record the dispatch in plain language — WHAT the role was told to do, with the
+# file/EXPECT plumbing stripped and the produced artifact kept as a "⇒ <file>" suffix.
+# Best-effort and AFTER the dispatch is committed (inbox + status), so a sed/awk hiccup can
+# never break a dispatch.
+{
+  _art="$(printf '%s' "$MSG" | sed -n 's/.*EXPECT:[[:space:]]*//p' | awk 'NR==1{print $1}')"
+  _art="${_art##*/}"
+  _body="$(printf '%s' "$MSG" | head -1 \
+            | sed -e 's/[[:space:]]*EXPECT:.*//' -e 's#\.harness/[^ ]*##g' \
+            | sed -e 's/  */ /g' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  _body="${_body:0:100}"                      # char-based cap (bash is UTF-8-aware; never splits a glyph)
+  _sum="$_body"; [ -n "$_art" ] && _sum="$_body  ⇒ $_art"
+  printf '%s → %-9s %s\n' "$(date +%H:%M:%S)" "$ROLE" "$_sum" >> "$ROOT/log.md"
+} || true
+
 # NUDGE the role's pane. Do NOT gate on $TMUX: the Orchestrator runs as a Claude pane
 # whose Bash-tool env has NO $TMUX, yet `tmux send-keys` reaches the running server via
 # the default socket. Gating on $TMUX silently dropped every dispatch (roles never woke).

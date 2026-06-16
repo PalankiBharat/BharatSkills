@@ -71,6 +71,7 @@ pane_of() { cat "$ROOT/$1/pane" 2>/dev/null; }
 
 settle_last=""
 sweep_last="$(_now)"   # first sweep one full interval after boot (panes are still starting)
+sweep_sig_last=""      # last status-signature written to log.md (dedup: skip unchanged sweeps)
 while :; do
   sleep "$INTERVAL"
   [ -f "$ROOT/.stop-watchdog" ] && break
@@ -81,12 +82,18 @@ while :; do
   # ---- periodic SWEEP: reconcile ALL panes (runs before any early `continue` below) ----
   if [ $(( now - sweep_last )) -ge "$SWEEP_INTERVAL" ]; then
     sweep_last="$now"
-    report=""
+    report=""; sig=""
     for r in $HARNESS_ROLES; do
       st="?"; [ -f "$ROOT/$r/status" ] && st="$(tr -d '\n' < "$ROOT/$r/status")"
       report="$report$r=$st($(( now - $(last_activity "$r") ))s) "
+      sig="$sig$r=$st "                       # status only, no elapsed seconds
     done
-    printf '%s | SWEEP %s\n' "$(date -u +%FT%TZ)" "$report" >> "$ROOT/log.md"
+    # Only append to log.md when a status actually changed — an idle Gate wait no longer
+    # spams identical lines. The reconcile pane message below ALWAYS fires (safety net).
+    if [ "$sig" != "$sweep_sig_last" ]; then
+      printf '%s | SWEEP %s\n' "$(date -u +%FT%TZ)" "$report" >> "$ROOT/log.md"
+      sweep_sig_last="$sig"
+    fi
     send_pane "$OPANE" "SWEEP Reconcile ALL panes now — re-read each role's status file (not memory): $report. Handle any done/blocked you haven't acted on; if you stopped polling, resume. Don't stop until the run is done, blocked, or needs the user."
   fi
 

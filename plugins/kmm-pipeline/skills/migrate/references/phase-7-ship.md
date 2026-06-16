@@ -1,0 +1,13 @@
+# Phase 7 — Ship
+
+Goal: merged PR, durable learnings recorded, state archived. QA + review verdicts are PASS before this phase starts.
+
+1. **Integrate base.** `git merge origin/<base>` in the worktree (squash-merge repo — merge, never rebase published work). Conflicts touching moved files: resolve, then RE-RUN qa lanes 1-4 and 9 (the contract-free subset) by dispatching kmm-qa-verifier per lane — verify via JUnit XML/artifacts, never a hand-run partial gate. Lane 9's baselines-executed assertion (count ≥ pre-move) is the specific check these merges silently break.
+2. **Knowledge ship.** Final harvest pass over the whole migration (per-phase commits should already exist — verify): every durable learning is in the plugin's `knowledge/` files. Then execute the UPDATE PROTOCOL's ship-time step (`knowledge/learnings.md` owns it): push the `knowledge(<slug>):` commits, `claude plugin update kmm-pipeline`, open the plugin-repo PR. Write `retro.md` in the state dir (friction log: false starts, gate misses, prompt gaps) — input for improving the pipeline itself; per state.md, never committed.
+3. **Final hygiene sweep.** `git diff <base>...HEAD --name-only`: every file ∈ plan inventory ∪ contract deliverables ∪ profile update. Anything else gets removed or explained at G4. Run `graphify update .` (repo rule after code changes).
+4. **PR assembly.** Commit flow follows `docs/claude/COMMIT.md` (the repo's user-says-commit conventions: release notes, heat map, message format). PR body: contract summary with per-behavior verification status, QA lane table, review verdict, evidence links, explicit waivers. Post `review-report.md` as a PR comment.
+5. **G4 — ship approval.** Present: PR-ready summary, residual risks, waivers. AskUserQuestion options: open PR + merge when checks green / open PR and stop (user merges) / hold. Journal the `gate` event and set state.json `gates.merge`.
+6. **Open + monitor.** Push, `gh pr create` (base from state.json). Watch checks (`gh pr checks`); CI failures route to kmm-migrator dispatches (≤2 rounds — tighter than the dev-loop 3-strikes because the PR is already public and CI is slow; then G3). Human review comments arriving on the PR: handle via superpowers:receiving-code-review — verify before implementing, push back with evidence when wrong.
+7. **Close-out** (after merge, or after "open and stop"): superpowers:finishing-a-development-branch for worktree/branch cleanup; archive state dir to `.kmm/migrations/_archive/<slug>-<date>/`; remove BOTH `ACTIVE` markers (this disarms the guard); journal `phase-done`. Tell the user what merged, what was waived, and where the retro lives.
+
+Exit: PR merged or explicitly handed off; profile updated; state archived; guard disarmed.

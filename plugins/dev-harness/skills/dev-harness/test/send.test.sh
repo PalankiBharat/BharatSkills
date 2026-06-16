@@ -17,4 +17,14 @@ assert_eq "$(cat "$HARNESS_ROOT/qa/inbox.md")" "test it"
 
 # unknown target refused
 ( "$HERE/../scripts/send.sh" --role hacker --message x --no-nudge 2>/dev/null ) && _FAIL "unknown target refused"
+
+# ledger: a dispatch writes a plain-language "→ role" line, EXPECT/file plumbing stripped,
+# with the produced artifact kept as a "⇒ <basename>" suffix
+"$HERE/../scripts/send.sh" --role dev \
+  --message "build phase 1 — port the SDK locked-config, publish alpha. EXPECT: .harness/artifacts/dev-handoff.md" --no-nudge
+LOG="$(cat "$HARNESS_ROOT/log.md")"
+assert_contains "$LOG" "→ dev"
+assert_contains "$LOG" "build phase 1 — port the SDK locked-config, publish alpha"
+assert_contains "$LOG" "⇒ dev-handoff.md"
+case "$LOG" in *EXPECT*|*.harness/artifacts*) _FAIL "ledger must strip EXPECT/file plumbing";; esac
 echo OK
