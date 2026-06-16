@@ -37,4 +37,24 @@ assert_eq "$(run_lock_acquire demo-2 2222; echo $?)" "0"
 registry_remove demo-1
 case "$(registry_list)" in *demo-1*) _FAIL "demo-1 should be removed" ;; esac
 assert_contains "$(registry_list)" "demo-2"
+
+# --- isolation: two real runs in ONE repo each get their OWN worktree + .harness/ ---
+# (regression for the collision where a second in-place run clobbered the first's branch/state)
+INIT="$HERE/../scripts/harness-init.sh"
+R="$(mktemp -d)"; ( cd "$R" && git init -q && git commit --allow-empty -qm base )
+( cd "$R" && bash "$INIT" --story "first"  --slug run-a --no-tmux --no-emulator >/dev/null )
+( cd "$R" && bash "$INIT" --story "second" --slug run-b --no-tmux --no-emulator >/dev/null )
+# each run owns a separate worktree dir, each with its own state.json on its own slug
+WA="$(ls -d "$R/.harness-worktrees/"run-a* 2>/dev/null)" || _FAIL "run-a worktree missing"
+WB="$(ls -d "$R/.harness-worktrees/"run-b* 2>/dev/null)" || _FAIL "run-b worktree missing"
+[ -n "$WA" ] && [ -n "$WB" ] && [ "$WA" != "$WB" ] || _FAIL "two runs must not share a worktree"
+assert_dir "$WA/.harness"; assert_dir "$WB/.harness"
+assert_eq "$(jq -r .slug "$WA/.harness/state.json")" "run-a"
+assert_eq "$(jq -r .slug "$WB/.harness/state.json")" "run-b"
+# the first run's state is intact after the second run (the bug clobbered it)
+assert_eq "$(jq -r .branch "$WA/.harness/state.json")" "run-a"
+# the main checkout was never switched off its base branch
+assert_eq "$(cd "$R" && git branch --show-current)" "$(cd "$R" && git rev-parse --abbrev-ref HEAD)"
+# two worktrees + the main checkout = 3 entries
+assert_eq "$(cd "$R" && git worktree list | wc -l | tr -d ' ')" "3"
 echo OK
