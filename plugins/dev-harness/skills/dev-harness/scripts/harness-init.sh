@@ -30,7 +30,7 @@ done
 BASE="$(git rev-parse --abbrev-ref HEAD)"
 REMOTE="$(git remote get-url origin 2>/dev/null || echo '')"
 
-DATE="$(date +%Y%m%d)"; RUN_ID="$SLUG-$(date +%Y%m%d-%H%M%S)"
+DATE="$(date +%Y%m%d)"; RUN_ID="$SLUG-$(date +%Y%m%d-%H%M%S)-$$"   # PID keeps RUN_ID unique even for two same-slug runs in the same second
 BRANCH="$SLUG"              # the branch IS the slug — plain and readable, no harness prefix/date (user standard)
 WIN="harness-$SLUG-$DATE"   # the tmux window keeps the harness- prefix so harness windows stay identifiable
 

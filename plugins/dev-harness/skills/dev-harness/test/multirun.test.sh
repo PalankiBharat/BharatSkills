@@ -57,4 +57,11 @@ assert_eq "$(jq -r .branch "$WA/.harness/state.json")" "run-a"
 assert_eq "$(cd "$R" && git branch --show-current)" "$(cd "$R" && git rev-parse --abbrev-ref HEAD)"
 # two worktrees + the main checkout = 3 entries
 assert_eq "$(cd "$R" && git worktree list | wc -l | tr -d ' ')" "3"
+
+# same-slug back-to-back (same second) must still isolate — RUN_ID carries the PID, and a
+# taken branch name falls back to the unique run-id, so neither run aborts or shares a tree
+( cd "$R" && bash "$INIT" --story d1 --slug dup --no-tmux --no-emulator >/dev/null )
+( cd "$R" && bash "$INIT" --story d2 --slug dup --no-tmux --no-emulator >/dev/null )
+assert_eq "$(ls -d "$R/.harness-worktrees/"dup* | wc -l | tr -d ' ')" "2"
+assert_eq "$(cd "$R" && git worktree list | wc -l | tr -d ' ')" "5"
 echo OK
